@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+firebase.json
+firebase-debug.log
+firebase.json
+firebaseConfig.js
