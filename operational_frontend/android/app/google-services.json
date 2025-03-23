@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "132352997002",
+    "firebase_url": "https://corosole-core21-default-rtdb.firebaseio.com",
+    "project_id": "corosole-core21",
+    "storage_bucket": "corosole-core21.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:132352997002:android:50c2a69bda07a31219df73",
+        "android_client_info": {
+          "package_name": "com.core.corosole"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "132352997002-gpv0j05jq4d4m4qteg44tkqn1dv035di.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.core.corosole",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "132352997002-191rb761r7moinacu45nn0iso7e7mf88.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA8oR31wo32kTOZuG9pTB9gsjmcde03dpw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "132352997002-191rb761r7moinacu45nn0iso7e7mf88.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
