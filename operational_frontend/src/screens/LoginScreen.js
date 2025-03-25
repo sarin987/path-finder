@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Text,
   TextInput,
@@ -9,26 +9,29 @@ import {
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import auth from "@react-native-firebase/auth";
-import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { styles } from "../styles/LoginScreenStyles";
+import { sendOTP, verifyOTP, initializeRecaptcha } from '../services/firebaseAuth';
 
 const LoginScreen = ({ navigation }) => {
   const [phone, setPhone] = useState("+91");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
-  const [verificationId, setVerificationId] = useState("");
   const [loading, setLoading] = useState(false);
   const [isOtpLogin, setIsOtpLogin] = useState(true);
   const [userType, setUserType] = useState("Normal User");
   const [batchNumber, setBatchNumber] = useState("");
   const [name, setName] = useState("");
-  const [phoneError, setPhoneError] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [confirmationResult, setConfirmationResult] = useState(null);
+  const [showOTPInput, setShowOTPInput] = useState(false);
 
-  const BACKEND_URL = "http://192.168.14.103:5000"; // Replace with your actual backend URL
+  const BACKEND_URL = "http://localhost:5000";
+
+  useEffect(() => {
+    // Initialize reCAPTCHA when component mounts
+    initializeRecaptcha();
+  }, []);
 
   const validatePhoneNumber = (phone) => {
     if (!phone) return "Phone number is required";
@@ -43,127 +46,86 @@ const LoginScreen = ({ navigation }) => {
     return null;
   };
 
-  const validateForm = () => {
+  const handleSendOTP = async () => {
     const phoneError = validatePhoneNumber(phone);
-    setPhoneError(phoneError);
-    const passwordError = validatePassword(password);
-    setPasswordError(passwordError);
-    return !(phoneError || passwordError);
-  };
-
-  // Send OTP to user's phone number
-  const sendOTP = async () => {
-    if (!validatePhoneNumber(phone)) {
-      Alert.alert("Error", "Please enter a valid phone number");
+    if (phoneError) {
+      setErrors({ phone: phoneError });
       return;
     }
 
-    setLoading(true);
     try {
-      // Request OTP from Firebase
-      const confirmation = await auth().signInWithPhoneNumber(phone);
-      setVerificationId(confirmation.verificationId);
-      setOtpSent(true);
-      Alert.alert("Success", "OTP has been sent to your phone number");
+      setLoading(true);
+      const result = await sendOTP(phone);
+      setConfirmationResult(result);
+      setShowOTPInput(true);
+      Alert.alert('Success', 'OTP sent successfully!');
     } catch (error) {
-      console.error("OTP Send Error:", error);
-      let errorMessage = "Failed to send OTP. Please try again.";
-      
-      if (error.code === 'auth/invalid-phone-number') {
-        errorMessage = "Invalid phone number format.";
-      } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = "Too many attempts. Please try again later.";
-      }
-      
-      Alert.alert("Error", errorMessage);
+      Alert.alert('Error', error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Verify OTP and login the user
-  const handleVerifyOtp = async () => {
+  const handleVerifyOTP = async () => {
     if (!otp) {
-      Alert.alert("Error", "Please enter the OTP");
+      Alert.alert('Error', 'Please enter the OTP');
       return;
     }
 
-    if (!verificationId) {
-      Alert.alert("Error", "Please request an OTP first");
-      return;
-    }
-
-    setLoading(true);
     try {
-      // Verify OTP with Firebase
-      const credential = auth().PhoneAuthProvider.credential(verificationId, otp);
-      const userCredential = await auth().signInWithCredential(credential);
-      const firebaseUid = userCredential.user.uid;
-
-      // Verify with backend
-      const response = await axios.post(`${BACKEND_URL}/api/auth/verify`, {
-        phone,
-        otp,
-        verificationId,
-        firebaseUid
-      });
-
-      const { token, role, lastLocation } = response.data;
-
-      // Store user details
-      await AsyncStorage.setItem("token", token);
-      await AsyncStorage.setItem("role", role);
-      await AsyncStorage.setItem("lastLocation", JSON.stringify(lastLocation || {}));
+      setLoading(true);
+      const user = await verifyOTP(confirmationResult, otp);
+      
+      // Store user data
       await AsyncStorage.setItem("phone", phone);
-
-      // Navigate based on role
-      if (role === "Normal User") {
-        navigation.navigate("Home");
-      } else {
-        navigation.navigate(`${role}Dashboard`);
-      }
+      await AsyncStorage.setItem("role", "Normal User");
+      
+      // Navigate to home screen
+      navigation.replace('Home');
     } catch (error) {
-      console.error("Login Error:", error);
-      let errorMessage = "Failed to login. Please try again.";
-      
-      if (error.code === 'auth/invalid-verification-code') {
-        errorMessage = "Invalid OTP. Please try again.";
-      } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = "Too many attempts. Please try again later.";
-      }
-      
-      Alert.alert("Error", errorMessage);
+      Alert.alert('Error', error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle Login using Phone Number and Password
   const handleLoginWithPassword = async () => {
-    if (!validateForm()) return;
+    const phoneError = validatePhoneNumber(phone);
+    const passwordError = validatePassword(password);
+    
+    if (phoneError || passwordError) {
+      setErrors({ phone: phoneError, password: passwordError });
+      return;
+    }
 
     setLoading(true);
     try {
-      const response = await axios.post(`${BACKEND_URL}/api/auth/login-password`, { 
-        phone,
-        password 
+      const response = await fetch(`${BACKEND_URL}/api/auth/login-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone, password }),
       });
 
-      const { token, role, lastLocation } = response.data;
+      const data = await response.json();
 
-      await AsyncStorage.setItem("token", token);
-      await AsyncStorage.setItem("role", role);
-      await AsyncStorage.setItem("lastLocation", JSON.stringify(lastLocation || {}));
-      await AsyncStorage.setItem("phone", phone);
+      if (data.success) {
+        await AsyncStorage.setItem("token", data.token);
+        await AsyncStorage.setItem("role", data.role);
+        await AsyncStorage.setItem("lastLocation", JSON.stringify(data.lastLocation || {}));
+        await AsyncStorage.setItem("phone", phone);
 
-      if (role === "Normal User") {
-        navigation.navigate("Home");
+        if (data.role === "Normal User") {
+          navigation.navigate("Home");
+        } else {
+          navigation.navigate(`${data.role}Dashboard`);
+        }
       } else {
-        navigation.navigate(`${role}Dashboard`);
+        throw new Error(data.error || 'Login failed');
       }
     } catch (error) {
-      console.error("Password Login Error:", error);
-      Alert.alert("Error", "Invalid phone number or password");
+      Alert.alert("Error", error.message || "Invalid phone number or password");
     } finally {
       setLoading(false);
     }
@@ -177,31 +139,36 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const response = await axios.post(`${BACKEND_URL}/api/auth/role-login`, {
-        phone,
-        batchNumber,
-        name,
-        role: userType
+      const response = await fetch(`${BACKEND_URL}/api/auth/role-login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone,
+          batchNumber,
+          name,
+          role: userType
+        }),
       });
 
-      const { token, role, lastLocation } = response.data;
+      const data = await response.json();
 
-      await AsyncStorage.setItem("token", token);
-      await AsyncStorage.setItem("role", role);
-      await AsyncStorage.setItem("lastLocation", JSON.stringify(lastLocation || {}));
-      await AsyncStorage.setItem("phone", phone);
+      if (data.success) {
+        await AsyncStorage.setItem("token", data.token);
+        await AsyncStorage.setItem("role", data.role);
+        await AsyncStorage.setItem("lastLocation", JSON.stringify(data.lastLocation || {}));
+        await AsyncStorage.setItem("phone", phone);
 
-      navigation.navigate(`${role}Dashboard`);
+        navigation.navigate(`${data.role}Dashboard`);
+      } else {
+        throw new Error(data.error || 'Login failed');
+      }
     } catch (error) {
-      console.error("Role Login Error:", error);
-      Alert.alert("Error", "Invalid credentials or unauthorized access");
+      Alert.alert("Error", error.message || "Invalid credentials or unauthorized access");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleForgotPassword = () => {
-    navigation.navigate("ForgotPassword");
   };
 
   return (
@@ -209,7 +176,11 @@ const LoginScreen = ({ navigation }) => {
       <Text style={styles.title}>Login</Text>
 
       <Text style={styles.label}>Choose Your Role</Text>
-      <Picker selectedValue={userType} style={styles.input} onValueChange={(itemValue) => setUserType(itemValue)}>
+      <Picker 
+        selectedValue={userType} 
+        style={styles.input} 
+        onValueChange={(itemValue) => setUserType(itemValue)}
+      >
         <Picker.Item label="Normal User" value="Normal User" />
         <Picker.Item label="Policeman" value="Policeman" />
         <Picker.Item label="Hospital Emergency" value="Hospital Emergency" />
@@ -217,59 +188,61 @@ const LoginScreen = ({ navigation }) => {
       </Picker>
 
       <Text style={styles.label}>Enter Phone number</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Phone Number"
-        value={phone}
-        onChangeText={(text) => setPhone("+91" + text.slice(3))}
-        keyboardType="phone-pad"
-        maxLength={13}
-        editable={!otpSent}
-      />
-      {phoneError && <Text style={styles.error}>{phoneError}</Text>}
-
-      {userType === "Normal User" && isOtpLogin ? (
+      {!showOTPInput ? (
         <>
-          {!otpSent ? (
-            <TouchableOpacity 
-              style={styles.signInButton} 
-              onPress={sendOTP} 
-              disabled={loading}
-            >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.signInText}>Send OTP</Text>}
-            </TouchableOpacity>
-          ) : (
-            <>
-              <Text style={styles.label}>Enter OTP</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter OTP"
-                value={otp}
-                onChangeText={setOtp}
-                keyboardType="number-pad"
-                maxLength={6}
-              />
-              <TouchableOpacity 
-                style={styles.signInButton} 
-                onPress={handleVerifyOtp} 
-                disabled={loading}
-              >
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.signInText}>Verify OTP</Text>}
-              </TouchableOpacity>
-            </>
-          )}
+          <TextInput
+            style={[styles.input, errors.phone && styles.inputError]}
+            placeholder="Phone Number"
+            value={phone}
+            onChangeText={(text) => setPhone("+91" + text.slice(3))}
+            keyboardType="phone-pad"
+            maxLength={13}
+            editable={!showOTPInput}
+          />
+          {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={handleSendOTP}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? 'Sending...' : 'Send OTP'}
+            </Text>
+          </TouchableOpacity>
         </>
-      ) : userType === "Normal User" && !isOtpLogin ? (
+      ) : (
+        <>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter OTP"
+            value={otp}
+            onChangeText={setOtp}
+            keyboardType="number-pad"
+            maxLength={6}
+          />
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={handleVerifyOTP}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? 'Verifying...' : 'Verify OTP'}
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {userType === "Normal User" && !isOtpLogin && (
         <>
           <Text style={styles.label}>Enter Password</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.password && styles.inputError]}
             placeholder="Password"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
           />
-          {passwordError && <Text style={styles.error}>{passwordError}</Text>}
+          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
           <TouchableOpacity 
             style={styles.signInButton} 
             onPress={handleLoginWithPassword} 
@@ -278,9 +251,8 @@ const LoginScreen = ({ navigation }) => {
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.signInText}>Login</Text>}
           </TouchableOpacity>
         </>
-      ) : null}
+      )}
 
-      {/* Role-Based Login Inputs */}
       {userType !== "Normal User" && (
         <>
           <Text style={styles.label}>Batch Number</Text>
@@ -307,7 +279,6 @@ const LoginScreen = ({ navigation }) => {
         </>
       )}
 
-      {/* Toggle Login Method */}
       {userType === "Normal User" && (
         <TouchableOpacity onPress={() => setIsOtpLogin(!isOtpLogin)}>
           <Text style={styles.linkText}>
@@ -317,7 +288,7 @@ const LoginScreen = ({ navigation }) => {
       )}
 
       {isOtpLogin && userType === "Normal User" && (
-        <TouchableOpacity onPress={handleForgotPassword}>
+        <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
           <Text style={styles.linkText}>Forgot Password?</Text>
         </TouchableOpacity>
       )}
@@ -327,6 +298,9 @@ const LoginScreen = ({ navigation }) => {
           <Text style={styles.linkText}>Don't have an account? Register</Text>
         </TouchableOpacity>
       )}
+
+      {/* Hidden reCAPTCHA container */}
+      <div id="recaptcha-container" style={{ display: 'none' }}></div>
     </ScrollView>
   );
 };
