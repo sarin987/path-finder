@@ -4,12 +4,6 @@ import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-si
 import axios from 'axios';
 import { API_URL } from '../../config';
 
-// Initialize Google Sign-In
-GoogleSignin.configure({
-  webClientId: '132352997002-191rb761r7moinacu45nn0iso7e7mf88.apps.googleusercontent.com', // Replace with your Web Client ID from Google Cloud Console
-  offlineAccess: true,
-});
-
 const GoogleSignInButton = ({ userType, onSignInSuccess, onSignInError }) => {
   const handleGoogleSignIn = async () => {
     try {

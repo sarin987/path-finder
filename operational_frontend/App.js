@@ -10,7 +10,6 @@ export default function App() {
   useEffect(() => {
     GoogleSignin.configure({
       webClientId: '132352997002-191rb761r7moinacu45nn0iso7e7mf88.apps.googleusercontent.com',
-      androidClientId: '132352997002-gpv0j05jq4d4m4qteg44tkqn1dv035di.apps.googleusercontent.com',
       offlineAccess: false,
     });
   }, []);

@@ -7,11 +7,12 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
 import { API_URL } from '../../config';
 
 const RegisterScreen = ({ navigation }) => {
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState('+91');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [gender, setGender] = useState('');
@@ -109,7 +110,7 @@ const RegisterScreen = ({ navigation }) => {
         <Text style={styles.title}>Register</Text>
         <TextInput
           style={styles.input}
-          placeholder="Phone Number"
+          placeholder="Phone Number (with +91)"
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
@@ -127,12 +128,19 @@ const RegisterScreen = ({ navigation }) => {
           onChangeText={setPassword}
           secureTextEntry
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Gender"
-          value={gender}
-          onChangeText={setGender}
-        />
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={gender}
+            onValueChange={(itemValue) => setGender(itemValue)}
+            style={styles.picker}
+            mode="dropdown"
+          >
+            <Picker.Item label="Select Gender" value="" />
+            <Picker.Item label="Male" value="male" />
+            <Picker.Item label="Female" value="female" />
+            <Picker.Item label="Other" value="other" />
+          </Picker>
+        </View>
         <TouchableOpacity style={styles.button} onPress={handleSendOtp}>
           <Text style={styles.buttonText}>Send OTP</Text>
         </TouchableOpacity>
@@ -176,6 +184,17 @@ const RegisterScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  pickerContainer: {
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    backgroundColor: '#fff',
+  },
+  picker: {
+    width: '100%',
+    height: 50,
+  },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',

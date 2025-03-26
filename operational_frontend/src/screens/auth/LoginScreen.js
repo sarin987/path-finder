@@ -14,13 +14,14 @@ import { API_URL } from '../../config';
 
 const LoginScreen = ({ navigation }) => {
   const [role, setRole] = useState('parent');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState('+91');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [verificationId, setVerificationId] = useState(null);
   const [step, setStep] = useState(1);
   const [idNumber, setIdNumber] = useState(''); // For batch ID or license ID
+  const [loginMethod, setLoginMethod] = useState('password'); // Add loginMethod state
 
   const isOfficialRole = role !== 'parent' && role !== 'user';
 
@@ -34,7 +35,17 @@ const LoginScreen = ({ navigation }) => {
     Alert.alert('Error', error);
   };
 
+  const validatePhoneNumber = (phoneNumber) => {
+    // Basic validation for Indian phone numbers
+    const phoneRegex = /^\+91[1-9]\d{9}$/;
+    return phoneRegex.test(phoneNumber);
+  };
+
   const handleSendOtp = async () => {
+    if (!validatePhoneNumber(phone)) {
+      Alert.alert('Error', 'Please enter a valid Indian phone number with +91 prefix');
+      return;
+    }
     try {
       const response = await fetch(`${API_URL}/auth/send-otp`, {
         method: 'POST',
@@ -120,7 +131,7 @@ const LoginScreen = ({ navigation }) => {
         <Text style={styles.title}>Login</Text>
         <TextInput
           style={styles.input}
-          placeholder="Phone Number"
+          placeholder="Phone Number (with +91)"
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
@@ -175,7 +186,7 @@ const LoginScreen = ({ navigation }) => {
         <Text style={styles.title}>Login with OTP</Text>
         <TextInput
           style={styles.input}
-          placeholder="Phone Number"
+          placeholder="Phone Number (with +91)"
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
