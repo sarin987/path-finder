@@ -1,4 +1,4 @@
-package com.operational_frontend
+package com.core.corosole
 
 import android.app.Application
 import com.facebook.react.PackageList

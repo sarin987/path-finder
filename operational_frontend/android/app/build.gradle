@@ -80,7 +80,7 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.operational_frontend"
+    namespace "com.core.corosole"
     defaultConfig {
         applicationId "com.core.corosole"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -118,7 +118,7 @@ dependencies {
     implementation('com.google.firebase:firebase-auth')
     implementation('com.google.firebase:firebase-firestore')
     implementation('com.google.firebase:firebase-database')
-    // implementation('com.google.android.libraries.mapsplatform.secrets-gradle-plugin')
+    implementation('com.google.android.gms:play-services-auth:20.7.0')
     implementation("com.google.android.gms:play-services-maps:19.0.0")
     implementation('com.google.android.libraries.places:places:3.3.0')
 
