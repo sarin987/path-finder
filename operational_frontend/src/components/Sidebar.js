@@ -11,20 +11,33 @@ const Sidebar = (props) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('Component mounted, starting user data fetch');
     const fetchUserData = async () => {
+      console.log('Fetching user data...');
       const currentUser = auth().currentUser;
+      console.log('Current user:', currentUser ? currentUser.uid : 'No user logged in');
       if (currentUser) {
         try {
+          console.log('Fetching user document for UID:', currentUser.uid);
           const userDoc = await firestore().collection('users').doc(currentUser.uid).get();
           if (userDoc.exists) {
+            console.log('User data found:', userDoc.data());
+            console.log('Setting user state with:', userDoc.data());
             setUser(userDoc.data());
           } else {
+            console.log('User document does not exist, setting default user data');
             setUser({ name: 'Unknown User', profilePhoto: '' });
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
+          console.log('Setting default user data due to error');
+          setUser({ name: 'Unknown User', profilePhoto: '' });
         }
+      } else {
+        console.log('No authenticated user, setting default user data');
+        setUser({ name: 'Unknown User', profilePhoto: '' });
       }
+      console.log('User data fetch complete');
       setLoading(false);
     };
 
