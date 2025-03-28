@@ -1,711 +1,412 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
+  SafeAreaView,
   TouchableOpacity,
-  Image,
-  RefreshControl,
   Alert,
-  Modal,
+  StyleSheet,
+  View,
   TextInput,
+  Animated,
   Platform,
-  Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useNavigation } from '@react-navigation/native';
-import { useAuth } from '../../contexts/AuthContext';
-import MapView, { Marker, Circle } from 'react-native-maps';
-import Geolocation from '@react-native-community/geolocation';
 import io from 'socket.io-client';
-import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { useAuth } from '../../contexts/AuthContext';
+import EmergencyMap from '../../components/EmergencyMap';
+import Sidebar from '../../components/Sidebar';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { API_URL } from '../../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Initialize socket connection
-const socket = io('YOUR_BACKEND_URL');
+const DEFAULT_LOCATION = {
+  latitude: 10.8505,
+  longitude: 76.2711,
+  latitudeDelta: 0.0922,
+  longitudeDelta: 0.0421,
+};
 
-const UserDashboard = () => {
-  const navigation = useNavigation();
-  const { user, logout } = useAuth();
+const UserDashboard = ({ navigation }) => {
   const mapRef = useRef(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [location, setLocation] = useState(null);
-  const [nearbyServices, setNearbyServices] = useState({
-    police: [],
-    hospitals: [],
-    ambulances: [],
-  });
-  const [selectedService, setSelectedService] = useState(null);
-  const [chatModalVisible, setChatModalVisible] = useState(false);
-  const [selectedContact, setSelectedContact] = useState(null);
-  const [message, setMessage] = useState('');
-  const [chat, setChat] = useState([]);
-  const [emergencyContacts, setEmergencyContacts] = useState([
-    { id: 1, name: 'City Police Control', phone: '100', type: 'police' },
-    { id: 2, name: 'Emergency Ambulance', phone: '102', type: 'ambulance' },
-    { id: 3, name: 'Fire Department', phone: '101', type: 'fire' },
-  ]);
-  const [recentAlerts, setRecentAlerts] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const socketRef = useRef(null);
+  const { user, logout } = useAuth();
+  
+  // State
+  const [location, setLocation] = useState(DEFAULT_LOCATION);
+  const [nearbyServices, setNearbyServices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isEmergencyActive, setIsEmergencyActive] = useState(false);
+  const sidebarAnimation = useRef(new Animated.Value(-300)).current;
 
+  // Socket connection
   useEffect(() => {
-    loadDashboardData();
-    getLocation();
-    setupSocketListeners();
-
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
-
-  const setupSocketListeners = () => {
-    socket.on('message', (newMessage) => {
-      setChat((prevChat) => [...prevChat, newMessage]);
+    socketRef.current = io(API_URL);
+    
+    socketRef.current.on('connect', () => {
+      console.log('Socket connected');
     });
 
-    socket.on('location_update', (data) => {
+    socketRef.current.on('location_update', (data) => {
       updateNearbyService(data);
     });
-  };
+
+    socketRef.current.on('emergency_accepted', (data) => {
+      Alert.alert(
+        'Help is Coming',
+        `A ${data.type} unit has been dispatched to your location. ETA: ${data.eta} minutes.`
+      );
+    });
+
+    socketRef.current.on('emergency_completed', () => {
+      setIsEmergencyActive(false);
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
 
   const updateNearbyService = (data) => {
     setNearbyServices(prev => ({
       ...prev,
-      [data.type]: prev[data.type].map(service =>
+      [data.type]: prev[data.type]?.map(service =>
         service.id === data.id ? { ...service, location: data.location } : service
-      )
+      ) || []
     }));
-  };
-
-  const getLocation = async () => {
-    try {
-      Geolocation.requestAuthorization();
-      
-      Geolocation.getCurrentPosition(
-        position => {
-          setLocation(position.coords);
-          // Fetch nearby services
-          fetchNearbyServices(position.coords);
-        },
-        error => {
-          Alert.alert('Error', 'Failed to get location');
-          console.error(error);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-      );
-    } catch (error) {
-      Alert.alert('Error', 'Failed to get location');
-      console.error(error);
-    }
   };
 
   const fetchNearbyServices = async (coords) => {
     try {
-      const response = await fetch(`YOUR_API_ENDPOINT/nearby-services?lat=${coords.latitude}&lng=${coords.longitude}`);
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${API_URL}/services/nearby`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          radius: 5000, // 5km radius
+          types: ['hospital', 'police', 'ambulance', 'pharmacy']
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch nearby services');
+      }
+
       const data = await response.json();
-      setNearbyServices(data);
+      setNearbyServices(data.services);
     } catch (error) {
-      console.error('Error fetching nearby services:', error);
+      console.error('Fetch services error:', error);
+      Alert.alert(
+        'Error',
+        'Failed to fetch nearby services. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
-  const loadDashboardData = async () => {
+  const handleLocationChange = async (newLocation) => {
+    setLocation(newLocation);
+    await fetchNearbyServices(newLocation);
+  };
+
+  const handleLogout = async () => {
     try {
-      // TODO: Fetch emergency contacts and recent alerts from API
-      setEmergencyContacts([
-        { id: 1, name: 'Police Control Room', phone: '100' },
-        { id: 2, name: 'Ambulance Service', phone: '102' },
-        { id: 3, name: 'Fire Service', phone: '101' },
-      ]);
-
-      setRecentAlerts([
-        { id: 1, type: 'medical', status: 'resolved', date: '2025-03-26' },
-        { id: 2, type: 'police', status: 'pending', date: '2025-03-25' },
-      ]);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      await logout();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
     } catch (error) {
-      Alert.alert('Error', 'Failed to load dashboard data');
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
     }
   };
 
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    loadDashboardData().finally(() => setRefreshing(false));
-  }, []);
-
-  const handleEmergency = (type) => {
-    navigation.navigate('EmergencyRequest', { type });
+  const handleEmergency = async (type) => {
+    if (isEmergencyActive) {
+      Alert.alert(
+        'Active Emergency',
+        'You already have an active emergency request. Do you want to cancel it?',
+        [
+          { text: 'No', style: 'cancel' },
+          { 
+            text: 'Yes, Cancel',
+            style: 'destructive',
+            onPress: () => cancelEmergency(type)
+          }
+        ]
+      );
+      return;
+    }
+  
+    Alert.alert(
+      'Emergency Alert',
+      `Requesting ${type} service. Do you want to proceed?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Proceed',
+          onPress: () => sendEmergencyRequest(type)
+        }
+      ]
+    );
   };
 
-  const renderEmergencyButton = (type, icon, color) => (
-    <TouchableOpacity
-      style={[styles.emergencyButton, { backgroundColor: color }]}
-      onPress={() => handleEmergency(type)}
-    >
-      <Icon name={icon} size={32} color="white" />
-      <Text style={styles.emergencyButtonText}>{type.toUpperCase()}</Text>
-    </TouchableOpacity>
-  );
-
-  const handleVideoCall = async (contact) => {
-    // Implement WebRTC video call logic
-    navigation.navigate('VideoCall', { contact });
-  };
-
-  const handleImageSend = async () => {
-    const result = await launchImageLibrary({
-      mediaType: 'mixed',
-      quality: 1,
-    });
-
-    if (!result.didCancel && result.assets?.[0]) {
-      // Upload image/video and send in chat
-      socket.emit('media_message', {
-        type: result.assets[0].type,
-        uri: result.assets[0].uri,
-        to: selectedContact.id,
+  const sendEmergencyRequest = async (type) => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      
+      // Emit socket event for real-time tracking
+      socketRef.current?.emit('emergency_request', {
+        type,
+        location,
+        userId: user?.id,
       });
-    }
-  };
-
-  const sendMessage = () => {
-    if (message.trim()) {
-      socket.emit('message', {
-        text: message,
-        to: selectedContact.id,
-        from: user.id,
+  
+      // Also send HTTP request for persistence
+      const response = await fetch(`${API_URL}/emergency/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          type,
+          location,
+          userId: user?.id,
+        }),
       });
-      setMessage('');
+  
+      if (!response.ok) {
+        throw new Error('Failed to send emergency request');
+      }
+  
+      setIsEmergencyActive(true);
+      Alert.alert(
+        'Emergency Request Sent',
+        'Help is on the way. Stay calm and remain at your location.',
+        [{ text: 'OK' }]
+      );
+  
+    } catch (error) {
+      console.error('Emergency request error:', error);
+      Alert.alert(
+        'Error',
+        'Failed to send emergency request. Please try again or call emergency services directly.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+  
+  const cancelEmergency = async (type) => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      
+      socketRef.current?.emit('emergency_cancel', {
+        type,
+        userId: user?.id,
+      });
+  
+      const response = await fetch(`${API_URL}/emergency/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          type,
+          userId: user?.id,
+        }),
+      });
+  
+      if (!response.ok) {
+        throw new Error('Failed to cancel emergency request');
+      }
+  
+      setIsEmergencyActive(false);
+      Alert.alert('Emergency Cancelled', 'Your emergency request has been cancelled.');
+  
+    } catch (error) {
+      console.error('Emergency cancellation error:', error);
+      Alert.alert(
+        'Error',
+        'Failed to cancel emergency request. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
-  const renderMap = () => (
-    <View style={styles.mapContainer}>
-      {location && (
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          initialRegion={{
-            latitude: location.latitude,
-            longitude: location.longitude,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
-          }}
-        >
-          <Marker
-            coordinate={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-            }}
-            title="You are here"
-          />
-          
-          {/* Render nearby services */}
-          {selectedService && nearbyServices[selectedService]?.map((service) => (
-            <Marker
-              key={service.id}
-              coordinate={service.location}
-              title={service.name}
-              description={`${service.type} - ${service.distance}km away`}
-              pinColor={service.type === 'police' ? 'blue' : 'red'}
-            />
-          ))}
-        </MapView>
-      )}
+  const toggleSidebar = () => {
+    const toValue = isSidebarOpen ? -300 : 0;
+    Animated.timing(sidebarAnimation, {
+      toValue,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+    setIsSidebarOpen(!isSidebarOpen);
+  };
 
-      {/* Service Selection Buttons */}
-      <View style={styles.serviceButtons}>
-        <TouchableOpacity
-          style={[styles.serviceButton, selectedService === 'police' && styles.selectedButton]}
-          onPress={() => setSelectedService('police')}
-        >
-          <Icon name="police-badge" size={24} color="white" />
-          <Text style={styles.serviceButtonText}>Police</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.serviceButton, selectedService === 'hospitals' && styles.selectedButton]}
-          onPress={() => setSelectedService('hospitals')}
-        >
-          <Icon name="hospital-building" size={24} color="white" />
-          <Text style={styles.serviceButtonText}>Hospitals</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.serviceButton, selectedService === 'ambulances' && styles.selectedButton]}
-          onPress={() => setSelectedService('ambulances')}
-        >
-          <Icon name="ambulance" size={24} color="white" />
-          <Text style={styles.serviceButtonText}>Ambulances</Text>
-        </TouchableOpacity>
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <TouchableOpacity onPress={toggleSidebar}>
+        <MaterialCommunityIcons name="menu" size={24} color="#000" />
+      </TouchableOpacity>
+      <View style={styles.searchBar}>
+        <MaterialCommunityIcons name="magnify" size={20} color="#666" />
+        <TextInput 
+          style={styles.searchInput}
+          placeholder="Search location..."
+          placeholderTextColor="#666"
+        />
       </View>
     </View>
   );
 
-  const renderContent = () => (
-    <ScrollView
-      style={styles.mainContent}
-      contentContainerStyle={styles.contentContainer}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* User Profile Section */}
-      <View style={styles.profileSection}>
-        {user?.profile_photo ? (
-          <Image
-            source={{ uri: user.profile_photo }}
-            style={styles.profilePhoto}
-          />
-        ) : (
-          <View style={[styles.profilePhoto, styles.defaultProfileIcon]}>
-            <Text style={styles.defaultProfileText}>{user?.name?.[0]?.toUpperCase() || 'U'}</Text>
-          </View>
-        )}
-        <View style={styles.profileInfo}>
-          <Text style={styles.userName}>{user?.name || 'User'}</Text>
-          <Text style={styles.userPhone}>{user?.phone || 'No phone'}</Text>
-        </View>
+  const renderEmergencyPanel = () => (
+    <>
+      <View style={styles.leftEmergencyPanel}>
+        <TouchableOpacity 
+          style={[styles.emergencyButton, { backgroundColor: '#4A90E2' }]}
+          onPress={() => handleEmergency('police')}
+        >
+          <MaterialCommunityIcons name="police-badge" size={24} color="white" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.emergencyButton, { backgroundColor: '#D0021B' }]}
+          onPress={() => handleEmergency('ambulance')}
+        >
+          <MaterialCommunityIcons name="ambulance" size={24} color="white" />
+        </TouchableOpacity>
       </View>
-
-      {/* Emergency Contacts */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Emergency Contacts</Text>
-        {emergencyContacts.map(contact => (
-          <TouchableOpacity
-            key={contact.id}
-            style={styles.contactCard}
-            onPress={() => handleContactPress(contact)}
-          >
-            <View style={styles.contactInfo}>
-              <Icon
-                name={contact.type === 'police' ? 'police-badge' : contact.type === 'ambulance' ? 'ambulance' : 'fire-truck'}
-                size={24}
-                color="#4B7BFF"
-              />
-              <View style={styles.contactText}>
-                <Text style={styles.contactName}>{contact.name}</Text>
-                <Text style={styles.contactPhone}>{contact.phone}</Text>
-              </View>
-            </View>
-            <Icon name="chevron-right" size={24} color="#4B7BFF" />
-          </TouchableOpacity>
-        ))}
+      
+      <View style={styles.rightEmergencyPanel}>
+        <TouchableOpacity 
+          style={[styles.emergencyButton, { backgroundColor: '#F5A623' }]}
+          onPress={() => handleEmergency('fire')}
+        >
+          <MaterialCommunityIcons name="fire-truck" size={24} color="white" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.emergencyButton, { backgroundColor: '#7ED321' }]}
+          onPress={() => handleEmergency('sos')}
+        >
+          <MaterialCommunityIcons name="alert-circle" size={24} color="white" />
+        </TouchableOpacity>
       </View>
-
-      {/* Recent Alerts */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recent Alerts</Text>
-        {recentAlerts.map(alert => (
-          <View key={alert.id} style={styles.alertCard}>
-            <View style={styles.alertHeader}>
-              <Text style={styles.alertType}>{alert.type}</Text>
-              <Text style={styles.alertTime}>{new Date(alert.timestamp).toLocaleString()}</Text>
-            </View>
-            <Text style={styles.alertDescription}>{alert.description}</Text>
-            <View style={[styles.alertStatus, { backgroundColor: alert.status === 'resolved' ? '#4CAF50' : '#FFC107' }]}>
-              <Text style={styles.alertStatusText}>{alert.status}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
-    </ScrollView>
-  );
-
-  const renderChatModal = () => (
-    <Modal
-      visible={chatModalVisible}
-      animationType="slide"
-      onRequestClose={() => setChatModalVisible(false)}
-    >
-      <SafeAreaView style={styles.chatContainer}>
-        <View style={styles.chatHeader}>
-          <TouchableOpacity onPress={() => setChatModalVisible(false)}>
-            <Icon name="close" size={24} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.chatHeaderTitle}>
-            {selectedContact?.name}
-          </Text>
-          <TouchableOpacity onPress={() => handleVideoCall(selectedContact)}>
-            <Icon name="video" size={24} color="#4B7BFF" />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView style={styles.chatMessages}>
-          {chat.map((msg, index) => (
-            <View
-              key={index}
-              style={[
-                styles.messageContainer,
-                msg.from === user.id ? styles.sentMessage : styles.receivedMessage,
-              ]}
-            >
-              <Text style={styles.messageText}>{msg.text}</Text>
-              <Text style={styles.messageTime}>
-                {new Date(msg.timestamp).toLocaleTimeString()}
-              </Text>
-            </View>
-          ))}
-        </ScrollView>
-
-        <View style={styles.chatInputContainer}>
-          <TouchableOpacity onPress={handleImageSend}>
-            <Icon name="camera" size={24} color="#4B7BFF" />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.chatInput}
-            value={message}
-            onChangeText={setMessage}
-            placeholder="Type a message..."
-          />
-          <TouchableOpacity onPress={sendMessage}>
-            <Icon name="send" size={24} color="#4B7BFF" />
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </Modal>
+    </>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {renderMap()}
-      {renderContent()}
-      {renderChatModal()}
+      <EmergencyMap
+        ref={mapRef}
+        onLocationChange={handleLocationChange}
+        initialLocation={location}
+        mapPadding={{ top: 80, right: 0, bottom: 0, left: 0 }}
+        nearbyServices={nearbyServices}
+      />
+      
+      {renderHeader()}
+      {renderEmergencyPanel()}
+      <Sidebar
+        user={user}
+        role={user?.role || 'user'}
+        sidebarAnimation={sidebarAnimation}
+        toggleSidebar={toggleSidebar}
+        navigation={navigation}
+        logout={handleLogout}
+      />
+      {isSidebarOpen && (
+        <TouchableOpacity
+          style={styles.overlay}
+          onPress={toggleSidebar}
+          activeOpacity={1}
+        />
+      )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  defaultProfileIcon: {
-    backgroundColor: '#4285F4',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  defaultProfileText: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
   container: {
     flex: 1,
-    backgroundColor: '#F0F2F5', // Facebook's background color
   },
-  mainContent: {
-    flex: 1,
-  },
-  contentContainer: {
-    flexGrow: 1,
-  },
-  mapContainer: {
-    height: Dimensions.get('window').height * 0.4,
-    width: '100%',
-    position: 'relative',
-  },
-  map: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  serviceButtons: {
+  header: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
+    top: Platform.OS === 'ios' ? 50 : 20,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-  },
-  serviceButton: {
-    backgroundColor: '#4B7BFF',
-    padding: 12,
-    borderRadius: 10,
-    flexDirection: 'row',
+    paddingHorizontal: 16,
     alignItems: 'center',
-    elevation: 3,
+    zIndex: 1,
+  },
+  searchBar: {
     flex: 1,
-    marginHorizontal: 5,
-  },
-  selectedButton: {
-    backgroundColor: '#2C5AE9',
-  },
-  serviceButtonText: {
-    color: 'white',
-    marginLeft: 5,
-    fontWeight: 'bold',
-  },
-  chatContainer: {
-    flex: 1,
+    height: 45,
     backgroundColor: 'white',
-  },
-  chatHeader: {
+    borderRadius: 22,
+    marginHorizontal: 10,
+    paddingHorizontal: 15,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  chatHeaderTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 16,
     color: '#333',
   },
-  chatMessages: {
-    flex: 1,
-    padding: 15,
-  },
-  messageContainer: {
-    maxWidth: '80%',
-    marginVertical: 5,
-    padding: 10,
-    borderRadius: 10,
-  },
-  sentMessage: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#4B7BFF',
-  },
-  receivedMessage: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#E8E8E8',
-  },
-  messageText: {
-    color: 'white',
-    fontSize: 16,
-  },
-  messageTime: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    marginTop: 5,
-  },
-  chatInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#EEE',
-  },
-  chatInput: {
-    flex: 1,
-    marginHorizontal: 10,
-    padding: 10,
-    backgroundColor: '#F5F6FA',
-    borderRadius: 20,
-    fontSize: 16,
-  },
-  profileSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 8,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  },
-  profileImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: '#1877F2',
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1C1E21',
-    letterSpacing: 0.2,
-  },
-  userPhone: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  emergencySection: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 8,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    borderRadius: 8,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1C1E21',
-    marginBottom: 12,
-    letterSpacing: 0.3,
-  },
-  emergencyButtons: {
-    flexDirection: 'row',
+  leftEmergencyPanel: {
+    position: 'absolute',
+    left: 16,
+    bottom: '15%',
     justifyContent: 'space-between',
+    height: 110,
+  },
+  rightEmergencyPanel: {
+    position: 'absolute',
+    right: 16,
+    bottom: '15%',
+    justifyContent: 'space-between',
+    height: 110,
   },
   emergencyButton: {
-    flex: 1,
-    margin: 4,
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
-    backgroundColor: '#1877F2', // Facebook blue
-    elevation: 3,
+    alignItems: 'center',
+    marginVertical: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  emergencyButtonText: {
-    color: 'white',
-    marginTop: 8,
-    fontWeight: 'bold',
-  },
-  contactsSection: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 8,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    borderRadius: 8,
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
-  },
-  contactInfo: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  contactName: {
-    fontSize: 16,
-    color: '#333',
-  },
-  contactPhone: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  alertsSection: {
-    padding: 20,
-    backgroundColor: 'white',
-    marginBottom: 15,
-    elevation: 2,
-  },
-  alertItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
-  },
-  alertInfo: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  alertType: {
-    fontSize: 16,
-    color: '#333',
-  },
-  alertDate: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  alertStatus: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  alertStatusText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  // Chat styles
-  chatContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  chatHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#1877F2',
-    elevation: 4,
-  },
-  chatHeaderTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginLeft: 12,
-  },
-  chatMessages: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: '#F0F2F5',
-  },
-  messageContainer: {
-    maxWidth: '75%',
-    padding: 12,
-    borderRadius: 18,
-    marginBottom: 8,
-  },
-  sentMessage: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#1877F2',
-  },
-  receivedMessage: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
-  },
-  messageText: {
-    fontSize: 15,
-    color: '#FFFFFF',
-    lineHeight: 20,
-  },
-  receivedMessageText: {
-    color: '#1C1E21',
-  },
-  messageTime: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  chatInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E4E6EB',
-  },
-  chatInput: {
-    flex: 1,
-    marginHorizontal: 12,
-    padding: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#F0F2F5',
-    borderRadius: 20,
-    fontSize: 15,
-    color: '#1C1E21',
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 999,
   },
 });
 

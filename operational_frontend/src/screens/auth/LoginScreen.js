@@ -1,44 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
   ScrollView,
+  StatusBar,
+  Alert,
+  ActivityIndicator,
+  Keyboard,
+  Dimensions,
+  Image,
+  TouchableWithoutFeedback,
+  StyleSheet,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
+import LinearGradient from 'react-native-linear-gradient';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { Dropdown } from 'react-native-element-dropdown';
+import LottieView from 'lottie-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import auth from '@react-native-firebase/auth';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { authStyles } from '../../styles/authStyles';
+import { colors } from '../../styles/colors';
 import { API_URL } from '../../config';
+import { ROLES, ROLE_ROUTES } from '../../constants/auth';
+import { AnimatedBackground } from '../../components/AnimatedBackground';
+
+const { width, height } = Dimensions.get('window');
+
+const getColor = (path) => {
+  try {
+    return path.split('.').reduce((obj, key) => obj[key], colors) || colors.primary;
+  } catch (error) {
+    return colors.primary; // fallback color
+  }
+};
 
 const LoginScreen = ({ navigation }) => {
-  const [role, setRole] = useState('parent');
   const [phone, setPhone] = useState('+91');
-  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [verificationId, setVerificationId] = useState(null);
-  const [step, setStep] = useState(1);
-  const [idNumber, setIdNumber] = useState(''); // For batch ID or license ID
-  const [loginMethod, setLoginMethod] = useState('password'); // Add loginMethod state
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [loginMethod, setLoginMethod] = useState('password'); // 'password' or 'otp'
+  const [selectedRole, setSelectedRole] = useState('user');
+  const [showRolePicker, setShowRolePicker] = useState(false);
+  const [batchId, setBatchId] = useState('');
+  const [isFocus, setIsFocus] = useState(false);
+  const [isPasswordLoading, setIsPasswordLoading] = useState(false);
+  const [isOtpLoading, setIsOtpLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const isOfficialRole = role !== 'parent' && role !== 'user';
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: '132352997002-191rb761r7moinacu45nn0iso7e7mf88.apps.googleusercontent.com', // Your web client ID from Google Cloud Console
+      offlineAccess: true,
+    });
+  }, []);
 
-  const handleGoogleSignInSuccess = (data) => {
-    // Store the JWT token
-    // You might want to use AsyncStorage or your preferred storage method
-    navigation.replace('Main');
-  };
-
-  const handleGoogleSignInError = (error) => {
-    Alert.alert('Error', error);
-  };
-
-  const validatePhoneNumber = (phoneNumber) => {
-    // Basic validation for Indian phone numbers
+  const validatePhoneNumber = (phone) => {
     const phoneRegex = /^\+91[1-9]\d{9}$/;
-    return phoneRegex.test(phoneNumber);
+    return phoneRegex.test(phone);
   };
 
   const handleSendOtp = async () => {
@@ -46,237 +69,458 @@ const LoginScreen = ({ navigation }) => {
       Alert.alert('Error', 'Please enter a valid Indian phone number with +91 prefix');
       return;
     }
+
     try {
-      const response = await fetch(`${API_URL}/auth/send-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        setVerificationId(data.sessionInfo);
-        setStep(2);
-        Alert.alert('Success', 'OTP sent successfully!');
-      } else {
-        Alert.alert('Error', data.error || 'Failed to send OTP');
-      }
+      const confirmation = await auth().signInWithPhoneNumber(phone);
+      setVerificationId(confirmation.verificationId);
+      setIsOtpSent(true);
+      Alert.alert('Success', 'OTP sent successfully!');
     } catch (error) {
+      console.error('Error sending OTP:', error);
       Alert.alert('Error', 'Failed to send OTP. Please try again.');
     }
   };
 
   const handlePasswordLogin = async () => {
+    if (!validatePhoneNumber(phone)) {
+      Alert.alert('Error', 'Please enter a valid Indian phone number (+91XXXXXXXXXX)');
+      return false;
+    }
+
+    if (!password || password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return false;
+    }
+
     try {
-      const response = await fetch(`${API_URL}/auth/login-password`, {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          phone,
-          password,
-        }),
+          phone: phone.trim(),
+          password: password.trim(),
+          role: selectedRole,
+          batchId: ROLES.find(role => role.value === selectedRole)?.requiresBatchId ? batchId : undefined
+        })
       });
-      
+
       const data = await response.json();
       
-      if (data.success) {
-        // Store the token in secure storage
-        // await SecureStore.setItemAsync('userToken', data.token);
-        Alert.alert('Success', 'Login successful!');
-        navigation.replace('Home');
-      } else {
-        Alert.alert('Error', data.error || 'Login failed');
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
       }
+
+      await AsyncStorage.multiSet([
+        ['userToken', data.token],
+        ['userRole', selectedRole],
+        ['userId', data.userId?.toString()],
+        ['phone', phone.trim()]
+      ]);
+
+      navigation.replace(ROLE_ROUTES[selectedRole] || 'UserDashboard');
+      return true;
     } catch (error) {
-      Alert.alert('Error', 'Login failed. Please try again.');
+      console.error('Password Login Error:', error);
+      Alert.alert('Login Failed', error.message);
+      return false;
     }
   };
 
   const handleOtpLogin = async () => {
+    if (!validatePhoneNumber(phone)) {
+      Alert.alert('Error', 'Please enter a valid Indian phone number');
+      return false;
+    }
+
+    if (!otp || otp.length !== 6) {
+      Alert.alert('Error', 'Please enter a valid 6-digit OTP');
+      return false;
+    }
+
     try {
+      const credential = auth.PhoneAuthProvider.credential(verificationId, otp);
+      const userCredential = await auth().signInWithCredential(credential);
+      
       const response = await fetch(`${API_URL}/auth/verify-otp`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          phone,
-          otp,
-          verificationId,
-        }),
+          firebase_uid: userCredential.user.uid,
+          phone: phone.trim()
+        })
       });
-      
+
       const data = await response.json();
       
-      if (data.success) {
-        // Store the token in secure storage
-        // await SecureStore.setItemAsync('userToken', data.token);
-        Alert.alert('Success', 'Login successful!');
-        navigation.replace('Home');
-      } else {
-        Alert.alert('Error', data.error || 'Invalid OTP');
+      if (!response.ok) {
+        throw new Error(data.message || 'OTP verification failed');
       }
+
+      await AsyncStorage.multiSet([
+        ['userToken', data.token],
+        ['userRole', data.role || 'user'],
+        ['userId', data.userId?.toString()],
+        ['phone', phone.trim()]
+      ]);
+
+      navigation.replace(ROLE_ROUTES[data.role] || 'UserDashboard');
+      return true;
     } catch (error) {
-      Alert.alert('Error', 'Login failed. Please try again.');
+      console.error('OTP Login Error:', error);
+      Alert.alert('Error', 'OTP verification failed');
+      return false;
     }
   };
 
-  if (loginMethod === 'password' && step === 1) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Login</Text>
+  const handleGoogleSignIn = async () => {
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      
+      const googleCredential = auth.GoogleAuthProvider.credential(userInfo.idToken);
+      const userCredential = await auth().signInWithCredential(googleCredential);
+      
+      const response = await fetch(`${API_URL}/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          firebase_uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          name: userCredential.user.displayName,
+          photo_url: userCredential.user.photoURL
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Google sign-in failed');
+      }
+
+      await AsyncStorage.multiSet([
+        ['userToken', data.token],
+        ['userRole', data.role || 'user'],
+        ['userId', data.userId?.toString()],
+        ['email', userCredential.user.email]
+      ]);
+
+      navigation.replace(ROLE_ROUTES[data.role] || 'UserDashboard');
+      return true;
+    } catch (error) {
+      console.error('Google Sign In Error:', error);
+      Alert.alert('Error', 'Google sign-in failed');
+      return false;
+    }
+  };
+
+  const handleRegister = () => {
+    navigation.navigate('Register');
+  };
+
+  const handleLoginAction = async (type) => {
+    const setLoading = {
+      'password': setIsPasswordLoading,
+      'otp': setIsOtpLoading,
+      'google': setIsGoogleLoading
+    }[type];
+
+    if (setLoading) {
+      setLoading(true);
+    }
+
+    try {
+      let success = false;
+      
+      switch(type) {
+        case 'password':
+          success = await handlePasswordLogin();
+          break;
+        case 'otp':
+          if (!isOtpSent) {
+            await handleSendOtp();
+          } else {
+            success = await handleOtpLogin();
+          }
+          break;
+        case 'google':
+          success = await handleGoogleSignIn();
+          break;
+        default:
+          throw new Error('Invalid login type');
+      }
+      
+      if (success) {
+        const role = await AsyncStorage.getItem('userRole');
+        navigation.replace(ROLE_ROUTES[role] || 'UserDashboard');
+      }
+    } catch (error) {
+      console.error(`${type} Login Error:`, error);
+      Alert.alert('Login Failed', error.message || 'An error occurred');
+    } finally {
+      if (setLoading) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const renderOtpSection = () => (
+    <>
+      <View style={authStyles.inputContainer}>
+        <MaterialCommunityIcons 
+          name="phone" 
+          size={20} 
+          color={colors.primary}
+          style={authStyles.inputIcon} 
+        />
         <TextInput
-          style={styles.input}
+          style={authStyles.input}
           placeholder="Phone Number (with +91)"
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-        <TouchableOpacity style={styles.button} onPress={handlePasswordLogin}>
-          <Text style={styles.buttonText}>Login</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => setLoginMethod('otp')}>
-          <Text style={styles.linkText}>Login with OTP instead</Text>
-        </TouchableOpacity>
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <GoogleSignInButton
-          userType={role}
-          onSignInSuccess={handleGoogleSignInSuccess}
-          onSignInError={handleGoogleSignInError}
-        />
-
-        <View style={styles.registerOptions}>
-          <TouchableOpacity
-            style={styles.linkButton}
-            onPress={() => navigation.navigate('Register')}>
-            <Text style={styles.linkText}>Register as User</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.linkButton}
-            onPress={() => navigation.navigate('ParentRegister')}>
-            <Text style={styles.linkText}>Register as Parent</Text>
-          </TouchableOpacity>
-        </View>
       </View>
-    );
-  }
+      
+      {isOtpSent && (
+        <View style={authStyles.inputContainer}>
+          <MaterialCommunityIcons 
+            name="numeric" 
+            size={20} 
+            color={colors.primary}
+            style={authStyles.inputIcon} 
+          />
+          <TextInput
+            style={authStyles.input}
+            placeholder="Enter OTP"
+            placeholderTextColor={colors.gray[200]}
+            value={otp}
+            onChangeText={setOtp}
+            keyboardType="number-pad"
+            maxLength={6}
+          />
+        </View>
+      )}
 
-  if (loginMethod === 'otp' && step === 1) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Login with OTP</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Phone Number (with +91)"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-        />
-        <TouchableOpacity style={styles.button} onPress={handleSendOtp}>
-          <Text style={styles.buttonText}>Send OTP</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => setLoginMethod('password')}>
-          <Text style={styles.linkText}>Login with Password instead</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+      <TouchableOpacity 
+        style={authStyles.loginButton}
+        onPress={() => handleLoginAction('otp')}
+        disabled={isOtpLoading}
+      >
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          style={authStyles.gradientButton}
+        >
+          {isOtpLoading ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={authStyles.buttonText}>
+              {isOtpSent ? 'Verify OTP' : 'Send OTP'}
+            </Text>
+          )}
+        </LinearGradient>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={authStyles.switchMethodButton}
+        onPress={() => {
+          setLoginMethod('password');
+          setIsOtpSent(false);
+          setOtp('');
+          setVerificationId(null);
+        }}
+      >
+        <Text style={authStyles.linkText}>Login with Password instead</Text>
+      </TouchableOpacity>
+    </>
+  );
+
+  const renderRoleDropdown = () => (
+    <View style={authStyles.dropdownContainer}>
+      <MaterialCommunityIcons 
+        name="account-tie" 
+        size={20} 
+        color={colors.primary}
+        style={authStyles.dropdownIcon} 
+      />
+      <Dropdown
+        style={[authStyles.dropdown, isFocus && { borderColor: colors.primary }]}
+        placeholderStyle={authStyles.placeholderStyle}
+        selectedTextStyle={authStyles.selectedTextStyle}
+        data={ROLES}
+        labelField="label"
+        valueField="value"
+        placeholder={!isFocus ? 'Select Role' : '...'}
+        value={selectedRole}
+        onFocus={() => setIsFocus(true)}
+        onBlur={() => setIsFocus(false)}
+        onChange={item => {
+          setSelectedRole(item.value);
+          setIsFocus(false);
+          setBatchId('');
+        }}
+        renderLeftIcon={() => null}
+      />
+    </View>
+  );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Verify OTP</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter OTP"
-        value={otp}
-        onChangeText={setOtp}
-        keyboardType="number-pad"
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar 
+        translucent 
+        backgroundColor="transparent" 
+        barStyle="dark-content"
       />
-      <TouchableOpacity style={styles.button} onPress={handleOtpLogin}>
-        <Text style={styles.buttonText}>Verify & Login</Text>
-      </TouchableOpacity>
+      
+      <Image
+        source={require('../../assets/images/emergency-bg.jpg')}
+        style={authStyles.backgroundImage}
+        resizeMode="cover"
+      />
+      
+      <LinearGradient
+        colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.85)', 'rgba(255,255,255,0.95)']}
+        style={authStyles.gradientBackground}
+      />
+      
+      <AnimatedBackground />
+
+      <View style={authStyles.mainContainer}>
+        <View style={authStyles.logoContainer}>
+          <View style={authStyles.lottieContainer}>
+            <LottieView
+              source={require('../../assets/animations/emergency.json')}
+              autoPlay
+              loop
+              style={authStyles.lottieAnimation}
+            />
+          </View>
+          <Text style={authStyles.title}>Login Account</Text>
+          <Text style={authStyles.subtitle}>Your Safety, Our Priority</Text>
+        </View>
+
+        <View style={authStyles.formContainer}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View>
+              {loginMethod === 'password' ? (
+                <>
+                  <View style={authStyles.inputContainer}>
+                    <MaterialCommunityIcons name="phone" size={20} color={colors.primary} style={authStyles.inputIcon} />
+                    <TextInput
+                      style={authStyles.input}
+                      placeholder="Phone Number"
+                      placeholderTextColor={colors.gray[200]}
+                      value={phone}
+                      onChangeText={(text) => setPhone(text.startsWith('+91') ? text : '+91' + text)}
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+
+                  <View style={authStyles.inputContainer}>
+                    <MaterialCommunityIcons name="lock" size={20} color={colors.primary} style={authStyles.inputIcon} />
+                    <TextInput
+                      style={authStyles.input}
+                      placeholder="Password"
+                      placeholderTextColor={colors.gray[200]}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                    />
+                  </View>
+
+                  {renderRoleDropdown()}
+
+                  {ROLES.find(role => role.value === selectedRole)?.requiresBatchId && (
+                    <View style={authStyles.inputContainer}>
+                      <MaterialCommunityIcons name="card-account-details" size={20} color={colors.primary} style={authStyles.inputIcon} />
+                      <TextInput
+                        style={authStyles.input}
+                        placeholder="Batch ID"
+                        placeholderTextColor={colors.gray[200]}
+                        value={batchId}
+                        onChangeText={setBatchId}
+                      />
+                    </View>
+                  )}
+
+                  <TouchableOpacity 
+                    style={authStyles.loginButton}
+                    onPress={() => handleLoginAction('password')}
+                    disabled={isPasswordLoading}
+                  >
+                    <LinearGradient
+                      colors={[colors.primary, colors.primaryDark]}
+                      style={authStyles.gradientButton}
+                    >
+                      {isPasswordLoading ? (
+                        <ActivityIndicator color={colors.white} />
+                      ) : (
+                        <Text style={authStyles.buttonText}>Login</Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={authStyles.switchMethodButton}
+                    onPress={() => setLoginMethod('otp')}
+                  >
+                    <Text style={authStyles.linkText}>Login with OTP instead</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                renderOtpSection()
+              )}
+
+              <View style={authStyles.divider}>
+                <View style={authStyles.dividerLine} />
+                <Text style={authStyles.dividerText}>OR</Text>
+                <View style={authStyles.dividerLine} />
+              </View>
+
+              <TouchableOpacity 
+                style={[authStyles.googleButton, isGoogleLoading && { opacity: 0.7 }]}
+                onPress={() => handleLoginAction('google')}
+                disabled={isGoogleLoading}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons 
+                  name="google" 
+                  size={24} 
+                  color={colors.white}
+                  style={authStyles.googleIcon} 
+                />
+                <Text style={authStyles.googleButtonText}>
+                  {isGoogleLoading ? 'Signing in...' : 'Continue with Google'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={authStyles.registerButton}
+                onPress={handleRegister}
+                activeOpacity={0.7}
+              >
+                <Text style={authStyles.registerText}>
+                  New User? Create Account
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E0E0E0',
-  },
-  dividerText: {
-    marginHorizontal: 10,
-    color: '#757575',
-    fontSize: 14,
-  },
-  registerOptions: {
-    marginTop: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
   container: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
+    ...authStyles.container,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-  },
-  buttonText: {
-    color: 'white',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-  linkButton: {
-    padding: 10,
-  },
-  linkText: {
-    color: '#007AFF',
-    textAlign: 'center',
-  },
+  // Add any screen-specific styles here
 });
 
 export default LoginScreen;

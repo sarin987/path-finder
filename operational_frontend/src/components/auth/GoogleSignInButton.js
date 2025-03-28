@@ -15,7 +15,7 @@ const GoogleSignInButton = ({ userType, onSignInSuccess, onSignInError }) => {
       const { accessToken } = await GoogleSignin.getTokens();
       
       // Send token to your backend
-      const response = await axios.post(`${API_URL}/api/auth/google`, {
+      const response = await axios.post(`${API_URL}/google`, {
         token: accessToken,
         userType: userType // 'normal' or 'parent'
       });

@@ -1,15 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   Alert,
+  StatusBar,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
-import { API_URL } from '../../config';
+import auth from '@react-native-firebase/auth';
+import { Dropdown } from 'react-native-element-dropdown';
+import LinearGradient from 'react-native-linear-gradient';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { authStyles } from '../../styles/authStyles';
+import { colors } from '../../styles/colors';
+import LottieView from 'lottie-react-native';
+
+const GENDER_OPTIONS = [
+  { label: 'Male', value: 'male' },
+  { label: 'Female', value: 'female' },
+  { label: 'Other', value: 'other' }
+];
 
 const RegisterScreen = ({ navigation }) => {
   const [phone, setPhone] = useState('+91');
@@ -18,234 +30,336 @@ const RegisterScreen = ({ navigation }) => {
   const [gender, setGender] = useState('');
   const [otp, setOtp] = useState('');
   const [verificationId, setVerificationId] = useState(null);
-  const [step, setStep] = useState(1); // 1: Initial form, 2: OTP verification
+  const [step, setStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFocus, setIsFocus] = useState(false);
+
+  useEffect(() => {
+    // Add any necessary initialization logic here
+  }, []);
 
   const handleSendOtp = async () => {
+    if (!phone || phone.length <= 3) {
+      Alert.alert('Error', 'Please enter a valid phone number.');
+      return;
+    }
+
     try {
-      const response = await fetch(`${API_URL}/auth/send-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        setVerificationId(data.sessionInfo);
-        setStep(2);
-        Alert.alert('Success', 'OTP sent successfully!');
-      } else {
-        Alert.alert('Error', data.error || 'Failed to send OTP');
-      }
+      setIsLoading(true);
+      const confirmation = await auth().signInWithPhoneNumber(phone);
+      setVerificationId(confirmation.verificationId);
+      setStep(2);
+      Alert.alert('Success', 'OTP sent successfully!');
     } catch (error) {
       Alert.alert('Error', 'Failed to send OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-  };
-
-  const handleGoogleSignInSuccess = (data) => {
-    // Store the JWT token (you might want to use AsyncStorage)
-    // Navigate to the main app
-    navigation.replace('Main');
-  };
-
-  const handleGoogleSignInError = (error) => {
-    Alert.alert('Error', error);
   };
 
   const handleRegister = async () => {
+    if (!name || !phone || !password || !gender || !otp || !verificationId) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
     try {
-      // First verify OTP
-      const verifyResponse = await fetch(`${API_URL}/auth/verify-otp`, {
+      setIsLoading(true);
+      const credential = auth.PhoneAuthProvider.credential(verificationId, otp);
+      const userCredential = await auth().signInWithCredential(credential);
+
+      const firebaseUid = userCredential.user.uid;
+
+      const userData = {
+        firebase_uid: firebaseUid,
+        name: name.trim(),
+        phone: phone.trim(),
+        password: password.trim(),
+        role: 'user',
+        gender: gender.toLowerCase(),
+        email: `${phone.replace('+91', '')}@example.com`,
+        user_verified: 1
+      };
+
+      const registerResponse = await fetch(`${API_URL}/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          phone,
-          otp,
-          verificationId,
-        }),
-      });
-      
-      const verifyData = await verifyResponse.json();
-      
-      if (!verifyData.success) {
-        Alert.alert('Error', 'Invalid OTP');
-        return;
-      }
-
-      // Then register user
-      const registerResponse = await fetch(`${API_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          firebase_uid: verifyData.firebase_uid,
-          name,
-          phone,
-          password,
-          role: 'user',
-          gender,
-        }),
+        body: JSON.stringify(userData)
       });
 
-      const registerData = await registerResponse.json();
+      const rawResponse = await registerResponse.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(rawResponse);
 
-      if (registerData.success) {
-        Alert.alert('Success', 'Registration successful!');
-        navigation.navigate('Login');
-      } else {
-        Alert.alert('Error', registerData.error || 'Registration failed');
+        if (responseData.success) {
+          Alert.alert(
+            'Success',
+            'Registration successful!',
+            [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+          );
+        } else {
+          throw new Error(responseData.error || 'Registration failed');
+        }
+      } catch (parseError) {
+        throw new Error('Invalid response from server');
       }
     } catch (error) {
-      Alert.alert('Error', 'Registration failed. Please try again.');
+      Alert.alert(
+        'Error',
+        'Registration failed. Please try again.\n' + 
+        (error.message || 'Unknown error occurred')
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (step === 1) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Register</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Phone Number (with +91)"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Full Name"
-          value={name}
-          onChangeText={setName}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={gender}
-            onValueChange={(itemValue) => setGender(itemValue)}
-            style={styles.picker}
-            mode="dropdown"
-          >
-            <Picker.Item label="Select Gender" value="" />
-            <Picker.Item label="Male" value="male" />
-            <Picker.Item label="Female" value="female" />
-            <Picker.Item label="Other" value="other" />
-          </Picker>
-        </View>
-        <TouchableOpacity style={styles.button} onPress={handleSendOtp}>
-          <Text style={styles.buttonText}>Send OTP</Text>
-        </TouchableOpacity>
+  const handleGoogleSignInSuccess = async () => {
+    try {
+      setIsLoading(true);
+      const userInfo = await GoogleSignin.signIn();
+      const googleCredential = auth.GoogleAuthProvider.credential(userInfo.idToken);
+      const userCredential = await auth().signInWithCredential(googleCredential);
 
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR</Text>
-          <View style={styles.dividerLine} />
-        </View>
+      const userData = {
+        firebase_uid: userCredential.user.uid,
+        name: userCredential.user.displayName,
+        email: userCredential.user.email,
+        profile_picture: userCredential.user.photoURL,
+        role: 'user',
+        auth_provider: 'google'
+      };
 
-        <GoogleSignInButton
-          userType="normal"
-          onSignInSuccess={handleGoogleSignInSuccess}
-          onSignInError={handleGoogleSignInError}
-        />
+      const response = await fetch(`${API_URL}/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
 
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => navigation.navigate('Login')}>
-          <Text style={styles.linkText}>Already have an account? Login</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+      const result = await response.json();
+
+      if (result.success) {
+        await AsyncStorage.setItem('authToken', result.token);
+        navigation.replace('Main');
+      } else {
+        throw new Error(result.error || 'Registration failed');
+      }
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        'Google sign-in failed. Please check your internet connection and try again.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Verify OTP</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter OTP"
-        value={otp}
-        onChangeText={setOtp}
-        keyboardType="number-pad"
+    <View style={authStyles.container}>
+      <StatusBar translucent backgroundColor="transparent" />
+      
+      <Image
+        source={require('../../assets/images/emergency-bg.jpg')}
+        style={authStyles.backgroundImage}
+        resizeMode="cover"
       />
-      <TouchableOpacity style={styles.button} onPress={handleRegister}>
-        <Text style={styles.buttonText}>Verify & Register</Text>
-      </TouchableOpacity>
+      
+      <LinearGradient
+        colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.85)', 'rgba(255,255,255,0.95)']}
+        style={authStyles.gradientBackground}
+      />
+
+      <View style={authStyles.mainContainer}>
+        <View style={authStyles.logoContainer}>
+          <View style={authStyles.lottieContainer}>
+            <LottieView
+              source={require('../../assets/animations/emergency.json')}
+              autoPlay
+              loop
+              style={authStyles.lottieAnimation}
+            />
+          </View>
+          <Text style={authStyles.title}>Create Account</Text>
+          <Text style={authStyles.subtitle}>Join our Emergency Response Network</Text>
+        </View>
+
+        <View style={authStyles.formContainer}>
+          {step === 1 ? (
+            <>
+              <View style={authStyles.inputContainer}>
+                <MaterialCommunityIcons 
+                  name="phone" 
+                  size={20} 
+                  color={colors.primary}
+                  style={authStyles.inputIcon} 
+                />
+                <TextInput
+                  style={authStyles.input}
+                  placeholder="Phone Number"
+                  placeholderTextColor={colors.gray[200]}
+                  value={phone}
+                  onChangeText={(text) => setPhone(text.startsWith('+91') ? text : '+91' + text)}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={authStyles.inputContainer}>
+                <MaterialCommunityIcons 
+                  name="account" 
+                  size={20} 
+                  color={colors.primary}
+                  style={authStyles.inputIcon} 
+                />
+                <TextInput
+                  style={authStyles.input}
+                  placeholder="Full Name"
+                  placeholderTextColor={colors.gray[200]}
+                  value={name}
+                  onChangeText={setName}
+                />
+              </View>
+
+              <View style={authStyles.inputContainer}>
+                <MaterialCommunityIcons 
+                  name="lock" 
+                  size={20} 
+                  color={colors.primary}
+                  style={authStyles.inputIcon} 
+                />
+                <TextInput
+                  style={authStyles.input}
+                  placeholder="Password"
+                  placeholderTextColor={colors.gray[200]}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                />
+              </View>
+
+              <View style={authStyles.dropdownContainer}>
+                <MaterialCommunityIcons 
+                  name="gender-male-female" 
+                  size={20} 
+                  color={colors.primary}
+                  style={authStyles.dropdownIcon} 
+                />
+                <Dropdown
+                  style={[authStyles.dropdown, isFocus && { borderColor: colors.primary }]}
+                  placeholderStyle={authStyles.placeholderStyle}
+                  selectedTextStyle={authStyles.selectedTextStyle}
+                  data={GENDER_OPTIONS}
+                  labelField="label"
+                  valueField="value"
+                  placeholder={!isFocus ? 'Select Gender' : '...'}
+                  value={gender}
+                  onFocus={() => setIsFocus(true)}
+                  onBlur={() => setIsFocus(false)}
+                  onChange={item => {
+                    setGender(item.value);
+                    setIsFocus(false);
+                  }}
+                  renderLeftIcon={() => null}
+                />
+              </View>
+
+              <TouchableOpacity 
+                style={authStyles.loginButton}
+                onPress={handleSendOtp}
+                disabled={isLoading}
+              >
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryDark]}
+                  style={authStyles.gradientButton}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color={colors.white} />
+                  ) : (
+                    <Text style={authStyles.buttonText}>Send OTP</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={authStyles.inputContainer}>
+                <MaterialCommunityIcons 
+                  name="numeric" 
+                  size={20} 
+                  color={colors.primary}
+                  style={authStyles.inputIcon} 
+                />
+                <TextInput
+                  style={authStyles.input}
+                  placeholder="Enter OTP"
+                  placeholderTextColor={colors.gray[200]}
+                  value={otp}
+                  onChangeText={setOtp}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+              </View>
+
+              <TouchableOpacity 
+                style={authStyles.loginButton}
+                onPress={handleRegister}
+                disabled={isLoading}
+              >
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryDark]}
+                  style={authStyles.gradientButton}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color={colors.white} />
+                  ) : (
+                    <Text style={authStyles.buttonText}>Verify & Register</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </>
+          )}
+
+          <View style={authStyles.divider}>
+            <View style={authStyles.dividerLine} />
+            <Text style={authStyles.dividerText}>OR</Text>
+            <View style={authStyles.dividerLine} />
+          </View>
+
+          <TouchableOpacity 
+            style={[authStyles.googleButton, isLoading && { opacity: 0.7 }]}
+            onPress={handleGoogleSignInSuccess}
+            disabled={isLoading}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons 
+              name="google" 
+              size={24} 
+              color={colors.white}
+              style={authStyles.googleIcon} 
+            />
+            <Text style={authStyles.googleButtonText}>
+              Continue with Google
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={authStyles.registerButton}
+            onPress={() => navigation.navigate('Login')}
+            activeOpacity={0.7}
+          >
+            <Text style={authStyles.registerText}>
+              Already have an account? Login
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  pickerContainer: {
-    marginVertical: 10,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    backgroundColor: '#fff',
-  },
-  picker: {
-    width: '100%',
-    height: 50,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E0E0E0',
-  },
-  dividerText: {
-    marginHorizontal: 10,
-    color: '#757575',
-    fontSize: 14,
-  },
-  container: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-  },
-  buttonText: {
-    color: 'white',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-  linkButton: {
-    padding: 10,
-  },
-  linkText: {
-    color: '#007AFF',
-    textAlign: 'center',
-  },
-});
 
 export default RegisterScreen;

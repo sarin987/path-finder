@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import AuthNavigator from './src/navigation/AuthNavigator';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { GOOGLE_CLIENT_ID } from './src/config';
+import { ThemeProvider } from './src/context/ThemeContext';
 
 export default function App() {
   useEffect(() => {
@@ -16,11 +16,13 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <NavigationContainer>
-        <AuthProvider>
-          <AuthNavigator />
-        </AuthProvider>
-      </NavigationContainer>
+      <ThemeProvider>
+        <NavigationContainer>
+          <AuthProvider>
+            <AuthNavigator />
+          </AuthProvider>
+        </NavigationContainer>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

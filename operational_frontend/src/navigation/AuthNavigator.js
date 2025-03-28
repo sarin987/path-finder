@@ -23,11 +23,11 @@ const AuthNavigator = () => {
       <Stack.Screen name="ParentRegister" component={ParentRegisterScreen} />
       
       {/* Role-specific Dashboards */}
-      <Stack.Screen name="userDashboard" component={UserDashboard} />
-      <Stack.Screen name="policeDashboard" component={PoliceDashboard} />
-      <Stack.Screen name="hospitalDashboard" component={HospitalDashboard} />
-      <Stack.Screen name="ambulanceDashboard" component={AmbulanceDashboard} />
-      <Stack.Screen name="parentDashboard" component={ParentDashboard} />
+      <Stack.Screen name="UserDashboard" component={UserDashboard} />
+      <Stack.Screen name="PoliceDashboard" component={PoliceDashboard} />
+      <Stack.Screen name="HospitalDashboard" component={HospitalDashboard} />
+      <Stack.Screen name="AmbulanceDashboard" component={AmbulanceDashboard} />
+      <Stack.Screen name="ParentDashboard" component={ParentDashboard} />
       
       {/* Emergency Request Screen */}
       <Stack.Screen 

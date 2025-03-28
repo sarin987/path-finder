@@ -35,7 +35,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, credentials);
+      const response = await axios.post(`${API_URL}/login`, credentials);
       const { token, user: userData } = response.data;
       
       // Store token and user data
@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }) => {
 
   const googleSignIn = async (googleToken, userType) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/google`, {
+      const response = await axios.post(`${API_URL}/google`, {
         token: googleToken,
         userType
       });
@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, userData);
+      const response = await axios.post(`${API_URL}/register`, userData);
       return { success: true, data: response.data };
     } catch (error) {
       console.error('Registration error:', error);
@@ -95,14 +95,40 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userData');
-      setToken(null);
+      // Clear socket connection if exists
+      if (socket?.connected) {
+        socket.disconnect();
+      }
+
+      // Clear all stored tokens and user data
+      await AsyncStorage.multiRemove([
+        'userToken',
+        'userRole',
+        'userId',
+        'phone',
+        'user'
+      ]);
+
+      // Reset user state
       setUser(null);
-      return { success: true };
+      setIsAuthenticated(false);
+
+      // Optional: Call backend logout endpoint if needed
+      try {
+        await fetch(`${API_URL}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${await AsyncStorage.getItem('userToken')}`,
+          },
+        });
+      } catch (error) {
+        console.log('Backend logout error:', error);
+        // Continue with local logout even if backend fails
+      }
+
     } catch (error) {
       console.error('Logout error:', error);
-      return { success: false, error: 'Logout failed' };
+      throw error;
     }
   };
 
