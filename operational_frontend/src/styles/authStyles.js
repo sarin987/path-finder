@@ -1,5 +1,19 @@
-import { StyleSheet, Dimensions, Platform } from 'react-native';
-const { width, height } = Dimensions.get('window');
+import { StyleSheet, Dimensions, Platform, PixelRatio } from 'react-native';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Scale factors based on design width (assuming design was made for iPhone X - 375pt width)
+const scale = SCREEN_WIDTH / 375;
+const verticalScale = SCREEN_HEIGHT / 812;
+
+// Normalize sizes for different screen densities
+const normalize = (size) => {
+  const newSize = size * scale;
+  if (Platform.OS === 'ios') {
+    return Math.round(PixelRatio.roundToNearestPixel(newSize));
+  }
+  return Math.round(PixelRatio.roundToNearestPixel(newSize)) - 2;
+};
 
 export const authStyles = StyleSheet.create({
   container: {
@@ -21,75 +35,88 @@ export const authStyles = StyleSheet.create({
   },
   mainContainer: {
     flex: 1,
-    justifyContent: 'flex-start',
-    paddingHorizontal: 24,
-    paddingTop: height * 0.02, // Reduced from 0.05 to move content up
+    justifyContent: 'center', // Changed from 'flex-start' to 'center'
+    paddingHorizontal: normalize(24),
+    paddingTop: 0, // Removed paddingTop
+    maxWidth: 600, // Maximum width for tablets
+    alignSelf: 'center',
+    width: '100%',
+    marginTop: -SCREEN_HEIGHT * 0.1, // Move content up by 10% of screen height
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 12, // Reduced from 16
+    marginBottom: normalize(20), // Reduced margin
+    paddingTop: 0, // Removed paddingTop
   },
   lottieContainer: {
-    width: width * 0.28, // Reduced from 0.18
-    height: width * 0.28, // Reduced from 0.18
-    marginBottom: 0.5, // Reduced from 8
+    width: Math.min(SCREEN_WIDTH * 0.35, 200), // Cap maximum size
+    height: Math.min(SCREEN_WIDTH * 0.35, 200),
+    marginBottom: normalize(20),
   },
   lottieAnimation: {
     width: '100%',
     height: '100%',
   },
   title: {
-    fontSize: 22, // Reduced from 24
-    fontWeight: '700',
+    fontSize: normalize(22),
+    fontWeight: Platform.OS === 'ios' ? '700' : 'bold',
     color: 'gray',
     textAlign: 'center',
-    marginBottom: 2, // Reduced from 4
+    marginBottom: normalize(2),
   },
   subtitle: {
-    fontSize: 14, // Reduced from 15
+    fontSize: normalize(14),
     color: 'gray',
     textAlign: 'center',
-    marginBottom: 12, // Reduced from 16
+    marginBottom: normalize(12),
   },
   formContainer: {
     backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16, // Reduced from 20
+    borderRadius: normalize(16),
+    padding: normalize(16),
     elevation: 6,
     shadowColor: 'black',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
+    width: '100%',
+    maxWidth: 500, // Maximum width for tablets
+    alignSelf: 'center',
+    marginTop: normalize(10), // Added small top margin
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff', // Changed from 'gray' to white
+    backgroundColor: '#ffffff',
     borderWidth: 1.5,
-    borderColor: '#e4e9f2', // Changed from 'gray' to light border
-    borderRadius: 12,
-    marginBottom: 12, // Reduced from 16
-    height: 50, // Reduced from 56
-    paddingHorizontal: 16,
-    // Add these properties to ensure icon alignment
+    borderColor: '#e4e9f2',
+    borderRadius: normalize(12),
+    marginBottom: normalize(12),
+    height: normalize(50),
+    paddingHorizontal: normalize(16),
     position: 'relative',
     overflow: 'hidden',
   },
   inputIcon: {
-    marginRight: 12,
-    color: '#007AFF', // Use direct color instead of 'primary'
-    width: 24, // Add fixed width
-    height: 24, // Add fixed height
-    alignSelf: 'center', // Center vertically
-    textAlign: 'center', // Center horizontally
-    lineHeight: 24, // Match height for vertical centering
+    marginRight: normalize(12),
+    color: '#007AFF',
+    width: normalize(24),
+    height: normalize(24),
+    alignSelf: 'center',
+    textAlign: 'center',
+    lineHeight: normalize(24),
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    color: '#2e3a59', // Changed from 'gray' to dark text
-    height: '100%', // Fill container height
-    paddingVertical: 0, // Remove vertical padding
+    fontSize: normalize(16),
+    color: '#2e3a59',
+    height: '100%',
+    paddingVertical: 0,
+    ...Platform.select({
+      ios: {
+        paddingTop: 2, // iOS text alignment fix
+      },
+    }),
   },
   dropdownContainer: {
     marginBottom: 16,
@@ -147,12 +174,15 @@ export const authStyles = StyleSheet.create({
     color: '#2e3a59', // Changed from 'gray' to dark text
   },
   loginButton: {
-    marginTop: 16, // Reduced from 24
-    marginBottom: 12, // Reduced from 16
-    borderRadius: 12,
+    marginTop: normalize(16),
+    marginBottom: normalize(12),
+    borderRadius: normalize(12),
     overflow: 'hidden',
     backgroundColor: 'primary',
-    height: 48, // Reduced from 56
+    height: normalize(48),
+    maxWidth: 400,
+    alignSelf: 'center',
+    width: '100%',
   },
   gradientButton: {
     height: '100%',
@@ -161,13 +191,14 @@ export const authStyles = StyleSheet.create({
   },
   buttonText: {
     color: 'white',
-    fontSize: 17,
+    fontSize: normalize(17),
     fontWeight: '600',
     letterSpacing: 0.3,
   },
   switchMethodButton: {
     alignItems: 'center',
     paddingVertical: 16,
+    marginTop: 8,
   },
   linkText: {
     color: 'primary',
@@ -228,4 +259,27 @@ export const authStyles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
+  // Add responsive styles for landscape mode
+  '@media (orientation: landscape)': {
+    mainContainer: {
+      paddingTop: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      marginTop: -SCREEN_HEIGHT * 0.05, // Less shift up in landscape
+    },
+    logoContainer: {
+      flex: 1,
+      marginBottom: 0,
+      marginRight: normalize(20),
+    },
+    formContainer: {
+      flex: 2,
+    },
+  },
+});
+
+// Add orientation change handling
+Dimensions.addEventListener('change', () => {
+  const { width, height } = Dimensions.get('window');
 });

@@ -43,11 +43,7 @@ const LoginScreen = ({ navigation }) => {
   const [otp, setOtp] = useState('');
   const [verificationId, setVerificationId] = useState(null);
   const [isOtpSent, setIsOtpSent] = useState(false);
-  const [loginMethod, setLoginMethod] = useState('password'); // 'password' or 'otp'
-  const [selectedRole, setSelectedRole] = useState('user');
-  const [showRolePicker, setShowRolePicker] = useState(false);
-  const [batchId, setBatchId] = useState('');
-  const [isFocus, setIsFocus] = useState(false);
+  const [loginMethod, setLoginMethod] = useState('password');
   const [isPasswordLoading, setIsPasswordLoading] = useState(false);
   const [isOtpLoading, setIsOtpLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -58,6 +54,20 @@ const LoginScreen = ({ navigation }) => {
       offlineAccess: true,
     });
   }, []);
+
+  const validateInput = () => {
+    if (!phone || !phone.startsWith('+91') || phone.length !== 13) {
+      Alert.alert('Error', 'Please enter a valid Indian phone number (+91XXXXXXXXXX)');
+      return false;
+    }
+
+    if (!password || password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return false;
+    }
+
+    return true;
+  };
 
   const validatePhoneNumber = (phone) => {
     const phoneRegex = /^\+91[1-9]\d{9}$/;
@@ -82,48 +92,54 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const handlePasswordLogin = async () => {
-    if (!validatePhoneNumber(phone)) {
-      Alert.alert('Error', 'Please enter a valid Indian phone number (+91XXXXXXXXXX)');
-      return false;
-    }
-
-    if (!password || password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+    if (!validateInput()) {
       return false;
     }
 
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      // Debug log
+      console.log('Attempting login with:', phone);
+
+      const requestBody = {
+        phone: phone.replace(/\s+/g, '').trim(),
+        password: password.trim()
+      };
+
+      const response = await fetch(`${API_URL}/login`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          phone: phone.trim(),
-          password: password.trim(),
-          role: selectedRole,
-          batchId: ROLES.find(role => role.value === selectedRole)?.requiresBatchId ? batchId : undefined
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+      console.log('Server response:', data);
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Authentication failed');
       }
 
+      // Store session data
       await AsyncStorage.multiSet([
         ['userToken', data.token],
-        ['userRole', selectedRole],
-        ['userId', data.userId?.toString()],
+        ['userRole', 'user'],
+        ['userId', data.userId?.toString() || ''],
         ['phone', phone.trim()]
       ]);
 
-      navigation.replace(ROLE_ROUTES[selectedRole] || 'UserDashboard');
+      navigation.replace('UserDashboard');
       return true;
+
     } catch (error) {
-      console.error('Password Login Error:', error);
-      Alert.alert('Login Failed', error.message);
+      console.error('Login Error:', error);
+      Alert.alert(
+        'Login Failed',
+        error.message === 'Network request failed'
+          ? 'Unable to connect to server. Please check your internet connection.'
+          : error.message || 'Invalid credentials'
+      );
       return false;
     }
   };
@@ -143,7 +159,7 @@ const LoginScreen = ({ navigation }) => {
       const credential = auth.PhoneAuthProvider.credential(verificationId, otp);
       const userCredential = await auth().signInWithCredential(credential);
       
-      const response = await fetch(`${API_URL}/auth/verify-otp`, {
+      const response = await fetch(`${API_URL}/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -184,7 +200,7 @@ const LoginScreen = ({ navigation }) => {
       const googleCredential = auth.GoogleAuthProvider.credential(userInfo.idToken);
       const userCredential = await auth().signInWithCredential(googleCredential);
       
-      const response = await fetch(`${API_URL}/auth/google`, {
+      const response = await fetch(`${API_URL}/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -205,12 +221,12 @@ const LoginScreen = ({ navigation }) => {
 
       await AsyncStorage.multiSet([
         ['userToken', data.token],
-        ['userRole', data.role || 'user'],
+        ['userRole', 'user'],
         ['userId', data.userId?.toString()],
         ['email', userCredential.user.email]
       ]);
 
-      navigation.replace(ROLE_ROUTES[data.role] || 'UserDashboard');
+      navigation.replace('UserDashboard');
       return true;
     } catch (error) {
       console.error('Google Sign In Error:', error);
@@ -244,6 +260,7 @@ const LoginScreen = ({ navigation }) => {
         case 'otp':
           if (!isOtpSent) {
             await handleSendOtp();
+            success = true; // Just sent OTP
           } else {
             success = await handleOtpLogin();
           }
@@ -256,12 +273,19 @@ const LoginScreen = ({ navigation }) => {
       }
       
       if (success) {
-        const role = await AsyncStorage.getItem('userRole');
-        navigation.replace(ROLE_ROUTES[role] || 'UserDashboard');
+        if (type === 'password' || (type === 'otp' && isOtpSent)) {
+          const role = await AsyncStorage.getItem('userRole');
+          if (role) {
+            navigation.replace(ROLE_ROUTES[role] || 'UserDashboard');
+          }
+        }
       }
     } catch (error) {
       console.error(`${type} Login Error:`, error);
-      Alert.alert('Login Failed', error.message || 'An error occurred');
+      Alert.alert(
+        'Login Failed', 
+        error.message || 'Please check your credentials and try again'
+      );
     } finally {
       if (setLoading) {
         setLoading(false);
@@ -312,6 +336,7 @@ const LoginScreen = ({ navigation }) => {
         onPress={() => handleLoginAction('otp')}
         disabled={isOtpLoading}
       >
+        
         <LinearGradient
           colors={[colors.primary, colors.primaryDark]}
           style={authStyles.gradientButton}
@@ -338,35 +363,6 @@ const LoginScreen = ({ navigation }) => {
         <Text style={authStyles.linkText}>Login with Password instead</Text>
       </TouchableOpacity>
     </>
-  );
-
-  const renderRoleDropdown = () => (
-    <View style={authStyles.dropdownContainer}>
-      <MaterialCommunityIcons 
-        name="account-tie" 
-        size={20} 
-        color={colors.primary}
-        style={authStyles.dropdownIcon} 
-      />
-      <Dropdown
-        style={[authStyles.dropdown, isFocus && { borderColor: colors.primary }]}
-        placeholderStyle={authStyles.placeholderStyle}
-        selectedTextStyle={authStyles.selectedTextStyle}
-        data={ROLES}
-        labelField="label"
-        valueField="value"
-        placeholder={!isFocus ? 'Select Role' : '...'}
-        value={selectedRole}
-        onFocus={() => setIsFocus(true)}
-        onBlur={() => setIsFocus(false)}
-        onChange={item => {
-          setSelectedRole(item.value);
-          setIsFocus(false);
-          setBatchId('');
-        }}
-        renderLeftIcon={() => null}
-      />
-    </View>
   );
 
   return (
@@ -432,21 +428,6 @@ const LoginScreen = ({ navigation }) => {
                       secureTextEntry
                     />
                   </View>
-
-                  {renderRoleDropdown()}
-
-                  {ROLES.find(role => role.value === selectedRole)?.requiresBatchId && (
-                    <View style={authStyles.inputContainer}>
-                      <MaterialCommunityIcons name="card-account-details" size={20} color={colors.primary} style={authStyles.inputIcon} />
-                      <TextInput
-                        style={authStyles.input}
-                        placeholder="Batch ID"
-                        placeholderTextColor={colors.gray[200]}
-                        value={batchId}
-                        onChangeText={setBatchId}
-                      />
-                    </View>
-                  )}
 
                   <TouchableOpacity 
                     style={authStyles.loginButton}

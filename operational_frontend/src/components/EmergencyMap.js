@@ -220,7 +220,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#007AFF',
   },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
 });
+
+EmergencyMap.displayName = 'EmergencyMap';
 
 EmergencyMap.propTypes = {
   onLocationChange: PropTypes.func,
@@ -251,3 +256,5 @@ EmergencyMap.propTypes = {
     })
   ),
 };
+
+export default EmergencyMap;

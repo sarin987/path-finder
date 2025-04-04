@@ -14,8 +14,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import EmergencyMap from '../../components/EmergencyMap';
 import Sidebar from '../../components/Sidebar';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { API_URL } from '../../config';
+import { API_ROUTES, SOCKET_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLocation } from '../../hooks/useLocation';
+import { useSocket } from '../../hooks/useSocket';
 
 const DEFAULT_LOCATION = {
   latitude: 10.8505,
@@ -26,46 +28,161 @@ const DEFAULT_LOCATION = {
 
 const UserDashboard = ({ navigation }) => {
   const mapRef = useRef(null);
-  const socketRef = useRef(null);
   const { user, logout } = useAuth();
   
-  // State
-  const [location, setLocation] = useState(DEFAULT_LOCATION);
+  const { location, setLocation } = useLocation(DEFAULT_LOCATION);
   const [nearbyServices, setNearbyServices] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
   const sidebarAnimation = useRef(new Animated.Value(-300)).current;
 
-  // Socket connection
-  useEffect(() => {
-    socketRef.current = io(API_URL);
-    
-    socketRef.current.on('connect', () => {
-      console.log('Socket connected');
-    });
-
-    socketRef.current.on('location_update', (data) => {
-      updateNearbyService(data);
-    });
-
-    socketRef.current.on('emergency_accepted', (data) => {
+  const handleEmergencyAccepted = async (data) => {
+    try {
+      // Update UI to show emergency service is on the way
       Alert.alert(
-        'Help is Coming',
-        `A ${data.type} unit has been dispatched to your location. ETA: ${data.eta} minutes.`
+        'Emergency Accepted',
+        `A ${data.type} service has accepted your request and is on the way.`,
+        [{ text: 'OK' }]
       );
-    });
 
-    socketRef.current.on('emergency_completed', () => {
-      setIsEmergencyActive(false);
-    });
+      // Update the markers on the map if needed
+      if (mapRef.current) {
+        mapRef.current.animateToRegion({
+          latitude: data.location.latitude,
+          longitude: data.location.longitude,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        }, 1000);
+      }
 
+      // Update emergency status
+      setIsEmergencyActive(true);
+    } catch (error) {
+      console.error('Emergency acceptance error:', error);
+      Alert.alert(
+        'Error',
+        'Failed to process emergency acceptance.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const socketRef = useRef(null);
+
+  const socket = useSocket(SOCKET_URL, {
+    connect: () => {
+      console.log('Socket connected');
+      socketRef.current = socket;
+    },
+    disconnect: () => {
+      console.log('Socket disconnected');
+      socketRef.current = null;
+    },
+    location_update: updateNearbyService,
+    emergency_accepted: handleEmergencyAccepted,
+    emergency_completed: () => setIsEmergencyActive(false)
+  });
+
+  const fetchNearbyServices = async (coords) => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      console.log('Fetching services with coords:', coords);
+      
+      const response = await fetch(`${API_ROUTES.services}/nearby`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          radius: 5000,
+          timestamp: new Date().getTime()
+        })
+      });
+
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
+        throw new Error(errorData.message || 'Server error');
+      }
+
+      const data = await response.json();
+      console.log('Received services:', data);
+
+      if (!data.services || !Array.isArray(data.services)) {
+        throw new Error('Invalid response format');
+      }
+
+      setNearbyServices(data.services);
+      
+    } catch (error) {
+      console.error('Fetch services error:', error);
+      
+      if (error.message.includes('Network request failed')) {
+        Alert.alert(
+          'Connection Error',
+          'Unable to connect to server. Please check your internet connection.',
+          [
+            { 
+              text: 'Retry', 
+              onPress: () => fetchNearbyServices(coords)
+            },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Error',
+          error.message || 'Failed to fetch nearby services',
+          [
+            { 
+              text: 'Retry', 
+              onPress: () => fetchNearbyServices(coords)
+            },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+      }
+    }
+  };
+
+  // Add retry mechanism
+  const retryFetchWithBackoff = async (coords, attempt = 1, maxAttempts = 3) => {
+    try {
+      return await fetchNearbyServices(coords);
+    } catch (error) {
+      if (attempt === maxAttempts) throw error;
+      
+      const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      return retryFetchWithBackoff(coords, attempt + 1, maxAttempts);
+    }
+  };
+
+  // Update useEffect to use retry mechanism
+  useEffect(() => {
+    retryFetchWithBackoff(location).catch(error => {
+      console.error('All retry attempts failed:', error);
+    });
+    
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
+        socketRef.current = null;
       }
     };
-  }, []);
+  }, [location]);
 
   const updateNearbyService = (data) => {
     setNearbyServices(prev => ({
@@ -76,39 +193,6 @@ const UserDashboard = ({ navigation }) => {
     }));
   };
 
-  const fetchNearbyServices = async (coords) => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      const response = await fetch(`${API_URL}/services/nearby`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          radius: 5000, // 5km radius
-          types: ['hospital', 'police', 'ambulance', 'pharmacy']
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch nearby services');
-      }
-
-      const data = await response.json();
-      setNearbyServices(data.services);
-    } catch (error) {
-      console.error('Fetch services error:', error);
-      Alert.alert(
-        'Error',
-        'Failed to fetch nearby services. Please try again.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
   const handleLocationChange = async (newLocation) => {
     setLocation(newLocation);
     await fetchNearbyServices(newLocation);
@@ -116,17 +200,20 @@ const UserDashboard = ({ navigation }) => {
 
   const handleLogout = async () => {
     try {
+      // Disconnect socket before logout
       if (socketRef.current) {
         socketRef.current.disconnect();
+        socketRef.current = null;
       }
       await logout();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
+      navigation.replace('Login');
     } catch (error) {
       console.error('Logout error:', error);
-      Alert.alert('Error', 'Failed to logout. Please try again.');
+      Alert.alert(
+        'Error',
+        'Failed to logout. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -172,7 +259,7 @@ const UserDashboard = ({ navigation }) => {
       });
   
       // Also send HTTP request for persistence
-      const response = await fetch(`${API_URL}/emergency/request`, {
+      const response = await fetch(`${API_ROUTES.emergency}/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -215,7 +302,7 @@ const UserDashboard = ({ navigation }) => {
         userId: user?.id,
       });
   
-      const response = await fetch(`${API_URL}/emergency/cancel`, {
+      const response = await fetch(`${API_ROUTES.emergency}/cancel`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

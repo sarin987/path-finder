@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { API_URL } from '../config';
+import { API_ROUTES } from '../config';
 
 const AuthContext = createContext({});
 
@@ -10,6 +10,15 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
 
+  // Configure axios defaults
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+    }
+  }, [token]);
+
   useEffect(() => {
     // Check for stored token when app loads
     loadStoredToken();
@@ -17,17 +26,20 @@ export const AuthProvider = ({ children }) => {
 
   const loadStoredToken = async () => {
     try {
-      const storedToken = await AsyncStorage.getItem('userToken');
-      if (storedToken) {
-        setToken(storedToken);
-        // Load user data using the token
-        const userData = await AsyncStorage.getItem('userData');
-        if (userData) {
-          setUser(JSON.parse(userData));
-        }
+      const [storedToken, userData] = await AsyncStorage.multiGet([
+        'userToken',
+        'userData'
+      ]);
+      
+      if (storedToken[1] && userData[1]) {
+        setToken(storedToken[1]);
+        setUser(JSON.parse(userData[1]));
+        axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken[1]}`;
       }
     } catch (error) {
       console.error('Error loading auth state:', error);
+      // Clear potentially corrupted data
+      await AsyncStorage.multiRemove(['userToken', 'userData']);
     } finally {
       setLoading(false);
     }
@@ -35,19 +47,26 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      const response = await axios.post(`${API_URL}/login`, credentials);
-      const { token, user: userData } = response.data;
+      const response = await axios.post(`${API_ROUTES.auth}/login`, credentials);
+      const { token: newToken, user: userData } = response.data;
       
-      // Store token and user data
-      await AsyncStorage.setItem('userToken', token);
-      await AsyncStorage.setItem('userData', JSON.stringify(userData));
+      // Store auth data
+      await AsyncStorage.multiSet([
+        ['userToken', newToken],
+        ['userData', JSON.stringify(userData)]
+      ]);
       
-      setToken(token);
+      setToken(newToken);
       setUser(userData);
       
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
+      // Clear any existing auth data on login failure
+      await AsyncStorage.multiRemove(['userToken', 'userData']);
+      setToken(null);
+      setUser(null);
+      
       return {
         success: false,
         error: error.response?.data?.message || 'Login failed'
@@ -57,7 +76,7 @@ export const AuthProvider = ({ children }) => {
 
   const googleSignIn = async (googleToken, userType) => {
     try {
-      const response = await axios.post(`${API_URL}/google`, {
+      const response = await axios.post(`${API_ROUTES.auth}/google`, {
         token: googleToken,
         userType
       });
@@ -82,7 +101,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await axios.post(`${API_URL}/register`, userData);
+      const response = await axios.post(`${API_ROUTES.auth}/register`, userData);
       return { success: true, data: response.data };
     } catch (error) {
       console.error('Registration error:', error);
@@ -95,37 +114,11 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // Clear socket connection if exists
-      if (socket?.connected) {
-        socket.disconnect();
-      }
-
-      // Clear all stored tokens and user data
-      await AsyncStorage.multiRemove([
-        'userToken',
-        'userRole',
-        'userId',
-        'phone',
-        'user'
-      ]);
-
-      // Reset user state
+      // Clear auth data
+      await AsyncStorage.multiRemove(['userToken', 'userData']);
+      setToken(null);
       setUser(null);
-      setIsAuthenticated(false);
-
-      // Optional: Call backend logout endpoint if needed
-      try {
-        await fetch(`${API_URL}/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${await AsyncStorage.getItem('userToken')}`,
-          },
-        });
-      } catch (error) {
-        console.log('Backend logout error:', error);
-        // Continue with local logout even if backend fails
-      }
-
+      delete axios.defaults.headers.common['Authorization'];
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
@@ -135,7 +128,7 @@ export const AuthProvider = ({ children }) => {
   const updateProfile = async (updatedData) => {
     try {
       const response = await axios.put(
-        `${API_URL}/users/${user.id}`,
+        `${API_ROUTES.users}/${user.id}`,
         updatedData,
         {
           headers: { Authorization: `Bearer ${token}` }
