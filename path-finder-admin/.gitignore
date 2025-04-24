@@ -33,3 +33,6 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?*
+
+# Firebase secrets
+operational_frontend/src/services/firebaseConfig.json
