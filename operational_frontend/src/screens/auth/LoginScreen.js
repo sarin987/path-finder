@@ -23,9 +23,10 @@ import auth from '@react-native-firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { authStyles } from '../../styles/authStyles';
 import { colors } from '../../styles/colors';
-import { API_URL } from '../../config';
+import { API_ROUTES } from '../../config';
 import { ROLES, ROLE_ROUTES } from '../../constants/auth';
 import { AnimatedBackground } from '../../components/AnimatedBackground';
+import { useAuth } from '../../contexts/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,6 +39,8 @@ const getColor = (path) => {
 };
 
 const LoginScreen = ({ navigation }) => {
+  const { login } = useAuth();
+  const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState('+91');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
@@ -96,51 +99,83 @@ const LoginScreen = ({ navigation }) => {
       return false;
     }
 
-    try {
-      // Debug log
-      console.log('Attempting login with:', phone);
+    let retryCount = 0;
+    const maxRetries = 2;
 
-      const requestBody = {
-        phone: phone.replace(/\s+/g, '').trim(),
-        password: password.trim()
-      };
+    const attemptLogin = async () => {
+      try {
+        setIsPasswordLoading(true);
+        
+        const requestBody = {
+          phone: phone.replace(/\s+/g, '').trim(),
+          password: password.trim()
+        };
 
-      const response = await fetch(`${API_URL}/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
+        console.log('Login request:', requestBody);
 
-      const data = await response.json();
-      console.log('Server response:', data);
+        const response = await fetch(`${API_ROUTES.auth}/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(requestBody),
+          // Add timeout
+          timeout: 10000 
+        });
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Authentication failed');
+        const data = await response.json();
+        console.log('Login response:', data);
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Authentication failed');
+        }
+
+        // Store user data and update context
+        await login({
+          id: data.userId,
+          role: data.role,
+          name: data.name,
+          phone: data.phone,
+          profile_photo: data.profile_photo,
+          gender: data.gender,
+          user_verified: data.user_verified,
+          token: data.token
+        });
+
+        // Use navigation.reset instead of replace
+        navigation.reset({
+          index: 0,
+          routes: [{ 
+            name: ROLE_ROUTES[data.role] || 'UserDashboard',
+            params: { userData: data }
+          }]
+        });
+
+        return true;
+
+      } catch (error) {
+        console.error('Login Error:', error);
+        
+        // Check if error is timeout
+        if (error.code === 'ETIMEDOUT' && retryCount < maxRetries) {
+          retryCount++;
+          console.log(`Retrying login attempt ${retryCount}...`);
+          return attemptLogin();
+        }
+
+        Alert.alert(
+          'Login Failed', 
+          'Connection timed out. Please check your internet connection and try again.'
+        );
+        return false;
       }
+    };
 
-      // Store session data
-      await AsyncStorage.multiSet([
-        ['userToken', data.token],
-        ['userRole', 'user'],
-        ['userId', data.userId?.toString() || ''],
-        ['phone', phone.trim()]
-      ]);
-
-      navigation.replace('UserDashboard');
-      return true;
-
-    } catch (error) {
-      console.error('Login Error:', error);
-      Alert.alert(
-        'Login Failed',
-        error.message === 'Network request failed'
-          ? 'Unable to connect to server. Please check your internet connection.'
-          : error.message || 'Invalid credentials'
-      );
-      return false;
+    try {
+      return await attemptLogin();
+    } finally {
+      setIsPasswordLoading(false);
     }
   };
 
@@ -159,7 +194,7 @@ const LoginScreen = ({ navigation }) => {
       const credential = auth.PhoneAuthProvider.credential(verificationId, otp);
       const userCredential = await auth().signInWithCredential(credential);
       
-      const response = await fetch(`${API_URL}/verify-otp`, {
+      const response = await fetch(`${API_ROUTES.auth}/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -200,7 +235,7 @@ const LoginScreen = ({ navigation }) => {
       const googleCredential = auth.GoogleAuthProvider.credential(userInfo.idToken);
       const userCredential = await auth().signInWithCredential(googleCredential);
       
-      const response = await fetch(`${API_URL}/google`, {
+      const response = await fetch(`${API_ROUTES.auth}/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -274,10 +309,10 @@ const LoginScreen = ({ navigation }) => {
       
       if (success) {
         if (type === 'password' || (type === 'otp' && isOtpSent)) {
-          const role = await AsyncStorage.getItem('userRole');
-          if (role) {
-            navigation.replace(ROLE_ROUTES[role] || 'UserDashboard');
-          }
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'UserDashboard' }]
+          });
         }
       }
     } catch (error) {
@@ -290,6 +325,63 @@ const LoginScreen = ({ navigation }) => {
       if (setLoading) {
         setLoading(false);
       }
+    }
+  };
+
+  const handleLogin = async () => {
+    try {
+      setLoading(true);
+      console.log('Login URL:', `${API_ROUTES.auth}/login`);
+      console.log('Request body:', { password, phone });
+
+      const response = await fetch(`${API_ROUTES.auth}/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phone,
+          password
+        })
+      });
+
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Server response:', data);
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      const userData = {
+        id: data.userId,
+        role: data.role,
+        name: data.name || 'N/A',
+        phone: data.phone,
+        profile_photo: data.profile_photo,
+        gender: data.gender,
+        user_verified: data.user_verified,
+        token: data.token
+      };
+
+      const loginSuccess = await login(userData);
+
+      if (loginSuccess) {
+        navigation.reset({
+          index: 0,
+          routes: [{ 
+            name: ROLE_ROUTES[data.role] || 'UserDashboard',
+            params: { userData }
+          }]
+        });
+      } else {
+        throw new Error('Failed to store auth data');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Login Failed', error.message);
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -18,7 +18,7 @@ const normalize = (size) => {
 export const authStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: '#fff',
   },
   backgroundImage: {
     position: 'absolute',
@@ -71,9 +71,9 @@ export const authStyles = StyleSheet.create({
     marginBottom: normalize(12),
   },
   formContainer: {
+    padding: 20,
     backgroundColor: 'white',
     borderRadius: normalize(16),
-    padding: normalize(16),
     elevation: 6,
     shadowColor: 'black',
     shadowOffset: { width: 0, height: 4 },
@@ -108,9 +108,12 @@ export const authStyles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: normalize(16),
-    color: '#2e3a59',
     height: '100%',
+    backgroundColor: '#ffffff', // Changed from #f8f9fa to white
+    borderWidth: 0,           // Removed border
+    padding: normalize(12),
+    fontSize: normalize(16),
+    color: '#2c3e50',        // Darker text color for better visibility
     paddingVertical: 0,
     ...Platform.select({
       ios: {
@@ -166,8 +169,8 @@ export const authStyles = StyleSheet.create({
     }),
   },
   placeholderStyle: {
-    fontSize: 16,
-    color: '#8f9bb3', // Changed from 'gray' to proper placeholder color
+    fontSize: normalize(16),
+    color: '#9CA3AF',        // Lighter but still visible placeholder color
   },
   selectedTextStyle: {
     fontSize: 16,
@@ -190,10 +193,9 @@ export const authStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonText: {
-    color: 'white',
-    fontSize: normalize(17),
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
-    letterSpacing: 0.3,
   },
   switchMethodButton: {
     alignItems: 'center',
@@ -258,6 +260,33 @@ export const authStyles = StyleSheet.create({
     color: 'primary',
     fontSize: 15,
     fontWeight: '500',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 15,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   // Add responsive styles for landscape mode
   '@media (orientation: landscape)': {

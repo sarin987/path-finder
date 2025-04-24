@@ -7,7 +7,7 @@ const getBaseUrl = () => {
       ios: 'http://localhost:5000',
       android: DeviceInfo.isEmulatorSync() 
         ? 'http://10.0.2.2:5000' 
-        : 'http://192.168.1.4:5000'
+        : 'http://192.168.1.4:5000'  // Replace with your computer's local IP
     });
   }
   return 'https://your-production-api.com';
@@ -16,10 +16,10 @@ const getBaseUrl = () => {
 const BASE_URL = getBaseUrl();
 
 export const API_ROUTES = {
+  base: BASE_URL,
   auth: `${BASE_URL}/api/auth`,
-  services: `${BASE_URL}/api/services`,
-  emergency: `${BASE_URL}/api/emergency`,
-  users: `${BASE_URL}/api/users`
+  users: `${BASE_URL}/api/users`,
+  services: `${BASE_URL}/api/services`
 };
 
 export const SOCKET_URL = BASE_URL;

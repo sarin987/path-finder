@@ -1,25 +1,23 @@
 import { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 
-export const useLocation = (initialLocation) => {
-  const [location, setLocation] = useState(initialLocation);
+export const useLocation = (defaultLocation) => {
+  const [location, setLocation] = useState(defaultLocation);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const watchId = Geolocation.watchPosition(
-      position => {
-        setLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        });
-      },
-      error => console.error('Location error:', error),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000 }
-    );
+  const updateLocation = async (newLocation) => {
+    try {
+      setLocation(newLocation);
+    } catch (error) {
+      console.error('Location update error:', error);
+      setError(error);
+    }
+  };
 
-    return () => Geolocation.clearWatch(watchId);
-  }, []);
-
-  return { location, setLocation };
+  return {
+    location,
+    setLocation: updateLocation,
+    error
+  };
 };

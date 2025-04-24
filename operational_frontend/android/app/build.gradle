@@ -31,7 +31,7 @@ react {
     //   A list containing the node command and its flags. Default is just 'node'.
     // nodeExecutableAndArgs = ["node"]
     //
-    //   The command to run when bundling. By default is 'bundle'
+    //   The command to run when bundling. By default it is 'bundle'
     // bundleCommand = "ram-bundle"
     //
     //   The path to the CLI configuration file. Default is empty.
@@ -88,6 +88,11 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        
+        // Add this for manifest merger
+        manifestPlaceholders = [
+            appAuthRedirectScheme: applicationId
+        ]
     }
     signingConfigs {
         debug {
@@ -117,13 +122,26 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    // Add this configuration
+    configurations.all {
+        resolutionStrategy {
+            force 'androidx.core:core:1.9.0'
+            force 'androidx.core:core-ktx:1.9.0'
+            // Remove support library
+            exclude group: 'com.android.support'
+            exclude module: 'support-v4'
+            exclude module: 'support-annotations'
+        }
+    }
 }
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-    implementation(platform("com.google.firebase:firebase-bom:33.9.0"))
+    implementation platform('com.google.firebase:firebase-bom:32.7.2')
     implementation('com.google.firebase:firebase-analytics')
+    implementation(platform("com.google.firebase:firebase-bom:33.9.0"))
     implementation('com.google.firebase:firebase-auth')
     implementation('com.google.firebase:firebase-firestore')
     implementation('com.google.firebase:firebase-database')
@@ -131,6 +149,22 @@ dependencies {
     implementation('com.google.android.gms:play-services-maps:19.0.0')
     implementation('com.google.android.libraries.places:places:3.3.0')
     implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
+    implementation "com.google.android.gms:play-services-location:21.0.1"
+    
+    // Update/Add these androidx dependencies
+    implementation 'androidx.core:core:1.9.0'
+    implementation 'androidx.core:core-ktx:1.9.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
+    
+    // Update Google Play Services versions
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+    implementation 'com.google.android.gms:play-services-maps:18.2.0'
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
+    implementation 'com.google.android.libraries.places:places:3.3.0'
+
+    // Add Voice package
+
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
