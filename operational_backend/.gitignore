@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+firebase.json
+firebase-debug.log
+firebaseConfig.json
+db.js
+config
+jwt.js
