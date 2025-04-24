@@ -1,23 +1,50 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import RegisterScreen from '../screens/RegisterScreen';
-import OtpVerificationScreen from '../screens/OtpVerificationScreen';
-import LoginScreen from '../screens/LoginScreen';
+import { createStackNavigator } from '@react-navigation/stack';
+import { useAuth } from '../contexts/AuthContext';
+import SplashScreen from '../screens/auth/SplashScreen';
+import LoginScreen from '../screens/auth/LoginScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
+import UserDashboard from '../screens/dashboards/UserDashboard';
+import Profile from '../screens/Profile/Profile';
 
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
 const AppNavigator = () => {
+  const { user, loading } = useAuth();
+
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Register" component={RegisterScreen} />
-        <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Navigator
+        initialRouteName="UserDashboard"
+        screenOptions={{
+          headerShown: false
+        }}
+      >
+        {loading ? (
+          // Splash Screen
+          <Stack.Screen name="Splash" component={SplashScreen} />
+        ) : !user ? (
+          // Auth Stack
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
+          </>
+        ) : (
+          // App Stack
+          <>
+            <Stack.Screen 
+              name="UserDashboard" 
+              component={UserDashboard}
+              options={{ gestureEnabled: false }}
+            />
+            
+            <Stack.Screen name="Profile" component={Profile} />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
 
 export default AppNavigator;
-// In the above code, we have created a stack navigator with three screens: Register, OtpVerification, and Login. We have set the headerShown option to false to hide the header in all screens.
