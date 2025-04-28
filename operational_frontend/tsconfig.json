@@ -4,7 +4,7 @@
       "node",
       "react",
       "react-native",
-      "@babel/core"
+      "babel__core"
     ]
-  },
+  }
 }

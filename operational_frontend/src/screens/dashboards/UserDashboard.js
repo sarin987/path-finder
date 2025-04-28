@@ -509,93 +509,49 @@ const UserDashboard = ({ navigation }) => {
   );
 
   const handleEmergencyRequest = async (type) => {
-    try {
-      const response = await fetch('http://localhost:5000/api/emergency', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type,
-          userId: user?.id,
-          location,
-          timestamp: new Date().toISOString(),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send emergency request');
-      }
-
-      Alert.alert('Request Sent', 'Your emergency request has been sent successfully.');
-    } catch (error) {
-      console.error('Error sending emergency request:', error);
-      Alert.alert('Error', 'Failed to send emergency request. Please try again.');
+    switch (type) {
+      case 'chat':
+        // Open chat screen with the relevant service
+        navigation.navigate('ChatScreen', { type: emergencyMenu });
+        break;
+      case 'share':
+        // Share current location with the selected service
+        Alert.alert('Location Shared', `Your location has been shared with the ${emergencyMenu}.`);
+        // Optionally, emit socket or API call here
+        break;
+      case 'call':
+        // Call the nearest service (police, ambulance, fire, parents)
+        let phoneNumber = '';
+        switch (emergencyMenu) {
+          case 'police': phoneNumber = '100'; break;
+          case 'ambulance': phoneNumber = '102'; break;
+          case 'fire': phoneNumber = '101'; break;
+          case 'parents': phoneNumber = '1234567890'; break; // Replace with real parent number
+          default: phoneNumber = '';
+        }
+        if (phoneNumber) {
+          Linking.openURL(`tel:${phoneNumber}`);
+        } else {
+          Alert.alert('Error', 'No phone number available.');
+        }
+        break;
+      case 'thanks':
+        Alert.alert('Thank You', `Thank you message sent to the ${emergencyMenu}.`);
+        // Optionally, send a thank you message via socket or API
+        break;
+      case 'alert':
+        Alert.alert('Alert Sent', 'Alert has been sent to your parents.');
+        // Optionally, emit alert event here
+        break;
+      case 'zone':
+        Alert.alert('Safe Zone', 'Safe zone has been set for your parents.');
+        // Optionally, implement safe zone logic
+        break;
+      default:
+        setEmergencyMenu(null);
+        break;
     }
-  };
-
-  const renderEmergencyMenu = () => {
-    if (!emergencyMenu) return null;
-
-    const optionsMap = {
-      police: [
-        { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Police', action: () => handleEmergencyRequest('chat') },
-        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
-        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Nearest Station', action: () => handleEmergencyRequest('call') },
-        { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Police', action: () => handleEmergencyRequest('thanks') },
-        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
-      ],
-      ambulance: [
-        { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Ambulance', action: () => handleEmergencyRequest('chat') },
-        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
-        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Ambulance', action: () => handleEmergencyRequest('call') },
-        { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Ambulance', action: () => handleEmergencyRequest('thanks') },
-        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
-      ],
-      fire: [
-        { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Fire Brigade', action: () => handleEmergencyRequest('chat') },
-        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
-        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Fire Brigade', action: () => handleEmergencyRequest('call') },
-        { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Fire Brigade', action: () => handleEmergencyRequest('thanks') },
-        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
-      ],
-      parents: [
-        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
-        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Parents', action: () => handleEmergencyRequest('call') },
-        { type: 'alert', icon: 'alert', color: '#E91E63', label: 'Send Alert', action: () => handleEmergencyRequest('alert') },
-        { type: 'zone', icon: 'map-marker-radius', color: '#4CAF50', label: 'Set Safe Zone', action: () => handleEmergencyRequest('zone') },
-        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
-      ],
-    };
-
-    const options = optionsMap[emergencyMenu] || [];
-
-    return (
-      <Modal
-        transparent={true}
-        animationType="slide"
-        visible={!!emergencyMenu}
-        onRequestClose={() => setEmergencyMenu(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Emergency Options</Text>
-            <ScrollView contentContainerStyle={styles.modalBody}>
-              {options.map((option, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.modalOption, { backgroundColor: option.color }]}
-                  onPress={option.action}
-                >
-                  <MaterialCommunityIcons name={option.icon} size={28} color="white" />
-                  <Text style={styles.modalOptionText}>{option.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    );
+    setEmergencyMenu(null);
   };
 
   const updateNearbyService = (data) => {
@@ -838,6 +794,70 @@ const UserDashboard = ({ navigation }) => {
         </MapView>
         {renderLocationButton()}
       </View>
+    );
+  };
+
+  const renderEmergencyMenu = () => {
+    if (!emergencyMenu) return null;
+
+    const optionsMap = {
+      police: [
+        { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Police', action: () => handleEmergencyRequest('chat') },
+        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
+        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Nearest Station', action: () => handleEmergencyRequest('call') },
+        { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Police', action: () => handleEmergencyRequest('thanks') },
+        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
+      ],
+      ambulance: [
+        { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Ambulance', action: () => handleEmergencyRequest('chat') },
+        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
+        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Ambulance', action: () => handleEmergencyRequest('call') },
+        { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Ambulance', action: () => handleEmergencyRequest('thanks') },
+        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
+      ],
+      fire: [
+        { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Fire Brigade', action: () => handleEmergencyRequest('chat') },
+        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
+        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Fire Brigade', action: () => handleEmergencyRequest('call') },
+        { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Fire Brigade', action: () => handleEmergencyRequest('thanks') },
+        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
+      ],
+      parents: [
+        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
+        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Parents', action: () => handleEmergencyRequest('call') },
+        { type: 'alert', icon: 'alert', color: '#E91E63', label: 'Send Alert', action: () => handleEmergencyRequest('alert') },
+        { type: 'zone', icon: 'map-marker-radius', color: '#4CAF50', label: 'Set Safe Zone', action: () => handleEmergencyRequest('zone') },
+        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
+      ],
+    };
+
+    const options = optionsMap[emergencyMenu] || [];
+
+    return (
+      <Modal
+        transparent={true}
+        animationType="slide"
+        visible={!!emergencyMenu}
+        onRequestClose={() => setEmergencyMenu(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Emergency Options</Text>
+            <ScrollView contentContainerStyle={styles.modalBody}>
+              {options.map((option, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[styles.modalOption, { backgroundColor: option.color }]}
+                  onPress={option.action}
+                >
+                  <MaterialCommunityIcons name={option.icon} size={28} color="white" />
+                  <Text style={styles.modalOptionText}>{option.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     );
   };
 

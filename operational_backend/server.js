@@ -8,6 +8,7 @@ const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
 const morgan = require('morgan');
+const Message = require('./models/Message'); // Import Message model
 
 require('dotenv').config();
 
@@ -121,8 +122,11 @@ const io = socketIo(server, {
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
-  
+  console.log('[Socket.io] Client connected:', socket.id);
+  socket.on('disconnect', () => {
+    console.log('[Socket.io] Client disconnected:', socket.id);
+  });
+
   // Client identification
   socket.on('identify', (clientType) => {
     console.log(`Client identified as: ${clientType}`);
@@ -213,9 +217,52 @@ io.on('connection', (socket) => {
   socket.on('error', (error) => {
     console.error('Socket error:', error);
   });
+});
 
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+// Real-time Chat Messaging
+io.on('connection', (socket) => {
+  // --- USER-BASED CHAT JOIN/HISTORY ---
+  socket.on('join_chat', async ({ chat_type, user_id, other_user_id }) => {
+    try {
+      // Join a room specific to the user or user pair
+      const room = other_user_id ? `chat_${chat_type}_${[user_id, other_user_id].sort().join('_')}` : `chat_${chat_type}_${user_id}`;
+      socket.join(room);
+      console.log(`[join_chat] User ${user_id} joined room:`, room);
+      // Fetch chat history for this user or user pair
+      let where = { chat_type };
+      // For group chat (like police), do not filter by sender_id/receiver_id
+      if (chat_type !== 'police') {
+        if (user_id) where.sender_id = user_id;
+        if (other_user_id) where.receiver_id = other_user_id;
+      }
+      const messages = await Message.findAll({ where, order: ['timestamp', 'ASC'], limit: 50 });
+      socket.emit('chat_history', messages);
+    } catch (err) {
+      console.error('[join_chat] ERROR:', err);
+      socket.emit('chat_history', []);
+    }
+  });
+
+  socket.on('leave_chat', ({ chat_type, user_id, other_user_id }) => {
+    const room = other_user_id ? `chat_${chat_type}_${[user_id, other_user_id].sort().join('_')}` : `chat_${chat_type}_${user_id}`;
+    socket.leave(room);
+    console.log(`[leave_chat] User ${user_id} left room:`, room);
+  });
+
+  socket.on('chat_message', async (msg) => {
+    try {
+      const dbResult = await Message.create(msg);
+      const savedMsg = await Message.findById(dbResult);
+      // Broadcast to the appropriate room
+      const { chat_type, sender_id, receiver_id } = savedMsg;
+      const room = receiver_id ? `chat_${chat_type}_${[sender_id, receiver_id].sort().join('_')}` : `chat_${chat_type}_${sender_id}`;
+      console.log(`[chat_message] Emitting to room: ${room}`);
+      socket.to(room).emit('chat_message', savedMsg);
+      // Optionally, send to sender as well for confirmation
+      socket.emit('chat_message', savedMsg);
+    } catch (err) {
+      console.error('[chat_message] Failed to save chat message:', err, '\nMessage:', msg);
+    }
   });
 });
 

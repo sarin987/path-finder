@@ -29,7 +29,7 @@ const EmergencyMap = forwardRef(({
         style={styles.map}
         initialRegion={initialLocation}
         showsUserLocation={true}
-        showsMyLocationButton={true}
+        showsMyLocationButton={false}
         showsCompass={true}
         onMapReady={() => {}}
         onRegionChange={onLocationChange}

@@ -5,7 +5,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 const Header = ({ onMenuPress, onSearch }) => (
   <View style={styles.header}>
     <TouchableOpacity onPress={onMenuPress}>
-      <MaterialCommunityIcons name="menu" size={24} color="#000" />
+      <MaterialCommunityIcons name="menu" size={24} color="#007AFF" />
     </TouchableOpacity>
     <View style={styles.searchBar}>
       <MaterialCommunityIcons name="magnify" size={20} color="#666" />

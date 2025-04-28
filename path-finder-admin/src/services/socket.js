@@ -1,7 +1,7 @@
 import io from 'socket.io-client';
 
 // Connect to the operational backend server
-const SOCKET_URL = 'http://localhost:5000'; // Update this URL based on your backend server location
+const SOCKET_URL = 'http://192.168.1.4:5000'; // Update this URL based on your backend server location
 const socket = io(SOCKET_URL, {
   reconnection: true,
   reconnectionAttempts: 5,

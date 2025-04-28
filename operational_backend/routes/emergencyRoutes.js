@@ -5,7 +5,7 @@ const db = require('../utils/database');
 // Fetch all emergency requests
 router.get('/emergency-calls', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM emergency_requests ORDER BY timestamp DESC');
+    const [rows] = await db.query('SELECT * FROM emergency_requests ORDER BY id DESC');
     res.status(200).json(rows);
   } catch (error) {
     console.error('Error fetching emergency calls:', error);
@@ -95,6 +95,23 @@ router.post('/send-thank-you', async (req, res) => {
   } catch (error) {
     console.error('Error sending thank-you message:', error);
     res.status(500).json({ error: 'Failed to send thank-you message' });
+  }
+});
+
+// Get chat messages for a given emergency or chat type
+router.get('/api/chat-messages', async (req, res) => {
+  try {
+    const { chat_type, emergency_request_id, sender_id, receiver_id, limit = 50 } = req.query;
+    const where = {};
+    if (chat_type) where.chat_type = chat_type;
+    if (emergency_request_id) where.emergency_request_id = emergency_request_id;
+    if (sender_id) where.sender_id = sender_id;
+    if (receiver_id) where.receiver_id = receiver_id;
+    const messages = await Message.findAll({ where, order: ['timestamp', 'ASC'], limit: parseInt(limit) });
+    res.status(200).json(messages);
+  } catch (error) {
+    console.error('Error fetching chat messages:', error);
+    res.status(500).json({ error: 'Failed to fetch chat messages' });
   }
 });
 
