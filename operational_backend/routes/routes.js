@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const db = require('../db');
+const db = require('../utils/database');
 const admin = require('firebase-admin');
 
 // Helper: Check for risks/incidents along the route

@@ -3,8 +3,11 @@ import { View, Text, TextInput, Button, Image, TouchableOpacity, StyleSheet } fr
 import { launchImageLibrary } from 'react-native-image-picker';
 import Geolocation from '@react-native-community/geolocation';
 import axios from 'axios';
+import { API_ROUTES } from '../config'; // Assuming API_ROUTES is defined in a separate config file
+import { useAuth } from '../contexts/AuthContext'; // Assuming useAuth is defined in a separate auth file
 
-const IncidentReportForm = ({ onReportSuccess }) => {
+const IncidentReportForm = ({ recipient, onReportSuccess, onSubmit, onCancel }) => {
+  const { user } = useAuth();
   const [type, setType] = useState('');
   const [description, setDescription] = useState('');
   const [photo, setPhoto] = useState(null);
@@ -49,7 +52,8 @@ const IncidentReportForm = ({ onReportSuccess }) => {
   const submitIncident = async (location) => {
     try {
       const formData = new FormData();
-      formData.append('user_id', 1); // Replace with real user ID from auth context
+      formData.append('user_id', user?.id || 1);
+      formData.append('recipient', recipient);
       formData.append('type', type);
       formData.append('description', description);
       if (photo) {
@@ -63,7 +67,7 @@ const IncidentReportForm = ({ onReportSuccess }) => {
         formData.append('location_lat', location.lat);
         formData.append('location_lng', location.lng);
       }
-      await axios.post('http://localhost:5000/api/incidents/report', formData, {
+      await axios.post(`${API_ROUTES.base}/api/incidents/report`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setType(''); setDescription(''); setPhoto(null); setLocation(null);

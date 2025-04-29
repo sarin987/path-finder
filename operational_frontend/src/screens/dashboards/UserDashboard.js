@@ -37,6 +37,7 @@ import SafeRouteSuggester from '../../components/SafeRouteSuggester';
 import ResourceAvailabilityPanel from '../../components/ResourceAvailabilityPanel';
 import CheckInPanel from '../../components/CheckInPanel';
 import EmergencyCallPanel from '../../components/EmergencyCallPanel';
+import PoliceDashboard from './PoliceDashboard';
 import { fetchActiveUsers, markLoginActivity, markLogoutActivity } from '../../api/activeUsers';
 
 const DEFAULT_LOCATION = {
@@ -718,7 +719,7 @@ const UserDashboard = ({ navigation }) => {
         socketRef.current = null;
       }
       await logout();
-      navigation.replace('Login');
+      navigation.replace('LoginScreen');
     } catch (error) {
       console.error('Logout error:', error);
       Alert.alert(
@@ -862,17 +863,18 @@ const UserDashboard = ({ navigation }) => {
     );
   };
 
+  const getActiveUsers = async () => {
+    try {
+      const users = await fetchActiveUsers();
+      setActiveUsers(users);
+    } catch (err) {
+      setActiveUsers([]);
+    }
+  };
+
   useEffect(() => {
-    const getActiveUsers = async () => {
-      try {
-        const users = await fetchActiveUsers();
-        setActiveUsers(users);
-      } catch (err) {
-        setActiveUsers([]);
-      }
-    };
     getActiveUsers();
-    const interval = setInterval(getActiveUsers, 10000); // Poll every 10s
+    const interval = setInterval(getActiveUsers, 10000); // poll every 10s
     return () => clearInterval(interval);
   }, []);
 

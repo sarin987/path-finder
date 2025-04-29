@@ -1,6 +1,9 @@
 const express = require('express');
+const app = express();
 const router = express.Router();
-const db = require('./mysql');
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+const db = require('../config/db'); // Use db connection from config/db.js
 
 // Mark user as active on login
 router.post('/login-activity', async (req, res) => {

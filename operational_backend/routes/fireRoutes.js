@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('./mysql'); // Assumes a db connection exported from mysql.js
+const db = require('../config/db'); // Use db connection from config/db.js
 
 // Get latest fire incidents
 router.get('/incidents', async (req, res) => {
