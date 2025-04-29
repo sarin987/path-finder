@@ -21,9 +21,10 @@ import {
   FaUserInjured, 
   FaChild, 
   FaSchool, 
-  FaBus 
+  FaBus, 
+  FaFireExtinguisher 
 } from 'react-icons/fa';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const getRoleFromPath = (pathname) => {
@@ -145,6 +146,12 @@ const Sidebar = ({ role }) => {
             />
           </ListItem>
         ))}
+        <ListItem button component={Link} to="/dashboard/fire">
+          <ListItemIcon>
+            <FaFireExtinguisher style={{ color: '#D84315' }} />
+          </ListItemIcon>
+          <ListItemText primary="Fire Brigade" />
+        </ListItem>
       </List>
 
       <Box sx={{ position: 'absolute', bottom: 0, width: '100%', padding: 2 }}>

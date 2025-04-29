@@ -55,9 +55,26 @@ const Login = () => {
     try {
       // Use the login function from AuthContext
       await auth.login(credentials, credentials.role, credentials.location, rememberMe);
-      
-      // Navigate after successful login
-      navigate(`/${credentials.role}`);
+
+      // Role-based dashboard routing
+      let dashboardPath = '/';
+      switch (credentials.role) {
+        case 'police':
+          dashboardPath = '/dashboard/police';
+          break;
+        case 'ambulance':
+          dashboardPath = '/dashboard/ambulance';
+          break;
+        case 'fire':
+          dashboardPath = '/dashboard/fire';
+          break;
+        case 'parent':
+          dashboardPath = '/dashboard/parent';
+          break;
+        default:
+          dashboardPath = '/';
+      }
+      navigate(dashboardPath);
     } catch (err) {
       setError('Invalid credentials');
     } finally {
@@ -153,6 +170,7 @@ const Login = () => {
                 >
                   <option value="police">Police</option>
                   <option value="ambulance">Ambulance</option>
+                  <option value="fire">Fire Brigade</option>
                   <option value="parent">Parent</option>
                 </select>
               </div>

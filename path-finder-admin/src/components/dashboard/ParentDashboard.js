@@ -4,11 +4,15 @@ import { motion } from 'framer-motion';
 import Sidebar from '../common/Sidebar';
 import EmergencyCalls from './ParentDashboard/EmergencyCalls';
 import Chat from '../common/Chat';
+import MapComponent from '../common/MapComponent';
 
 const ParentDashboard = () => {
   const [children, setChildren] = useState([]);
   const [schools, setSchools] = useState([]);
   const [buses, setBuses] = useState([]);
+  const [userLocation, setUserLocation] = useState(null);
+  const [user, setUser] = useState({}); // assuming user object is available
+  const socket = {}; // assuming socket object is available
 
   useEffect(() => {
     // TODO: Fetch children, schools, and buses from backend
@@ -25,6 +29,43 @@ const ParentDashboard = () => {
       { id: 2, route: 'Route 2', status: 'Delayed' }
     ]);
   }, []);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => setUserLocation(null)
+      );
+    }
+  }, []);
+
+  // Add periodic geolocation update and socket emit for real-time tracking
+  useEffect(() => {
+    let watchId;
+    if (navigator.geolocation && user) {
+      const sendLoc = (pos) => {
+        const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        setUserLocation({ lat: loc.latitude, lng: loc.longitude });
+        // Emit location to backend for real-time responder tracking
+        socket.emit('responder_location_update', {
+          id: user.id,
+          role: 'parent',
+          name: user.name,
+          contact: user.contact || user.phone || '',
+          location: loc
+        });
+      };
+      // Initial send
+      navigator.geolocation.getCurrentPosition(sendLoc);
+      // Watch position for live updates
+      watchId = navigator.geolocation.watchPosition(sendLoc);
+    }
+    return () => {
+      if (navigator.geolocation && watchId !== undefined) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [user]);
 
   return (
     <div style={{ display: 'flex' }}>
@@ -99,9 +140,7 @@ const ParentDashboard = () => {
               <p className="text-sm text-gray-500">Real-time bus and child locations</p>
             </div>
             <div className="relative h-[300px]">
-              <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">
-                Map will be loaded here
-              </div>
+              <MapComponent userLocation={userLocation} showLiveTracking={true} isParent={true} />
             </div>
           </div>
         </div>

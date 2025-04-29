@@ -5,11 +5,12 @@ const db = require('../utils/database');
 // Fetch all emergency requests
 router.get('/emergency-calls', async (req, res) => {
   try {
+    console.log('[DEBUG] Fetching emergency calls...');
     const [rows] = await db.query('SELECT * FROM emergency_requests ORDER BY id DESC');
     res.status(200).json(rows);
   } catch (error) {
-    console.error('Error fetching emergency calls:', error);
-    res.status(500).json({ error: 'Failed to fetch emergency calls' });
+    console.error('[ERROR] Error fetching emergency calls:', error);
+    res.status(500).json({ error: 'Failed to fetch emergency calls', details: error.message });
   }
 });
 

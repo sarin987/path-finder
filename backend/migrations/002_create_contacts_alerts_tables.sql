@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS contacts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  contact_name VARCHAR(100),
+  contact_phone VARCHAR(20),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  contact_id INT NOT NULL,
+  alert_message TEXT,
+  sent_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

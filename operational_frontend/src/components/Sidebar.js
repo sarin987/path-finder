@@ -5,10 +5,11 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import { Storage, StorageKeys } from '../utils/storage';
 import Logo from './Logo';
 
-const MenuItem = ({ icon, label, onPress, isLogout }) => (
+const MenuItem = ({ icon, label, onPress, isLogout, selected }) => (
   <TouchableOpacity 
     style={[
       styles.menuItem,
+      selected && styles.selectedMenuItem,
       isLogout && styles.logoutItem
     ]}
     onPress={onPress}
@@ -16,10 +17,11 @@ const MenuItem = ({ icon, label, onPress, isLogout }) => (
     <MaterialCommunityIcons 
       name={icon} 
       size={24} 
-      color={isLogout ? "#dc2626" : "#4b5563"} 
+      color={isLogout ? "#dc2626" : selected ? "#1d4ed8" : "#4b5563"} 
     />
     <Text style={[
       styles.menuText,
+      selected && styles.selectedMenuText,
       isLogout && styles.logoutText
     ]}>
       {label}
@@ -27,7 +29,26 @@ const MenuItem = ({ icon, label, onPress, isLogout }) => (
   </TouchableOpacity>
 );
 
-const Sidebar = ({ sidebarAnimation = new Animated.Value(-300), toggleSidebar, user, navigation, logout }) => {
+const sidebarMenuItems = [
+  { key: 'dashboard', icon: 'home', label: 'Dashboard Overview' },
+  { key: 'reportIncident', icon: 'alert-circle', label: 'Report Incident' },
+  { key: 'trustedContacts', icon: 'account-group', label: 'Trusted Contacts' },
+  { key: 'healthMonitor', icon: 'heart-pulse', label: 'Health Monitor' },
+  { key: 'emergencyAlert', icon: 'bell-alert', label: 'Emergency Alert' },
+  { key: 'nearbyIncidents', icon: 'map-marker', label: 'Nearby Incidents' },
+  { key: 'safeRoute', icon: 'navigation', label: 'Safe Route Suggester' },
+  { key: 'resourceAvailability', icon: 'database', label: 'Resource Availability' },
+  { key: 'agencyCollaboration', icon: 'handshake', label: 'Agency Collaboration' },
+];
+
+const slimSidebarMenuItems = [
+  { key: 'reportIncident', icon: 'alert-circle', label: 'Report' },
+  { key: 'trustedContacts', icon: 'account-group', label: 'Contacts' },
+  { key: 'healthMonitor', icon: 'heart-pulse', label: 'Health' },
+  { key: 'emergencyAlert', icon: 'bell-alert', label: 'Alert' },
+];
+
+const Sidebar = ({ sidebarAnimation = new Animated.Value(-300), toggleSidebar, user, navigation, logout, onMenuSelect, selectedMenu }) => {
   const { profile, loading, error, refetch } = useUserProfile(user?.id);
 
   useEffect(() => {
@@ -114,16 +135,32 @@ const Sidebar = ({ sidebarAnimation = new Animated.Value(-300), toggleSidebar, u
         </View>
 
         <View style={styles.menuContainer}>
-          <MenuItem 
-            icon="account-circle-outline" 
-            label="Profile" 
-            onPress={() => navigation.navigate('Profile')} 
+          {sidebarMenuItems.map(item => (
+            <MenuItem
+              key={item.key}
+              icon={item.icon}
+              label={item.label}
+              onPress={() => onMenuSelect(item.key)}
+              selected={selectedMenu === item.key}
+              isLogout={false}
+            />
+          ))}
+        </View>
+        <View style={{ flex: 1 }} />
+        <View style={styles.menuContainer}>
+          <MenuItem
+            icon="cog"
+            label="Settings"
+            onPress={() => navigation.navigate('Settings')}
+            isLogout={false}
+            selected={false}
           />
-          <MenuItem 
-            icon="logout" 
-            label="Logout" 
-            onPress={logout} 
+          <MenuItem
+            icon="logout"
+            label="Logout"
+            onPress={logout}
             isLogout={true}
+            selected={false}
           />
         </View>
       </View>
@@ -131,9 +168,47 @@ const Sidebar = ({ sidebarAnimation = new Animated.Value(-300), toggleSidebar, u
   );
 };
 
+const SlimSidebar = ({ onMenuSelect, selectedMenu, navigation, logout, user }) => (
+  <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: 40, paddingHorizontal: 10 }}>
+    <View style={{ alignItems: 'center', marginBottom: 30 }}>
+      <MaterialCommunityIcons name="account-circle" size={60} color="#007AFF" />
+      <Text style={{ fontWeight: 'bold', fontSize: 18, marginTop: 10 }}>{user?.name || 'User'}</Text>
+    </View>
+    <View style={{ flex: 0, marginBottom: 24 }}>
+      {slimSidebarMenuItems.map(item => (
+        <TouchableOpacity
+          key={item.key}
+          onPress={() => onMenuSelect(item.key)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: 18,
+            paddingHorizontal: 18,
+            borderRadius: 12,
+            backgroundColor: selectedMenu === item.key ? '#e0e7ff' : 'transparent',
+            marginBottom: 4,
+          }}
+        >
+          <MaterialCommunityIcons name={item.icon} size={28} color={selectedMenu === item.key ? '#1d4ed8' : '#64748b'} />
+          <Text style={{ marginLeft: 16, fontSize: 17, color: selectedMenu === item.key ? '#1d4ed8' : '#64748b', fontWeight: selectedMenu === item.key ? 'bold' : '500' }}>{item.label}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+    <View style={{ borderTopWidth: 1, borderColor: '#e5e7eb', marginTop: 10, paddingTop: 14, marginBottom: 10 }}>
+      <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+        <MaterialCommunityIcons name="cog" size={24} color="#64748b" />
+        <Text style={{ marginLeft: 16, fontSize: 16, color: '#64748b' }}>Settings</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={logout} style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <MaterialCommunityIcons name="logout" size={24} color="#dc2626" />
+        <Text style={{ marginLeft: 16, fontSize: 16, color: '#dc2626' }}>Logout</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+);
+
 const styles = StyleSheet.create({
   sidebar: {
-    position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
@@ -204,12 +279,20 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 24,
     marginBottom: 8,
+    borderRadius: 8,
+  },
+  selectedMenuItem: {
+    backgroundColor: '#e0e7ff',
   },
   menuText: {
     marginLeft: 16,
     fontSize: 16,
     color: '#4b5563',
     fontWeight: '500',
+  },
+  selectedMenuText: {
+    color: '#1d4ed8',
+    fontWeight: 'bold',
   },
   logoutItem: {
     marginTop: 'auto',
@@ -276,3 +359,4 @@ const styles = StyleSheet.create({
 });
 
 export default Sidebar;
+export { SlimSidebar };

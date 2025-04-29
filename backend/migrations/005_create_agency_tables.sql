@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS agencies (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  type VARCHAR(50) NOT NULL,
+  contact_info VARCHAR(255)
+);
+
+CREATE TABLE IF NOT EXISTS agency_resources (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  agency_id INT NOT NULL,
+  resource_type VARCHAR(50),
+  status VARCHAR(20),
+  lat DOUBLE,
+  lng DOUBLE,
+  last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agency_incidents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  agency_id INT NOT NULL,
+  incident_id INT NOT NULL,
+  assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

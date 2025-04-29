@@ -6,8 +6,11 @@ import ActiveCases from './PoliceDashboard/ActiveCases';
 import Chat from './PoliceDashboard/Chat';
 import Map from './PoliceDashboard/Map';
 import { FaPhoneAlt, FaUsers, FaMapMarkerAlt, FaComments, FaUserShield, FaAmbulance, FaUser } from 'react-icons/fa';
+import socket, { socketHelpers } from '../../services/socket';
+import { useAuth } from '../../context/AuthContext';
 
 const PoliceDashboard = () => {
+  const { user } = useAuth();
   const [emergencyCalls, setEmergencyCalls] = useState([]);
   const [activeCases, setActiveCases] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
@@ -18,11 +21,48 @@ const PoliceDashboard = () => {
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos) => {
+          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setUserLocation(loc);
+          // Send location to server for user tracking
+          socketHelpers.sendLocationUpdate({
+            userId: user?.id,
+            role: 'police',
+            location: loc
+          });
+        },
         () => setUserLocation(null)
       );
     }
-  }, []);
+  }, [user]);
+
+  // Add periodic geolocation update and socket emit for real-time tracking
+  useEffect(() => {
+    let watchId;
+    if (navigator.geolocation && user) {
+      const sendLoc = (pos) => {
+        const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        setUserLocation({ lat: loc.latitude, lng: loc.longitude });
+        // Emit location to backend for real-time responder tracking
+        socket.emit('responder_location_update', {
+          id: user.id,
+          role: 'police',
+          name: user.name,
+          contact: user.contact || user.phone || '',
+          location: loc
+        });
+      };
+      // Initial send
+      navigator.geolocation.getCurrentPosition(sendLoc);
+      // Watch position for live updates
+      watchId = navigator.geolocation.watchPosition(sendLoc);
+    }
+    return () => {
+      if (navigator.geolocation && watchId !== undefined) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [user]);
 
   // Fetch data functions (omitted for brevity, keep your current logic)
 

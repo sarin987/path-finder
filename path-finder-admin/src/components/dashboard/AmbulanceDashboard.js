@@ -4,10 +4,15 @@ import { motion } from 'framer-motion';
 import Sidebar from '../common/Sidebar';
 import EmergencyCalls from './AmbulanceDashboard/EmergencyCalls';
 import Chat from '../common/Chat';
+import MapComponent from '../common/MapComponent';
+import socket, { socketHelpers } from '../../services/socket';
+import { useAuth } from '../../context/AuthContext';
 
 const AmbulanceDashboard = () => {
   // Example state for patients
   const [patients, setPatients] = useState([]);
+  const [userLocation, setUserLocation] = useState(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     // TODO: Fetch patients from backend
@@ -16,6 +21,51 @@ const AmbulanceDashboard = () => {
       { id: 2, name: 'Jane Smith', status: 'Stable', location: '456 Elm St' }
     ]);
   }, []);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setUserLocation(loc);
+          // Send ambulance location to server for user tracking
+          socketHelpers.sendLocationUpdate({
+            userId: user?.id,
+            role: 'ambulance',
+            location: loc
+          });
+        },
+        () => setUserLocation(null)
+      );
+    }
+  }, [user]);
+
+  useEffect(() => {
+    let watchId;
+    if (navigator.geolocation && user) {
+      const sendLoc = (pos) => {
+        const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        setUserLocation({ lat: loc.latitude, lng: loc.longitude });
+        // Emit location to backend for real-time responder tracking
+        socket.emit('responder_location_update', {
+          id: user.id,
+          role: 'ambulance',
+          name: user.name,
+          contact: user.contact || user.phone || '',
+          location: loc
+        });
+      };
+      // Initial send
+      navigator.geolocation.getCurrentPosition(sendLoc);
+      // Watch position for live updates
+      watchId = navigator.geolocation.watchPosition(sendLoc);
+    }
+    return () => {
+      if (navigator.geolocation && watchId !== undefined) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [user]);
 
   return (
     <div style={{ display: 'flex' }}>
@@ -60,9 +110,7 @@ const AmbulanceDashboard = () => {
               <p className="text-sm text-gray-500">Real-time ambulance and patient locations</p>
             </div>
             <div className="relative h-[300px]">
-              <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">
-                Map will be loaded here
-              </div>
+              <MapComponent userLocation={userLocation} showLiveTracking={true} />
             </div>
           </div>
 

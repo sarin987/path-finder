@@ -6,6 +6,7 @@ import Login from './components/auth/Login';
 import PoliceDashboard from './components/dashboard/PoliceDashboard';
 import AmbulanceDashboard from './components/dashboard/AmbulanceDashboard';
 import ParentDashboard from './components/dashboard/ParentDashboard';
+import FireDashboard from './components/dashboard/FireDashboard';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Sidebar from './components/common/Sidebar';
 import Header from './components/common/Header';
@@ -74,6 +75,8 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          <Route path="/dashboard/fire" element={<FireDashboard />} />
           
           {/* Redirect to login if not authenticated */}
           <Route path="/" element={<Navigate to="/login" />} />

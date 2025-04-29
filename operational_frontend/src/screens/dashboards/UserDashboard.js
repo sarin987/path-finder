@@ -14,10 +14,10 @@ import {
   Linking,
   ScrollView
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, AnimatedRegion } from 'react-native-maps';
 import io from 'socket.io-client';
+import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
-import Sidebar from '../../components/Sidebar';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { API_ROUTES, SOCKET_URL } from '../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -26,12 +26,51 @@ import Geolocation from '@react-native-community/geolocation';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import EmergencyMenu from '../../components/EmergencyMenu';
 import EmergencyMenuOption from '../../components/EmergencyMenuOption';
+import IncidentReportForm from '../../components/IncidentReportForm';
+import IncidentMap from '../../components/IncidentMap';
+import TrustedContacts from '../../components/TrustedContacts';
+import EmergencyAlertButton from '../../components/EmergencyAlertButton';
+import HealthMonitor from '../../components/HealthMonitor';
+import RiskPredictionMap from '../../components/RiskPredictionMap';
+import AgencyCollaborationPanel from '../../components/AgencyCollaborationPanel';
+import SafeRouteSuggester from '../../components/SafeRouteSuggester';
+import ResourceAvailabilityPanel from '../../components/ResourceAvailabilityPanel';
+import CheckInPanel from '../../components/CheckInPanel';
+import EmergencyCallPanel from '../../components/EmergencyCallPanel';
+import { fetchActiveUsers, markLoginActivity, markLogoutActivity } from '../../api/activeUsers';
 
 const DEFAULT_LOCATION = {
   latitude: 10.8505,
   longitude: 76.2711,
   latitudeDelta: 0.0922,
   longitudeDelta: 0.0421,
+};
+
+const featureToContacts = {
+  reportIncident: ['police', 'fire', 'ambulance', 'parents', 'trustedContacts'],
+  trustedContacts: ['parents', 'trustedContacts'],
+  healthMonitor: ['ambulance', 'parents'],
+  emergencyAlert: ['police', 'ambulance', 'fire', 'parents'],
+  nearbyIncidents: [],
+  safeRoute: [],
+  resourceAvailability: [],
+  agencyCollaboration: ['police', 'fire', 'ambulance'],
+  checkIn: ['parents', 'trustedContacts'],
+  emergencyCall: ['userSelect'],
+};
+
+const getContactLabels = (featureKey) => {
+  const mapping = {
+    police: 'Police',
+    fire: 'Fire Brigade',
+    ambulance: 'Ambulance',
+    parents: 'Parents',
+    trustedContacts: 'Trusted Contacts',
+    userSelect: 'Choose Service',
+  };
+  return (featureToContacts[featureKey] || [])
+    .map(c => mapping[c] || c)
+    .join(', ');
 };
 
 const UserDashboard = ({ navigation }) => {
@@ -45,10 +84,20 @@ const UserDashboard = ({ navigation }) => {
 
   const [nearbyServices, setNearbyServices] = useState([]);
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
 
-  const sidebarAnimation = useRef(new Animated.Value(-300)).current;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredServices, setFilteredServices] = useState([]);
+
+  const [selectedMenu, setSelectedMenu] = useState('');
+
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const [animatedResponderMarkers, setAnimatedResponderMarkers] = useState({});
+
+  const [reportRecipient, setReportRecipient] = useState(null);
+
+  const [activeUsers, setActiveUsers] = useState([]);
 
   const handleEmergencyAccepted = async (data) => {
     try {
@@ -107,6 +156,7 @@ const UserDashboard = ({ navigation }) => {
       socketRef.current.on('location_update', updateNearbyService);
       socketRef.current.on('emergency_accepted', handleEmergencyAccepted);
       socketRef.current.on('emergency_completed', () => setIsEmergencyActive(false));
+      socketRef.current.on('responder_location_update', handleResponderUpdate);
 
       // Connect the socket
       socketRef.current.connect();
@@ -120,6 +170,7 @@ const UserDashboard = ({ navigation }) => {
         socketRef.current.off('location_update');
         socketRef.current.off('emergency_accepted');
         socketRef.current.off('emergency_completed');
+        socketRef.current.off('responder_location_update');
         
         // Close the socket connection
         socketRef.current.close();
@@ -238,6 +289,18 @@ const UserDashboard = ({ navigation }) => {
       startLocationTracking();
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    // Automate login activity on mount
+    if (user && user.id) {
+      markLoginActivity(user.id);
+    }
+    return () => {
+      if (user && user.id) {
+        markLogoutActivity(user.id);
+      }
+    };
+  }, [user]);
 
   const startLocationTracking = async () => {
     try {
@@ -371,6 +434,50 @@ const UserDashboard = ({ navigation }) => {
     }
   };
 
+  useEffect(() => {
+    // If location is not set after 2 seconds, use default (for dev/testing)
+    const timeout = setTimeout(() => {
+      if (!location) {
+        setLocation(DEFAULT_LOCATION);
+      }
+    }, 2000);
+    return () => clearTimeout(timeout);
+  }, [location]);
+
+  // Debug output for location and map rendering
+  useEffect(() => {
+    console.log('Current location state:', location);
+  }, [location]);
+
+  const handleResponderUpdate = (data) => {
+    if (!data || !data.id || !data.location) return;
+    setAnimatedResponderMarkers(prev => {
+      const prevMarker = prev[data.id];
+      if (prevMarker && prevMarker.coordinate) {
+        prevMarker.coordinate.timing({
+          latitude: data.location.latitude,
+          longitude: data.location.longitude,
+          duration: 1000,
+          useNativeDriver: false,
+        }).start();
+        return { ...prev };
+      } else {
+        return {
+          ...prev,
+          [data.id]: {
+            ...data,
+            coordinate: new AnimatedRegion({
+              latitude: data.location.latitude,
+              longitude: data.location.longitude,
+              latitudeDelta: 0.0005,
+              longitudeDelta: 0.0005,
+            })
+          }
+        };
+      }
+    });
+  };
+
   const renderLocationButton = () => {
     return (
       <TouchableOpacity
@@ -398,26 +505,61 @@ const UserDashboard = ({ navigation }) => {
     );
   };
 
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    if (!query) {
+      setFilteredServices([]);
+      return;
+    }
+    const lower = query.toLowerCase();
+    setFilteredServices(
+      nearbyServices.filter(service =>
+        service.name?.toLowerCase().includes(lower) ||
+        service.type?.toLowerCase().includes(lower) ||
+        (service.category && service.category.toLowerCase().includes(lower))
+      )
+    );
+  };
+
   const renderHeader = () => (
-    <View style={styles.header}>
-      <TouchableOpacity onPress={toggleSidebar}>
-        <View style={styles.buttonContent}>
-          <MaterialCommunityIcons 
-            name="menu" 
-            size={24} 
-            color="#333"
-          />
-          <Text style={styles.buttonText}>Menu</Text>
-        </View>
+    <View style={{
+      position: 'absolute',
+      top: 20,
+      left: 16,
+      right: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: 'rgba(255,255,255,0.97)',
+      borderRadius: 14,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      elevation: 5,
+      zIndex: 10
+    }}>
+      <TouchableOpacity onPress={() => setIsMenuOpen(true)} style={{ marginRight: 10 }}>
+        <MaterialCommunityIcons name="menu" size={28} color="#204080" />
       </TouchableOpacity>
-      <View style={styles.searchBar}>
-        <MaterialCommunityIcons name="magnify" size={20} color="#666" />
-        <TextInput 
-          style={styles.searchInput}
-          placeholder="Search location..."
-          placeholderTextColor="#666"
-        />
+      <View style={{ flex: 1, marginRight: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 10, paddingHorizontal: 8 }}>
+          <MaterialCommunityIcons name="magnify" size={20} color="#666" />
+          <TextInput
+            style={{ flex: 1, fontSize: 15, paddingVertical: 4, marginLeft: 4, color: '#222' }}
+            placeholder="Search hospitals, police, fire..."
+            placeholderTextColor="#888"
+            value={searchQuery}
+            onChangeText={handleSearch}
+            returnKeyType="search"
+          />
+        </View>
       </View>
+      <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+        <MaterialCommunityIcons name="account-circle" size={32} color="#007AFF" />
+      </TouchableOpacity>
     </View>
   );
 
@@ -617,52 +759,18 @@ const UserDashboard = ({ navigation }) => {
     );
   };
 
-  const sendEmergencyRequest = async (type) => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      
-      // Emit socket event for real-time tracking
-      socketRef.current?.emit('emergency_request', {
-        type,
-        location,
-        userId: user?.id,
-      });
-  
-      // Also send HTTP request for persistence
-      const response = await fetch(`${API_ROUTES.emergency}/request`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          type,
-          location,
-          userId: user?.id,
-        }),
-      });
-  
-      if (!response.ok) {
-        throw new Error('Failed to send emergency request');
-      }
-  
-      setIsEmergencyActive(true);
-      Alert.alert(
-        'Emergency Request Sent',
-        'Help is on the way. Stay calm and remain at your location.',
-        [{ text: 'OK' }]
-      );
-  
-    } catch (error) {
-      console.error('Emergency request error:', error);
-      Alert.alert(
-        'Error',
-        'Failed to send emergency request. Please try again or call emergency services directly.',
-        [{ text: 'OK' }]
-      );
+  const sendEmergencyRequest = async (featureKey, ...args) => {
+    const contacts = featureToContacts[featureKey] || [];
+    // For each contact, send the request (API, socket, etc.)
+    for (const contact of contacts) {
+      // Example: send to each contact (implement actual logic as needed)
+      // await sendRequestToContact(contact, ...args);
+      // For demo, just log:
+      console.log(`Sending emergency request for ${featureKey} to ${contact}`);
     }
+    // Existing logic...
   };
-  
+
   const cancelEmergency = async (type) => {
     try {
       const token = await AsyncStorage.getItem('userToken');
@@ -701,391 +809,507 @@ const UserDashboard = ({ navigation }) => {
     }
   };
 
-  const toggleSidebar = () => {
-    const toValue = isSidebarOpen ? -300 : 0;
-    Animated.timing(sidebarAnimation, {
-      toValue,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-    setIsSidebarOpen(!isSidebarOpen);
+  const handleMenuSelect = menu => {
+    setSelectedMenu(menu);
+    setIsMenuOpen(false);
   };
 
-  const renderMap = () => {
-    if (!location) {
-      return null;
-    }
-
+  const renderReportPanel = () => {
+    // Define possible recipients (can be dynamic if needed)
+    const recipients = [
+      { key: 'police', label: 'Police', icon: 'police-badge', color: '#204080' },
+      { key: 'fire', label: 'Fire Brigade', icon: 'fire-truck', color: '#ef4444' },
+      { key: 'ambulance', label: 'Ambulance', icon: 'ambulance', color: '#ea580c' },
+      { key: 'parents', label: 'Parents', icon: 'account-group', color: '#0ea5e9' },
+      { key: 'trustedContacts', label: 'Trusted Contacts', icon: 'account-multiple', color: '#6366f1' },
+    ];
     return (
-      <View style={styles.mapContainer}>
-        <MapView
-          style={styles.map}
-          region={location}
-          showsUserLocation={true}
-          showsMyLocationButton={true}
-          showsCompass={true}
-          followsUserLocation={true}
-          loadingEnabled={true}
-          showsBuildings={true}
-          showsTraffic={true}
-          showsIndoors={true}
-          showsPointsOfInterest={true}
-          showsIndoorLevelPicker={true}
-        >
-          {nearbyServices.map((service, index) => (
-            <Marker
-              key={index}
-              coordinate={{
-                latitude: service.location.lat,
-                longitude: service.location.lng
+      <View style={{ padding: 20 }}>
+        <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 12 }}>Report Incident</Text>
+        <Text style={{ fontSize: 15, color: '#555', marginBottom: 14 }}>Who do you want to send this report to?</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 18 }}>
+          {recipients.map(r => (
+            <TouchableOpacity
+              key={r.key}
+              style={{
+                backgroundColor: reportRecipient === r.key ? r.color : '#f3f4f6',
+                borderRadius: 12,
+                padding: 12,
+                alignItems: 'center',
+                margin: 5,
+                minWidth: 90,
+                shadowColor: r.color,
+                shadowOpacity: 0.1,
+                shadowRadius: 6,
+                elevation: 2,
               }}
-              title={service.name}
-              description={service.description}
+              onPress={() => setReportRecipient(r.key)}
             >
-              <MaterialCommunityIcons 
-                name="storefront" 
-                size={32} 
-                color="#4CAF50"
-              />
-            </Marker>
+              <MaterialCommunityIcons name={r.icon} size={28} color={reportRecipient === r.key ? '#fff' : r.color} />
+              <Text style={{ color: reportRecipient === r.key ? '#fff' : '#222', marginTop: 5, fontWeight: '600' }}>{r.label}</Text>
+            </TouchableOpacity>
           ))}
-        </MapView>
-        {renderLocationButton()}
+        </View>
+        {/* Show incident form only if a recipient is selected */}
+        {reportRecipient && (
+          <IncidentReportForm
+            recipient={reportRecipient}
+            onSubmit={() => setReportRecipient(null)}
+            onCancel={() => setReportRecipient(null)}
+          />
+        )}
       </View>
     );
   };
 
-  const renderOfflineMode = () => {
-    if (!isOfflineMode) return null;
-    
-    return (
-      <View style={styles.mapContainer}>
-        <MapView
-          style={styles.map}
-          region={location}
-          showsUserLocation={true}
-          showsMyLocationButton={true}
-          showsCompass={true}
-          followsUserLocation={true}
-          loadingEnabled={true}
-          showsBuildings={true}
-          showsTraffic={true}
-          showsIndoors={true}
-          showsPointsOfInterest={true}
-          showsIndoorLevelPicker={true}
-        >
-          {nearbyServices.map((service, index) => (
-            <Marker
-              key={index}
-              coordinate={{
-                latitude: service.location.lat,
-                longitude: service.location.lng
-              }}
-              title={service.name}
-              description={service.description}
-            >
-              <MaterialCommunityIcons 
-                name="storefront" 
-                size={32} 
-                color="#4CAF50"
-              />
-            </Marker>
-          ))}
-        </MapView>
-        {renderLocationButton()}
-      </View>
-    );
-  };
-
-  const renderEmergencyMenu = () => {
-    if (!emergencyMenu) return null;
-
-    const optionsMap = {
-      police: [
-        { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Police', action: () => handleEmergencyRequest('chat') },
-        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
-        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Nearest Station', action: () => handleEmergencyRequest('call') },
-        { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Police', action: () => handleEmergencyRequest('thanks') },
-        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
-      ],
-      ambulance: [
-        { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Ambulance', action: () => handleEmergencyRequest('chat') },
-        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
-        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Ambulance', action: () => handleEmergencyRequest('call') },
-        { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Ambulance', action: () => handleEmergencyRequest('thanks') },
-        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
-      ],
-      fire: [
-        { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Fire Brigade', action: () => handleEmergencyRequest('chat') },
-        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
-        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Fire Brigade', action: () => handleEmergencyRequest('call') },
-        { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Fire Brigade', action: () => handleEmergencyRequest('thanks') },
-        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
-      ],
-      parents: [
-        { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: () => handleEmergencyRequest('share') },
-        { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Parents', action: () => handleEmergencyRequest('call') },
-        { type: 'alert', icon: 'alert', color: '#E91E63', label: 'Send Alert', action: () => handleEmergencyRequest('alert') },
-        { type: 'zone', icon: 'map-marker-radius', color: '#4CAF50', label: 'Set Safe Zone', action: () => handleEmergencyRequest('zone') },
-        { type: 'cancel', icon: 'close', color: '#9E9E9E', label: 'Cancel', action: () => setEmergencyMenu(null) },
-      ],
+  useEffect(() => {
+    const getActiveUsers = async () => {
+      try {
+        const users = await fetchActiveUsers();
+        setActiveUsers(users);
+      } catch (err) {
+        setActiveUsers([]);
+      }
     };
+    getActiveUsers();
+    const interval = setInterval(getActiveUsers, 10000); // Poll every 10s
+    return () => clearInterval(interval);
+  }, []);
 
-    const options = optionsMap[emergencyMenu] || [];
-
-    return (
-      <Modal
-        transparent={true}
-        animationType="slide"
-        visible={!!emergencyMenu}
-        onRequestClose={() => setEmergencyMenu(null)}
+  return (
+    <View style={{ flex: 1, backgroundColor: '#f4f6fb' }}>
+      {/* Map full screen as background */}
+      <MapView
+        ref={mapRef}
+        provider={PROVIDER_GOOGLE}
+        style={StyleSheet.absoluteFillObject}
+        region={location || DEFAULT_LOCATION}
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        showsCompass={true}
+        loadingEnabled={true}
+        showsBuildings={true}
+        showsTraffic={true}
+        showsIndoors={true}
+        showsPointsOfInterest={true}
+        showsIndoorLevelPicker={true}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Emergency Options</Text>
-            <ScrollView contentContainerStyle={styles.modalBody}>
-              {options.map((option, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.modalOption, { backgroundColor: option.color }]}
-                  onPress={option.action}
-                >
-                  <MaterialCommunityIcons name={option.icon} size={28} color="white" />
-                  <Text style={styles.modalOptionText}>{option.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+        {/* Custom user location marker */}
+        {location && (
+          <Marker coordinate={location} anchor={{ x: 0.5, y: 0.5 }}>
+            <MaterialCommunityIcons name="crosshairs-gps" size={36} color="#2563eb" />
+          </Marker>
+        )}
+        {/* Animated responder markers */}
+        {Object.values(animatedResponderMarkers).map((responder, idx) => (
+          responder.coordinate ? (
+            <Marker.Animated
+              key={responder.id || idx}
+              coordinate={responder.coordinate}
+              title={responder.name || responder.role}
+              description={responder.contact ? `Contact: ${responder.contact}` : responder.role}
+            >
+              <MaterialCommunityIcons
+                name={
+                  responder.role === 'police' ? 'police-badge' :
+                  responder.role === 'ambulance' ? 'ambulance' :
+                  responder.role === 'fire' ? 'fire-truck' :
+                  'account-badge'
+                }
+                size={32}
+                color={
+                  responder.role === 'police' ? '#204080' :
+                  responder.role === 'ambulance' ? '#ea580c' :
+                  responder.role === 'fire' ? '#ef4444' :
+                  '#6366f1'
+                }
+              />
+            </Marker.Animated>
+          ) : null
+        ))}
+        {activeUsers.map(user => (
+          user.latitude && user.longitude ? (
+            <Marker
+              key={user.id}
+              coordinate={{ latitude: user.latitude, longitude: user.longitude }}
+              title={user.name}
+              description={user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+              pinColor={
+                user.role === 'police' ? '#204080' :
+                user.role === 'ambulance' ? '#ea580c' :
+                user.role === 'fire' ? '#ef4444' :
+                user.role === 'parent' ? '#0ea5e9' : '#888'
+              }
+            >
+              <MaterialCommunityIcons name={
+                user.role === 'police' ? 'police-badge' :
+                user.role === 'ambulance' ? 'ambulance' :
+                user.role === 'fire' ? 'fire-truck' :
+                user.role === 'parent' ? 'account-group' : 'account'
+              } size={28} color={
+                user.role === 'police' ? '#204080' :
+                user.role === 'ambulance' ? '#ea580c' :
+                user.role === 'fire' ? '#ef4444' :
+                user.role === 'parent' ? '#0ea5e9' : '#888'
+              } />
+            </Marker>
+          ) : null
+        ))}
+        {(searchQuery ? filteredServices : nearbyServices).map((service, index) => (
+          service.location && typeof service.location.lat === 'number' && typeof service.location.lng === 'number' ? (
+            <Marker
+              key={index}
+              coordinate={{
+                latitude: service.location.lat,
+                longitude: service.location.lng
+              }}
+              title={service.name}
+              description={service.description}
+            >
+              <MaterialCommunityIcons name="storefront" size={32} color="#4CAF50" />
+            </Marker>
+          ) : null
+        ))}
+      </MapView>
+      {/* Custom My Location Button */}
+      <TouchableOpacity
+        onPress={() => {
+          if (location && mapRef.current) {
+            mapRef.current.animateToRegion(location, 600);
+          }
+        }}
+        style={{
+          position: 'absolute',
+          bottom: Platform.OS === 'ios' ? 40 : 28,
+          right: 18,
+          backgroundColor: '#fff',
+          borderRadius: 26,
+          padding: 10,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.18,
+          shadowRadius: 6,
+          elevation: 6,
+          zIndex: 20,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <MaterialCommunityIcons name="crosshairs-gps" size={28} color="#2563eb" />
+      </TouchableOpacity>
+      {/* Floating top bar (profile, menu, greeting) */}
+      {renderHeader()}
+      {/* Modern modal for feature panels */}
+      <Modal
+        visible={!!selectedMenu}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSelectedMenu('')}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(30,41,59,0.22)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{
+            width: '92%',
+            backgroundColor: '#fff',
+            borderRadius: 28,
+            paddingVertical: 32,
+            paddingHorizontal: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.18,
+            shadowRadius: 18,
+            elevation: 15,
+            alignItems: 'stretch',
+            position: 'relative',
+          }}>
+            <TouchableOpacity
+              style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, backgroundColor: '#f3f4f6', borderRadius: 20, padding: 8, elevation: 2 }}
+              onPress={() => setSelectedMenu('')}
+            >
+              <MaterialCommunityIcons name="close" size={28} color="#64748b" />
+            </TouchableOpacity>
+            {/* Modal Header with Icon and Title */}
+            <View style={{ alignItems: 'center', marginBottom: 18, flexDirection: 'row', justifyContent: 'center' }}>
+              {selectedMenu === 'reportIncident' && <MaterialCommunityIcons name="alert-circle" size={32} color="#ef4444" style={{ marginRight: 12 }} />}
+              {selectedMenu === 'trustedContacts' && <MaterialCommunityIcons name="account-group" size={32} color="#0ea5e9" style={{ marginRight: 12 }} />}
+              {selectedMenu === 'healthMonitor' && <MaterialCommunityIcons name="heart-pulse" size={32} color="#f59e42" style={{ marginRight: 12 }} />}
+              {selectedMenu === 'emergencyAlert' && <MaterialCommunityIcons name="bell-alert" size={32} color="#f59e42" style={{ marginRight: 12 }} />}
+              {selectedMenu === 'nearbyIncidents' && <MaterialCommunityIcons name="map-marker" size={32} color="#6366f1" style={{ marginRight: 12 }} />}
+              {selectedMenu === 'safeRoute' && <MaterialCommunityIcons name="navigation" size={32} color="#10b981" style={{ marginRight: 12 }} />}
+              {selectedMenu === 'resourceAvailability' && <MaterialCommunityIcons name="database" size={32} color="#6366f1" style={{ marginRight: 12 }} />}
+              {selectedMenu === 'agencyCollaboration' && <MaterialCommunityIcons name="handshake" size={32} color="#f59e42" style={{ marginRight: 12 }} />}
+              <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1e293b', letterSpacing: 0.3 }}>
+                {selectedMenu === 'reportIncident' && 'Report Incident'}
+                {selectedMenu === 'trustedContacts' && 'Trusted Contacts'}
+                {selectedMenu === 'healthMonitor' && 'Health Monitor'}
+                {selectedMenu === 'emergencyAlert' && 'Emergency Alert'}
+                {selectedMenu === 'nearbyIncidents' && 'Nearby Incidents'}
+                {selectedMenu === 'safeRoute' && 'Safe Route'}
+                {selectedMenu === 'resourceAvailability' && 'Resource Availability'}
+                {selectedMenu === 'agencyCollaboration' && 'Agency Collaboration'}
+                {selectedMenu === 'checkIn' && 'Check-In'}
+                {selectedMenu === 'emergencyCall' && 'Emergency Call'}
+              </Text>
+            </View>
+            <View style={{ marginTop: 12, marginBottom: 6 }}>
+              {/* Style all direct child buttons/Touchables with spacing and curved design */}
+              {selectedMenu === 'reportIncident' && (
+                renderReportPanel()
+              )}
+              {selectedMenu === 'trustedContacts' && (
+                <View style={{ gap: 16 }}>
+                  <TrustedContacts userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
+                </View>
+              )}
+              {selectedMenu === 'healthMonitor' && (
+                <View style={{ gap: 16 }}>
+                  <HealthMonitor userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
+                </View>
+              )}
+              {selectedMenu === 'emergencyAlert' && (
+                <View style={{ gap: 16 }}>
+                  <EmergencyAlertButton userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
+                </View>
+              )}
+              {selectedMenu === 'nearbyIncidents' && (
+                <View style={{ gap: 16 }}>
+                  <IncidentMap userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
+                </View>
+              )}
+              {selectedMenu === 'safeRoute' && (
+                <View style={{ gap: 16 }}>
+                  <SafeRouteSuggester userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
+                </View>
+              )}
+              {selectedMenu === 'resourceAvailability' && (
+                <View style={{ gap: 16 }}>
+                  <ResourceAvailabilityPanel userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
+                </View>
+              )}
+              {selectedMenu === 'agencyCollaboration' && (
+                <View style={{ gap: 16 }}>
+                  <AgencyCollaborationPanel userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
+                </View>
+              )}
+              {selectedMenu === 'checkIn' && (
+                <View style={{ gap: 16 }}>
+                  <CheckInPanel userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
+                </View>
+              )}
+              {selectedMenu === 'emergencyCall' && (
+                <View style={{ gap: 16 }}>
+                  <EmergencyCallPanel userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
+                </View>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
-    );
-  };
-
-  return (
-    <>
-      <SafeAreaView style={styles.container}>
-        {renderMap()}
-        {renderOfflineMode()}
-        {renderHeader()}
-        <Sidebar
-          user={user}
-          role={user?.role || 'user'}
-          sidebarAnimation={sidebarAnimation}
-          toggleSidebar={toggleSidebar}
-          navigation={navigation}
-          logout={handleLogout}
-        />
-        {renderEmergencyPanel()}
-      </SafeAreaView>
-
-      {renderEmergencyMenu()}
-
-      {isSidebarOpen && (
-        <TouchableOpacity
-          style={styles.overlay}
-          onPress={toggleSidebar}
-          activeOpacity={1}
-        />
-      )}
-    </>
+      {/* Feature Grid Modal (Hamburger Menu) */}
+      <Modal
+        visible={isMenuOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setIsMenuOpen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(30,41,59,0.15)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{
+            width: '92%',
+            backgroundColor: '#fff',
+            borderRadius: 28,
+            paddingVertical: 28,
+            paddingHorizontal: 12,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.18,
+            shadowRadius: 18,
+            elevation: 15,
+            alignItems: 'center',
+            position: 'relative',
+          }}>
+            <TouchableOpacity
+              style={{ position: 'absolute', top: 18, right: 18, zIndex: 10, backgroundColor: '#f3f4f6', borderRadius: 20, padding: 8, elevation: 2 }}
+              onPress={() => setIsMenuOpen(false)}
+            >
+              <MaterialCommunityIcons name="close" size={28} color="#64748b" />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1e293b', marginBottom: 12 }}>Menu</Text>
+            <View style={{
+              flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 18,
+              backgroundColor: 'rgba(255,255,255,0.93)', borderRadius: 18, padding: 10, marginBottom: 10
+            }}>
+              {[
+                { key: 'reportIncident', icon: 'alert-circle', color: '#ef4444', label: 'Report' },
+                { key: 'trustedContacts', icon: 'account-group', color: '#0ea5e9', label: 'Contacts' },
+                { key: 'healthMonitor', icon: 'heart-pulse', color: '#f59e42', label: 'Health' },
+                { key: 'emergencyAlert', icon: 'bell-alert', color: '#f59e42', label: 'Alert' },
+                { key: 'nearbyIncidents', icon: 'map-marker', color: '#6366f1', label: 'Incidents' },
+                { key: 'safeRoute', icon: 'navigation', color: '#10b981', label: 'Safe Route' },
+                { key: 'resourceAvailability', icon: 'database', color: '#6366f1', label: 'Resources' },
+                { key: 'agencyCollaboration', icon: 'handshake', color: '#f59e42', label: 'Collab' },
+                { key: 'checkIn', icon: 'check-circle', color: '#22c55e', label: 'Check-In' },
+                { key: 'emergencyCall', icon: 'phone-alert', color: '#f43f5e', label: 'Call' },
+                { key: 'logout', icon: 'logout', color: '#ef4444', label: 'Logout' },
+              ].map(feature => (
+                <TouchableOpacity
+                  key={feature.key}
+                  style={{
+                    width: 74,
+                    height: 74,
+                    borderRadius: 18,
+                    backgroundColor: '#f3f4f6',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: 6,
+                    shadowColor: feature.color,
+                    shadowOpacity: 0.14,
+                    shadowRadius: 7,
+                    elevation: 4,
+                  }}
+                  onPress={() => {
+                    setIsMenuOpen(false);
+                    if (feature.key === 'logout') handleLogout();
+                    else if (feature.key === 'checkIn') setSelectedMenu('checkIn');
+                    else if (feature.key === 'emergencyCall') setSelectedMenu('emergencyCall');
+                    else setSelectedMenu(feature.key);
+                  }}
+                >
+                  <MaterialCommunityIcons name={feature.icon} size={32} color={feature.color} />
+                  <Text style={{ fontSize: 13, color: '#222', marginTop: 6, fontWeight: '600' }}>{feature.label}</Text>
+                  {feature.key !== 'logout' && (
+                    <Text style={{ fontSize: 10, color: '#64748b', textAlign: 'center', marginTop: 2 }}>
+                      {getContactLabels(feature.key)}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <View style={{ marginVertical: 12 }}>
+        <Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 6 }}>Active Responders:</Text>
+        {activeUsers.length === 0 ? (
+          <Text style={{ color: '#888' }}>No responders online.</Text>
+        ) : (
+          activeUsers.map(user => (
+            <View key={user.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <MaterialCommunityIcons name={
+                user.role === 'police' ? 'police-badge' :
+                user.role === 'ambulance' ? 'ambulance' :
+                user.role === 'fire' ? 'fire-truck' :
+                user.role === 'parent' ? 'account-group' : 'account'
+              } size={20} color={
+                user.role === 'police' ? '#204080' :
+                user.role === 'ambulance' ? '#ea580c' :
+                user.role === 'fire' ? '#ef4444' :
+                user.role === 'parent' ? '#0ea5e9' : '#888'
+              } style={{ marginRight: 8 }} />
+              <Text style={{ fontWeight: '600' }}>{user.name}</Text>
+              <Text style={{ marginLeft: 8, color: '#666' }}>{user.role.charAt(0).toUpperCase() + user.role.slice(1)}</Text>
+            </View>
+          ))
+        )}
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  modernContainer: {
     flex: 1,
+    backgroundColor: '#f4f6fb',
   },
-  header: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 20,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    paddingHorizontal: 16,
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  modernHeader: {
+    paddingVertical: 16,
     alignItems: 'center',
-    zIndex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  searchBar: {
-    flex: 1,
-    height: 45,
-    backgroundColor: 'white',
-    borderRadius: 22,
-    marginHorizontal: 10,
-    paddingHorizontal: 15,
-    flexDirection: 'row',
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#204080',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardCentered: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 18,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  panel: {
+    position: 'absolute',
+    top: 60,
+    left: 30,
+    right: 30,
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderRadius: 18,
+    padding: 20,
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
     elevation: 5,
   },
-  searchInput: {
+  dashboardPanel: {
+    // Style for dashboard summary if needed
+    position: 'absolute',
+    top: 60,
+    left: 30,
+    right: 30,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 18,
+    padding: 20,
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  centered: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 16,
-    color: '#333',
-  },
-  leftEmergencyPanel: {
-    position: 'absolute',
-    left: 16,
-    bottom: '25%',
-    justifyContent: 'space-between',
-    height: 70,
-  },
-  rightEmergencyPanel: {
-    position: 'absolute',
-    right: 16,
-    bottom: '25%',
-    justifyContent: 'space-between',
-    height: 70,
-  },
-  emergencyButton: {
-    width: 100,
-    height: 40,
-    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    margin: 4,
+    backgroundColor: '#f3f4f6',
   },
-  emergencyButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: 999,
-  },
-  offlineMode: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 100 : 80,
-    left: 0,
-    right: 0,
-    padding: 16,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  offlineText: {
-    color: '#fff',
+  loadingText: {
+    marginTop: 12,
     fontSize: 16,
+    color: '#6b7280',
+  },
+  dashboardSummary: {
+    fontSize: 16,
+    color: '#64748b',
     marginTop: 8,
     textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 16,
-    padding: 8,
-    backgroundColor: '#4A90E2',
-    borderRadius: 4,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 14,
-  },
-  locationButton: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    padding: 8,
-    minWidth: 100,
-    minHeight: 36,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  mapContainer: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    position: 'relative',
-  },
-  map: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  buttonText: {
-    color: '#333',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    width: '90%',
-    maxHeight: '80%',
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    color: '#333',
-  },
-  modalBody: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  modalOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    width: '100%',
-    height: 60, // Ensure consistent height for all options
-    paddingHorizontal: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  modalOptionText: {
-    marginLeft: 15,
-    fontSize: 16,
-    color: 'white',
-    fontWeight: '500',
-  },
-  emergencyMenusContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1001,
-  },
-  emergencyMenuContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    padding: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    elevation: 5,
   },
 });
 

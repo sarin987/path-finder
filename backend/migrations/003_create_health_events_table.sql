@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS health_events (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  heart_rate INT,
+  fall_detected BOOLEAN,
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+  alert_sent BOOLEAN DEFAULT FALSE
+);
