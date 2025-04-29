@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, Typography, Box, CircularProgress } from '@mui/material';
 import { FaMapMarkerAlt, FaClock, FaUserShield } from 'react-icons/fa';
 
-const ActiveCases = ({ cases }) => {
+const ActiveCases = ({ cases = [] }) => {
   return (
     <Card>
       <CardContent>

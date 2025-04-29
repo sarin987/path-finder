@@ -11,6 +11,9 @@ import Sidebar from './components/common/Sidebar';
 import Header from './components/common/Header';
 import Profile from './components/common/Profile';
 import Chat from './components/common/Chat';
+import Settings from './components/common/Settings';
+import EmergencyCalls from './components/dashboard/PoliceDashboard/EmergencyCalls';
+import ActiveCases from './components/dashboard/PoliceDashboard/ActiveCases';
 import './styles/tailwind.css';
 
 
@@ -31,8 +34,11 @@ function App() {
                 <DashboardLayout>
                   <Routes>
                     <Route path="" element={<PoliceDashboard />} />
+                    <Route path="emergency-calls" element={<EmergencyCalls />} />
+                    <Route path="active-cases" element={<ActiveCases />} />
                     <Route path="profile" element={<Profile />} />
                     <Route path="chat" element={<Chat />} />
+                    <Route path="settings" element={<Settings />} />
                   </Routes>
                 </DashboardLayout>
               </ProtectedRoute>

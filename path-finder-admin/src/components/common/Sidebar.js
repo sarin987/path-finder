@@ -17,48 +17,59 @@ import {
   FaUser, 
   FaComments, 
   FaCog, 
-  FaSignOutAlt 
+  FaSignOutAlt, 
+  FaUserInjured, 
+  FaChild, 
+  FaSchool, 
+  FaBus 
 } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-const Sidebar = () => {
+const getRoleFromPath = (pathname) => {
+  if (pathname.startsWith('/ambulance')) return 'ambulance';
+  if (pathname.startsWith('/parent')) return 'parent';
+  return 'police';
+};
+
+const Sidebar = ({ role }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const location = window.location;
+  // Determine role from prop or URL path
+  const effectiveRole = role || getRoleFromPath(location.pathname);
 
-  const menuItems = [
-    {
-      icon: FaHome,
-      text: 'Dashboard',
-      path: '/dashboard'
-    },
-    {
-      icon: FaBell,
-      text: 'Emergency Calls',
-      path: '/emergency-calls',
-      badge: 5 // Example badge count
-    },
-    {
-      icon: FaMapMarkerAlt,
-      text: 'Active Cases',
-      path: '/active-cases'
-    },
-    {
-      icon: FaComments,
-      text: 'Chat',
-      path: '/chat'
-    },
-    {
-      icon: FaUser,
-      text: 'Profile',
-      path: '/profile'
-    },
-    {
-      icon: FaCog,
-      text: 'Settings',
-      path: '/settings'
-    }
+  // Define menu items for each role
+  const policeMenu = [
+    { icon: FaHome, text: 'Dashboard', path: '/police' },
+    { icon: FaBell, text: 'Emergency Calls', path: '/police/emergency-calls', badge: 5 },
+    { icon: FaMapMarkerAlt, text: 'Active Cases', path: '/police/active-cases' },
+    { icon: FaComments, text: 'Chat', path: '/police/chat' },
+    { icon: FaUser, text: 'Profile', path: '/police/profile' },
+    { icon: FaCog, text: 'Settings', path: '/police/settings' }
   ];
+  const ambulanceMenu = [
+    { icon: FaHome, text: 'Dashboard', path: '/ambulance' },
+    { icon: FaBell, text: 'Emergency Calls', path: '/ambulance/emergency-calls', badge: 5 },
+    { icon: FaUserInjured, text: 'Patients', path: '/ambulance/patients' },
+    { icon: FaMapMarkerAlt, text: 'Live Map', path: '/ambulance/map' },
+    { icon: FaComments, text: 'Chat', path: '/ambulance/chat' },
+    { icon: FaCog, text: 'Settings', path: '/ambulance/settings' }
+  ];
+  const parentMenu = [
+    { icon: FaHome, text: 'Dashboard', path: '/parent' },
+    { icon: FaBell, text: 'Emergency Calls', path: '/parent/emergency-calls', badge: 5 },
+    { icon: FaChild, text: 'Children', path: '/parent/children' },
+    { icon: FaSchool, text: 'Schools', path: '/parent/schools' },
+    { icon: FaBus, text: 'Buses', path: '/parent/buses' },
+    { icon: FaMapMarkerAlt, text: 'Live Map', path: '/parent/map' },
+    { icon: FaCog, text: 'Settings', path: '/parent/settings' }
+  ];
+
+  let menuItems;
+  if (effectiveRole === 'ambulance') menuItems = ambulanceMenu;
+  else if (effectiveRole === 'parent') menuItems = parentMenu;
+  else menuItems = policeMenu;
 
   const handleLogout = () => {
     logout();

@@ -19,7 +19,7 @@ const Login = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const navigate = useNavigate();
   const auth = useAuth();
 
@@ -180,18 +180,13 @@ const Login = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <input
+                    id="rememberMe"
                     type="checkbox"
-                    id="remember"
                     checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    onChange={() => setRememberMe(!rememberMe)}
+                    className="mr-2"
                   />
-                  <label
-                    htmlFor="remember"
-                    className="ml-2 block text-sm text-gray-700"
-                  >
-                    Remember me
-                  </label>
+                  <label htmlFor="rememberMe" className="text-sm">Remember Me</label>
                 </div>
                 <a
                   href="#"

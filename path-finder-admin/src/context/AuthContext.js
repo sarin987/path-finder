@@ -14,21 +14,29 @@ export const AuthProvider = ({ children }) => {
     showTraffic: false,
     showBikeLanes: false
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for saved credentials and preferences
+    // Restore session if user exists in localStorage
     const savedUser = localStorage.getItem('user');
     const savedRole = localStorage.getItem('role');
-    const savedRemember = localStorage.getItem('rememberMe');
     const savedLocation = localStorage.getItem('location');
     const savedPreferences = localStorage.getItem('locationPreferences');
+    const savedRemember = localStorage.getItem('rememberMe');
 
-    if (savedRemember === 'true') {
+    if (savedUser) {
       setUser(JSON.parse(savedUser));
       setRole(savedRole);
-      setLocation(JSON.parse(savedLocation));
-      setLocationPreferences(JSON.parse(savedPreferences));
+      setLocation(savedLocation ? JSON.parse(savedLocation) : null);
+      setLocationPreferences(savedPreferences ? JSON.parse(savedPreferences) : {
+        zoom: 15,
+        mapType: 'roadmap',
+        showTraffic: false,
+        showBikeLanes: false
+      });
+      setRememberMe(savedRemember === 'true');
     }
+    setLoading(false);
   }, []);
 
   const login = (userData, userRole, userLocation, remember) => {
@@ -36,13 +44,14 @@ export const AuthProvider = ({ children }) => {
     setRole(userRole);
     setLocation(userLocation);
     setRememberMe(remember);
-
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('role', userRole);
+    localStorage.setItem('location', JSON.stringify(userLocation));
+    localStorage.setItem('locationPreferences', JSON.stringify(locationPreferences));
     if (remember) {
-      localStorage.setItem('user', JSON.stringify(userData));
-      localStorage.setItem('role', userRole);
-      localStorage.setItem('location', JSON.stringify(userLocation));
       localStorage.setItem('rememberMe', 'true');
-      localStorage.setItem('locationPreferences', JSON.stringify(locationPreferences));
+    } else {
+      localStorage.removeItem('rememberMe');
     }
   };
 
@@ -96,7 +105,8 @@ export const AuthProvider = ({ children }) => {
       logout,
       updateLocation,
       updateLocationPreferences,
-      resetPassword
+      resetPassword,
+      loading
     }}>
       {children}
     </AuthContext.Provider>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, Typography, Divider, IconButton, InputBase, Box, Paper, Avatar } from '@mui/material';
 import { FaPaperPlane, FaImage } from 'react-icons/fa';
 import axios from 'axios';
@@ -8,16 +8,28 @@ import { deepPurple } from '@mui/material/colors';
 const Chat = ({ messages: initialMessages }) => {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState(initialMessages || []);
+  const messagesEndRef = useRef(null);
+  const messagesBoxRef = useRef(null);
+
+  // Helper: Scroll to bottom
+  const scrollToBottom = () => {
+    if (messagesBoxRef.current) {
+      messagesBoxRef.current.scrollTop = messagesBoxRef.current.scrollHeight;
+    }
+  };
+
+  // Fetch messages from backend
+  const fetchMessages = async () => {
+    try {
+      const response = await axios.get('http://192.168.1.4:5000/api/chat-messages?chat_type=police');
+      setMessages(response.data);
+      console.log('Fetched chat history:', response.data);
+    } catch (err) {
+      console.error('Error fetching chat messages:', err);
+    }
+  };
 
   useEffect(() => {
-    const fetchMessages = async () => {
-      try {
-        const response = await axios.get('http://192.168.1.4:5000/api/chat-messages?chat_type=police');
-        setMessages(response.data);
-      } catch (err) {
-        console.error('Error fetching chat messages:', err);
-      }
-    };
     fetchMessages();
   }, []);
 
@@ -25,6 +37,7 @@ const Chat = ({ messages: initialMessages }) => {
     setMessages(initialMessages || []);
   }, [initialMessages]);
 
+  // Socket join/leave
   useEffect(() => {
     socket.emit('join_chat', { chat_type: 'police', user_id: 0, other_user_id: null });
     return () => {
@@ -32,14 +45,40 @@ const Chat = ({ messages: initialMessages }) => {
     };
   }, []);
 
+  // Socket listeners
   useEffect(() => {
     const handleNewMessage = (msg) => {
+      console.log('Received chat_message:', msg);
       setMessages((prev) => [...prev, msg]);
     };
     socket.on('chat_message', handleNewMessage);
     return () => {
       socket.off('chat_message', handleNewMessage);
     };
+  }, []);
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Refetch on tab focus
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchMessages();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  // Poll every 30 seconds as fallback
+  useEffect(() => {
+    const interval = setInterval(fetchMessages, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleSendMessage = () => {
@@ -50,7 +89,7 @@ const Chat = ({ messages: initialMessages }) => {
         message,
         chat_type: 'police',
       };
-      // Do not optimistically add message; wait for server echo
+      console.log('Sending chat_message:', msgObj);
       socket.emit('chat_message', msgObj);
       setMessage('');
     }
@@ -63,7 +102,7 @@ const Chat = ({ messages: initialMessages }) => {
           Police Chat
         </Typography>
         <Divider sx={{ mb: 2 }} />
-        <Box sx={{ height: 330, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1, pb: 1 }}>
+        <Box ref={messagesBoxRef} sx={{ height: 330, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1, pb: 1 }}>
           {messages.length === 0 && (
             <Typography variant="body2" sx={{ color: '#888', textAlign: 'center', mt: 6 }}>
               No messages yet. Start the conversation!

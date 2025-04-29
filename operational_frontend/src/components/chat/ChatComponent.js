@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   TextInput, 
@@ -41,6 +41,7 @@ const ChatComponent = ({
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const flatListRef = useRef(null);
 
 useEffect(() => {
   try {
@@ -51,7 +52,7 @@ useEffect(() => {
     }
 
     // Initialize Firestore listeners
-    const messagingRef = collection(db, 'messages'); // This should work now
+    const messagingRef = collection(db, 'messages'); 
     const q = query(
       messagingRef,
       where('serviceType', '==', serviceType),
@@ -66,6 +67,10 @@ useEffect(() => {
       }));
       setMessages(messages);
       setLoading(false);
+      // Auto-scroll to bottom (top of inverted list)
+      if (flatListRef.current && messages.length > 0) {
+        flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+      }
     }, (error) => {
       console.error('Error listening to messages:', error);
       setError('Error fetching messages');
@@ -88,7 +93,7 @@ useEffect(() => {
       }
 
       const newMessage = {
-        text: input,
+        message: input, 
         senderId: user.id,
         senderName: user.name,
         timestamp: new Date().toISOString(),
@@ -101,6 +106,12 @@ useEffect(() => {
 
       await addDoc(collection(db, 'messages'), newMessage);
       setInput('');
+      // Scroll to bottom after sending
+      setTimeout(() => {
+        if (flatListRef.current) {
+          flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+        }
+      }, 100);
     } catch (error) {
       console.error('Error sending message:', error);
       setError('Error sending message');
@@ -130,6 +141,7 @@ useEffect(() => {
         style={{ flex: 1 }}
       >
         <FlatList
+          ref={flatListRef}
           data={messages}
           keyExtractor={item => item.id}
           inverted
@@ -144,7 +156,7 @@ useEffect(() => {
             }}>
               {item.type === 'text' ? (
                 <Text style={{ color: item.senderId === user.id ? '#fff' : '#000' }}>
-                  {item.text}
+                  {item.message}
                 </Text>
               ) : item.type === 'location' ? (
                 <View style={{ flexDirection: 'column' }}>

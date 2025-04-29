@@ -6,7 +6,6 @@ import {
   IconButton, 
   Box, 
   Stack, 
-  Grid, 
   CircularProgress
 } from '@mui/material';
 import { FaPhone, FaMapMarkerAlt, FaUser } from 'react-icons/fa';
@@ -21,7 +20,6 @@ const EmergencyCalls = ({ calls: propCalls = [] }) => {
     const fetchCalls = async () => {
       try {
         setLoading(true);
-        // Replace with your actual API endpoint
         const res = await axios.get('http://localhost:5000/api/emergency-calls');
         setCalls(res.data);
         setError(null);

@@ -26,10 +26,12 @@ const ChatScreen = ({ route }) => {
   useEffect(() => {
     socket.emit('join_chat', { chat_type: type, user_id: user?.id, other_user_id: null });
     const handleChatMessage = (message) => {
+      console.log('Received chat_message:', message); // DEBUG LOG
       setMessages((prev) => [...prev, message]);
     };
     socket.on('chat_message', handleChatMessage);
     socket.on('chat_history', (history) => {
+      console.log('Received chat_history:', history); // DEBUG LOG
       setMessages(history);
     });
     return () => {
@@ -83,6 +85,7 @@ const ChatScreen = ({ route }) => {
       message: input,
       chat_type: type,
     };
+    console.log('Sending chat_message:', message); // DEBUG LOG
     socket.emit('chat_message', message);
     setInput('');
     flatListRef.current?.scrollToEnd({ animated: true });

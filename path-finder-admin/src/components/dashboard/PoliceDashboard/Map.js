@@ -3,9 +3,10 @@ import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import { Box, Typography, Card, CardContent, Stack } from '@mui/material';
 import { FaMapMarkerAlt, FaUserCircle } from 'react-icons/fa';
 
-const Map = ({ locations, activeUsers }) => {
-  // Calculate center based on active locations
-  const calculateCenter = (locations) => {
+const Map = ({ locations, activeUsers, userLocation }) => {
+  // Calculate center based on active locations or user location
+  const calculateCenter = (locations, userLocation) => {
+    if (userLocation) return userLocation;
     if (!locations || locations.length === 0) {
       return { lat: 12.9716, lng: 77.5946 }; // Default to Bangalore
     }
@@ -19,7 +20,7 @@ const Map = ({ locations, activeUsers }) => {
     return { lat: latCenter, lng: lngCenter };
   };
 
-  const center = calculateCenter(locations);
+  const center = calculateCenter(locations, userLocation);
 
   return (
     <Box sx={{ height: '400px', width: '100%' }}>
@@ -28,6 +29,14 @@ const Map = ({ locations, activeUsers }) => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
+        
+        {userLocation && (
+          <Marker position={userLocation}>
+            <Popup>
+              <b>You are here</b>
+            </Popup>
+          </Marker>
+        )}
         
         {/* Emergency Locations */}
         {locations?.map((location, index) => (
