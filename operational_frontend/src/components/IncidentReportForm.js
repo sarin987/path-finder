@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Button, Image, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Geolocation from '@react-native-community/geolocation';
 import axios from 'axios';
-import { API_ROUTES } from '../config'; // Assuming API_ROUTES is defined in a separate config file
-import { useAuth } from '../contexts/AuthContext'; // Assuming useAuth is defined in a separate auth file
+import { API_ROUTES } from '../config';
+import { useAuth } from '../contexts/AuthContext';
 
 const IncidentReportForm = ({ recipient, onReportSuccess, onSubmit, onCancel }) => {
   const { user } = useAuth();
@@ -42,7 +42,6 @@ const IncidentReportForm = ({ recipient, onReportSuccess, onSubmit, onCancel }) 
         await submitIncident(loc);
       },
       async (error) => {
-        // Proceed without location if permission denied
         await submitIncident(null);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
@@ -79,23 +78,58 @@ const IncidentReportForm = ({ recipient, onReportSuccess, onSubmit, onCancel }) 
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Incident Type</Text>
-      <TextInput value={type} onChangeText={setType} style={styles.input} placeholder="e.g. Accident, Crime" />
-      <Text style={styles.label}>Description</Text>
-      <TextInput value={description} onChangeText={setDescription} style={styles.input} multiline numberOfLines={3} placeholder="Describe the incident..." />
-      <Button title="Pick Photo" onPress={pickImage} />
-      {photo && <Image source={{ uri: photo }} style={styles.image} />}
-      <Button title={loading ? "Reporting..." : "Report Incident"} onPress={handleSubmit} disabled={loading} />
-    </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={100}
+    >
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
+        <View style={styles.container}>
+          <Text style={styles.label}>Incident Type</Text>
+          <TextInput
+            value={type}
+            onChangeText={setType}
+            style={styles.input}
+            placeholder="e.g. Accident, Crime"
+            placeholderTextColor="#888"
+          />
+          <Text style={styles.label}>Description</Text>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            style={[styles.input, styles.textArea]}
+            multiline
+            numberOfLines={3}
+            placeholder="Describe the incident..."
+            placeholderTextColor="#888"
+          />
+          <Button title="Pick Photo" onPress={pickImage} />
+          {photo && <Image source={{ uri: photo }} style={styles.image} />}
+          <Button title={loading ? "Reporting..." : "Report Incident"} onPress={handleSubmit} disabled={loading} />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
-  label: { fontWeight: 'bold', marginTop: 8 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 4, padding: 8, marginVertical: 4 },
-  image: { width: 100, height: 100, marginVertical: 8 },
+  container: { padding: 16, backgroundColor: '#fff', borderRadius: 12, margin: 8 },
+  label: { fontWeight: 'bold', marginTop: 8, fontSize: 16 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#b0b0b0',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 8,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+    color: '#222',
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  image: { width: 120, height: 120, marginVertical: 8, borderRadius: 8, alignSelf: 'center' },
 });
 
 export default IncidentReportForm;

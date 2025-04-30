@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, Image, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, Image, StyleSheet, ActivityIndicator, RefreshControl, Button, Modal } from 'react-native';
 import { API_ROUTES } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import IncidentReportForm from '../../components/IncidentReportForm';
 
 const ParentDashboard = () => {
   const { user } = useAuth();
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const fetchIncidents = async () => {
     try {
@@ -52,9 +54,37 @@ const ParentDashboard = () => {
     </View>
   );
 
+  // Debug: log when modal is opened
+  useEffect(() => {
+    if (showReportModal) {
+      console.log('Report Incident Modal Opened');
+    }
+  }, [showReportModal]);
+
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Incident Reports for Parents</Text>
+      <Button title="Report Incident" onPress={() => setShowReportModal(true)} color="#27ae60" />
+      <Modal
+        visible={showReportModal}
+        animationType="slide"
+        onRequestClose={() => setShowReportModal(false)}
+        transparent={true}
+      >
+        <View style={styles.modalBackground}>
+          <View style={styles.modalContent}>
+            <IncidentReportForm
+              recipient="parent"
+              onReportSuccess={() => {
+                setShowReportModal(false);
+                fetchIncidents();
+              }}
+              onCancel={() => setShowReportModal(false)}
+            />
+            <Button title="Cancel" onPress={() => setShowReportModal(false)} color="#888" />
+          </View>
+        </View>
+      </Modal>
       {loading ? (
         <ActivityIndicator size="large" color="#27ae60" />
       ) : (
@@ -79,6 +109,8 @@ const styles = StyleSheet.create({
   incidentImage: { width: '100%', height: 180, borderRadius: 6, marginVertical: 8 },
   incidentMeta: { fontSize: 12, color: '#666' },
   emptyText: { textAlign: 'center', color: '#888', marginTop: 32 },
+  modalBackground: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: '92%', minHeight: 350, maxHeight: '90%', backgroundColor: '#fff', borderRadius: 12, padding: 8, overflow: 'hidden', borderWidth: 2, borderColor: '#27ae60' },
 });
 
 export default ParentDashboard;
