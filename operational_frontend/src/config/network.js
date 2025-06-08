@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Storage, StorageKeys } from '../utils/storage';
 
 export const API_ROUTES = {
-  base: __DEV__ ? 'http://192.168.1.4:5000' : 'https://your-production-url.com',
+  base: __DEV__ ? 'http://192.168.14.111:5000' : 'https://your-production-url.com',
   auth: '/api/auth',
   users: '/api/users',
   services: '/api/services'

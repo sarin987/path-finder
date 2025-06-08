@@ -4,10 +4,10 @@ import DeviceInfo from 'react-native-device-info';
 const getBaseUrl = () => {
   if (__DEV__) {
     return Platform.select({
-      ios: 'http://localhost:5000',
+      ios: 'http://192.168.14.111:5000',
       android: DeviceInfo.isEmulatorSync() 
         ? 'http://10.0.2.2:5000' 
-        : 'http://192.168.1.4:5000'  // Replace with your computer's local IP
+        : 'http://192.168.14.111:5000'  // Replace with your computer's local IP
     });
   }
   return 'https://your-production-api.com';
