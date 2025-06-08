@@ -38,20 +38,62 @@ const LocationShareButton = ({
       setIsLoading(true);
       setError(null);
 
-      // Get current location
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          (position) => resolve(position),
-          (error) => reject(error),
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-        );
-      });
+      // Get current location with retry logic
+      const maxRetries = 3;
+      let retryCount = 0;
+      let position = null;
+      let locationError = null;
+
+      while (retryCount < maxRetries && !position) {
+        try {
+          position = await new Promise((resolve, reject) => {
+            // Clear any previous timeout
+            let timeoutId;
+            
+            const watchId = navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                clearTimeout(timeoutId);
+                resolve(pos);
+              },
+              (err) => {
+                clearTimeout(timeoutId);
+                reject(err);
+              },
+              { 
+                enableHighAccuracy: true, 
+                timeout: 20000,  // Increased timeout to 20 seconds
+                maximumAge: 0     // Force fresh location
+              }
+            );
+
+            // Set a timeout to clear the watch if it takes too long
+            timeoutId = setTimeout(() => {
+              navigator.geolocation.clearWatch(watchId);
+              reject({ code: 3, message: 'Location request timed out' });
+            }, 20000);
+          });
+        } catch (err) {
+          locationError = err;
+          retryCount++;
+          if (retryCount < maxRetries) {
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+      }
+
+      if (!position) {
+        throw locationError || new Error('Failed to get location after multiple attempts');
+      }
 
       const locationData = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
         timestamp: new Date().toISOString()
       };
+
+      console.log('Location data:', locationData);
 
       // Store in database
       await addDoc(collection(db, 'user_locations'), {
