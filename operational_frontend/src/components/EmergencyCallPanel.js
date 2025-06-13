@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Button, StyleSheet, ActivityIndicator } from 'react-native';
 import axios from 'axios';
 import Geolocation from '@react-native-community/geolocation';
+import { api } from '../config/network';
 
 // For demo: Replace with real video/voice call integration (e.g., Twilio, WebRTC)
 const EmergencyCallPanel = ({ userId }) => {
@@ -29,13 +30,14 @@ const EmergencyCallPanel = ({ userId }) => {
 
   const sendCallRequest = async (type, location) => {
     try {
-      const res = await axios.post('http://localhost:5000/api/call/initiate', {
+     
+      const response = await api.post('/emergency/initiate', {
         user_id: userId,
         call_type: type,
         location_lat: location.lat,
         location_lng: location.lng,
       });
-      setCallId(res.data.call_id);
+      setCallId(response.data.call_id);
     } catch (e) {
       setError('Failed to initiate call');
     }
@@ -46,7 +48,7 @@ const EmergencyCallPanel = ({ userId }) => {
     setCalling(true);
     setError(null);
     try {
-      await axios.post('http://localhost:5000/api/call/end', { call_id: callId });
+      await axios.post(`${BACKEND_IP}/api/call/end`, { call_id: callId });
       setCallId(null);
       setCallType(null);
     } catch (e) {

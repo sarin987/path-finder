@@ -1,8 +1,11 @@
 import axios from 'axios';
 import { Storage, StorageKeys } from '../utils/storage';
 
+const BACKEND_URL = 'http://192.168.14.111:5000';
+console.log('Using backend URL:', BACKEND_URL);
+
 export const API_ROUTES = {
-  base: __DEV__ ? 'http://192.168.180.25:5000' : 'https://your-production-url.com',
+  base: __DEV__ ? BACKEND_URL : 'https://your-production-url.com',
   auth: '/api/auth',
   users: '/api/users',
   services: '/api/services'

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
-import { auth } from '../services/firebaseConfig';
+import axios from 'axios';
+import { API_ROUTES } from '../config';
 import secureStorage from '../utils/secureStorage';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import SessionExpiredScreen from '../screens/auth/SessionExpiredScreen';
@@ -46,8 +47,8 @@ export const AuthProvider = ({ children }) => {
         secureStorage.removeItem('userData')
       ]);
       
-      // Sign out from Firebase
-      await auth.signOut();
+      // Clear axios auth header
+      delete axios.defaults.headers.common['Authorization'];
       
       setUser(null);
       setSessionExpired(false);
@@ -73,28 +74,56 @@ export const AuthProvider = ({ children }) => {
   }, [clearTimers, logout]);
 
   // Refresh token before it expires
-  const scheduleTokenRefresh = useCallback((expiresIn) => {
+  const refreshToken = useCallback(async () => {
+    try {
+      const response = await axios.post(API_ROUTES.auth.refreshToken, {}, {
+        withCredentials: true // Send refresh token cookie if using httpOnly cookies
+      });
+      
+      const { token, user: userData } = response.data;
+      
+      if (token) {
+        // Update token in storage and axios header
+        await secureStorage.setItem('userToken', token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        // Update user data if provided
+        if (userData) {
+          await secureStorage.setItem('userData', userData);
+          setUser(userData);
+        }
+        
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      // If refresh token is invalid, log the user out
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        await logout();
+      }
+      return false;
+    }
+  }, [logout]);
+  
+  // Schedule token refresh
+  const scheduleTokenRefresh = useCallback((expiresInMs) => {
     if (tokenRefreshTimer.current) {
       clearTimeout(tokenRefreshTimer.current);
     }
-    const refreshTime = Math.max(expiresIn - TOKEN_REFRESH_THRESHOLD, 0);
+    
+    // Schedule refresh 5 minutes before token expires
+    const refreshTime = Math.max(expiresInMs - TOKEN_REFRESH_THRESHOLD, 0);
     
     tokenRefreshTimer.current = setTimeout(async () => {
-      try {
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          const token = await currentUser.getIdToken(true);
-          await secureStorage.setItem('userToken', token);
-          // Schedule next refresh
-          const decodedToken = await currentUser.getIdTokenResult();
-          const newExpiresIn = new Date(decodedToken.expirationTime).getTime() - Date.now();
-          scheduleTokenRefresh(newExpiresIn);
-        }
-      } catch (error) {
-        console.error('Token refresh failed:', error);
+      const success = await refreshToken();
+      if (success) {
+        // Schedule next refresh
+        const newExpiresIn = expiresInMs - (Date.now() - (expiresInMs - refreshTime));
+        scheduleTokenRefresh(newExpiresIn);
       }
     }, refreshTime);
-  }, []);
+  }, [refreshToken]);
 
   // Check authentication state
   const checkAuthState = useCallback(async () => {
@@ -105,21 +134,10 @@ export const AuthProvider = ({ children }) => {
       ]);
 
       if (token && userData) {
-        // Verify token is still valid
-        const decodedToken = await auth.currentUser?.getIdTokenResult();
-        if (!decodedToken || !decodedToken.exp || decodedToken.exp * 1000 < Date.now()) {
-          // Token expired, log user out
-          await logout();
-          return;
-        }
-        
+        // Set axios default auth header
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         setUser(userData);
-        
-        // Schedule token refresh
-        const expiresIn = new Date(decodedToken.expirationTime).getTime() - Date.now();
-        if (expiresIn > 0) {
-          scheduleTokenRefresh(expiresIn);
-        }
+        resetSessionTimer();
       }
     } catch (error) {
       console.error('Auth state check error:', error);
@@ -127,58 +145,98 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [logout, scheduleTokenRefresh]);
+  }, [resetSessionTimer]);
 
   // Check authentication state on mount
   useEffect(() => {
-    checkAuthState();
+    const initAuth = async () => {
+      try {
+        const [token, userData] = await Promise.all([
+          secureStorage.getItem('userToken'),
+          secureStorage.getItem('userData')
+        ]);
+
+        if (token && userData) {
+          // Set axios default auth header
+          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          setUser(userData);
+          resetSessionTimer();
+        }
+      } catch (error) {
+        console.error('Auth init error:', error);
+        setAuthError('Failed to initialize authentication');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    initAuth();
     
     // Cleanup on unmount
     return () => {
       clearTimers();
     };
-  }, [checkAuthState, clearTimers]);
+  }, [clearTimers, resetSessionTimer]);
 
   // Handle user activity
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+    
+    let subscription;
+    
+    // Reset timer on app state change (app comes to foreground)
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'active') {
+        resetSessionTimer();
+      }
+    };
+    
+    // Import AppState dynamically to avoid SSR issues
+    import('react-native').then(({ AppState }) => {
+      // Initial reset
       resetSessionTimer();
-      // Set up event listeners for user activity
-      const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
-      events.forEach(event => {
-        document.addEventListener(event, resetSessionTimer, true);
-      });
-
-      return () => {
-        events.forEach(event => {
-          document.removeEventListener(event, resetSessionTimer, true);
-        });
-      };
-    }
+      
+      // Subscribe to app state changes
+      subscription = AppState.addEventListener('change', handleAppStateChange);
+    });
+    
+    return () => {
+      if (subscription) {
+        subscription.remove();
+      }
+    };
   }, [user, resetSessionTimer]);
 
-  // Login user
-  const login = useCallback(async (email, password) => {
+  // Login user with phone and password or OTP
+  const login = useCallback(async (credentials) => {
     try {
       setLoading(true);
       setAuthError(null);
       
-      // Sign in with Firebase
-      const userCredential = await auth.signInWithEmailAndPassword(email, password);
-      const { user: authUser } = userCredential;
+      // Determine if this is a password or OTP login
+      const isOtpLogin = credentials.hasOwnProperty('otp');
       
-      // Get the ID token
-      const token = await authUser.getIdToken();
-      const decodedToken = await authUser.getIdTokenResult();
+      let response;
       
-      // Prepare user data to store
-      const userData = {
-        uid: authUser.uid,
-        email: authUser.email,
-        displayName: authUser.displayName || '',
-        photoURL: authUser.photoURL || null,
-        emailVerified: authUser.emailVerified,
-      };
+      if (isOtpLogin) {
+        // Handle OTP login
+        response = await axios.post(API_ROUTES.auth.verifyOtp, {
+          phone: credentials.phone,
+          otp: credentials.otp
+        });
+      } else {
+        // Handle password login
+        response = await axios.post(API_ROUTES.auth.login, {
+          phone: credentials.phone,
+          password: credentials.password
+        });
+      }
+      
+      const { token, ...userData } = response.data;
+      
+      if (!token || !userData) {
+        throw new Error('Invalid response from server');
+      }
       
       // Store token and user data
       await Promise.all([
@@ -186,13 +244,11 @@ export const AuthProvider = ({ children }) => {
         secureStorage.setItem('userData', userData),
       ]);
       
-      setUser(userData);
+      // Set axios default auth header
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       
-      // Schedule token refresh
-      const expiresIn = new Date(decodedToken.expirationTime).getTime() - Date.now();
-      if (expiresIn > 0) {
-        scheduleTokenRefresh(expiresIn);
-      }
+      setUser(userData);
+      resetSessionTimer();
       
       return { success: true, user: userData };
     } catch (error) {
@@ -200,19 +256,25 @@ export const AuthProvider = ({ children }) => {
       let errorMessage = 'Failed to sign in';
       
       // Handle specific error cases
-      switch (error.code) {
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-          errorMessage = 'Invalid email or password';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Too many failed attempts. Please try again later.';
-          break;
-        case 'auth/user-disabled':
-          errorMessage = 'This account has been disabled';
-          break;
-        default:
-          errorMessage = error.message || 'An error occurred during sign in';
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        switch (error.response.status) {
+          case 401:
+            errorMessage = 'Invalid phone number or password';
+            break;
+          case 429:
+            errorMessage = 'Too many attempts. Please try again later.';
+            break;
+          case 403:
+            errorMessage = 'This account has been disabled';
+            break;
+          default:
+            errorMessage = error.response.data?.message || 'An error occurred during sign in';
+        }
+      } else if (error.request) {
+        // The request was made but no response was received
+        errorMessage = 'Unable to connect to the server. Please check your internet connection.';
       }
       
       setAuthError(errorMessage);
@@ -220,7 +282,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [scheduleTokenRefresh]);
+  }, [resetSessionTimer]);
   
   // Update user data
   const updateUser = useCallback(async (userData) => {

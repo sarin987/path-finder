@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { api } from '../config/network';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import axios from 'axios';
@@ -10,10 +11,11 @@ const RiskPredictionMap = ({ userLocation }) => {
     if (!userLocation) return;
     const fetchRisks = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/predictions/risks', {
+    
+        const response = await api.get('/risks/nearby', {
           params: { lat: userLocation.latitude, lng: userLocation.longitude }
         });
-        setRisks(res.data);
+        setRisks(response.data);
       } catch (e) {
         // ignore
       }

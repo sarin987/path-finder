@@ -8,10 +8,10 @@ const isDevelopment = __DEV__;
 const getBaseUrl = () => {
   if (isDevelopment) {
     return Platform.select({
-      ios: 'http://192.168.180.25:5000',
+      ios: 'http://192.168.14.111:5000',
       android: DeviceInfo.isEmulatorSync() 
         ? 'http://10.0.2.2:5000' 
-        : 'http://192.168.180.25:5000'  // Replace with your computer's local IP
+        : 'http://192.168.14.111:5000'  // Replace with your computer's local IP
     });
   }
   return 'https://your-production-api.com';
@@ -19,8 +19,8 @@ const getBaseUrl = () => {
 
 const BASE_URL = getBaseUrl();
 
-// API Version
-const API_VERSION = '/api/v1';
+// API Version - Changed from /api/v1 to /api to match backend routes
+const API_VERSION = '/api';
 
 // API Endpoints
 export const API_ROUTES = {
@@ -31,7 +31,9 @@ export const API_ROUTES = {
   auth: {
     login: `${BASE_URL}${API_VERSION}/auth/login`,
     register: `${BASE_URL}${API_VERSION}/auth/register`,
-    refresh: `${BASE_URL}${API_VERSION}/auth/refresh-token`,
+    refreshToken: `${BASE_URL}${API_VERSION}/auth/refresh-token`,
+    sendOtp: `${BASE_URL}${API_VERSION}/auth/send-otp`,
+    verifyOtp: `${BASE_URL}${API_VERSION}/auth/verify-otp`,
     forgotPassword: `${BASE_URL}${API_VERSION}/auth/forgot-password`,
     resetPassword: `${BASE_URL}${API_VERSION}/auth/reset-password`,
     google: `${BASE_URL}${API_VERSION}/auth/google`,
@@ -80,7 +82,7 @@ export const API_ROUTES = {
 
 // WebSocket Configuration
 export const SOCKET_CONFIG = {
-  url: isDevelopment ? 'ws://192.168.180.25:5000' : 'wss://your-production-api.com',
+  url: isDevelopment ? 'ws://192.168.14.111:5000' : 'wss://your-production-api.com',
   options: {
     reconnection: true,
     reconnectionAttempts: 5,

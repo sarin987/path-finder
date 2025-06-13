@@ -1,7 +1,8 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_ROUTES } from '../config/network';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://192.168.180.25:5000';
+const BACKEND_URL = API_ROUTES.base;
 
 // Create axios instance with default config
 const api = axios.create({

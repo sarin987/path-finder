@@ -1,7 +1,8 @@
 import io from 'socket.io-client';
+import { API_ROUTES } from '../config/network';
 
-// Replace with your actual server URL
-const socket = io('http://192.168.180.25:5000', {
+// Use the base URL from network config
+const socket = io(API_ROUTES.base, {
   transports: ['websocket'],
   reconnection: true,
   reconnectionDelay: 1000,

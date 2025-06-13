@@ -4,6 +4,7 @@ const fireRoutes = require('./routes/fireRoutes');
 const userActiveRoutes = require('./routes/userActiveRoutes');
 const incidentsRoutes = require('./routes/incidents');
 const servicesRoutes = require('./routes/services');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 app.use(cors());
@@ -20,6 +21,9 @@ app.use('/api/incidents', incidentsRoutes);
 
 // Mount services API
 app.use('/api/services', servicesRoutes);
+
+// Mount auth API
+app.use('/api/auth', authRoutes);
 
 // Health check
 app.get('/api/ping', (req, res) => res.json({ ok: true }));
