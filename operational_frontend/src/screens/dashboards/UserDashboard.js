@@ -1,44 +1,26 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  SafeAreaView,
-  TouchableOpacity,
-  Alert,
-  StyleSheet,
-  View,
-  TextInput,
-  Animated,
-  Platform,
-  Text,
-  ActivityIndicator,
-  Modal,
-  Linking,
-  ScrollView
-} from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, AnimatedRegion } from 'react-native-maps';
-import io from 'socket.io-client';
-import axios from 'axios';
-import { useAuth } from '../../contexts/AuthContext';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { API_ROUTES, SOCKET_URL } from '../../config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
+import MapView, { Marker, PROVIDER_GOOGLE, AnimatedRegion as MapViewAnimated } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
-import EmergencyMenu from '../../components/EmergencyMenu';
-import EmergencyMenuOption from '../../components/EmergencyMenuOption';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
+import { useAuth } from '../../contexts/AuthContext';
+import API_ROUTES from '../../config';
 import IncidentReportForm from '../../components/IncidentReportForm';
-import IncidentMap from '../../components/IncidentMap';
 import TrustedContacts from '../../components/TrustedContacts';
-import EmergencyAlertButton from '../../components/EmergencyAlertButton';
 import HealthMonitor from '../../components/HealthMonitor';
-import RiskPredictionMap from '../../components/RiskPredictionMap';
-import AgencyCollaborationPanel from '../../components/AgencyCollaborationPanel';
+import EmergencyAlertButton from '../../components/EmergencyAlertButton';
+import IncidentMap from '../../components/IncidentMap';
 import SafeRouteSuggester from '../../components/SafeRouteSuggester';
 import ResourceAvailabilityPanel from '../../components/ResourceAvailabilityPanel';
+import AgencyCollaborationPanel from '../../components/AgencyCollaborationPanel';
 import CheckInPanel from '../../components/CheckInPanel';
 import EmergencyCallPanel from '../../components/EmergencyCallPanel';
-import PoliceDashboard from './PoliceDashboard';
-import { fetchActiveUsers, markLoginActivity, markLogoutActivity } from '../../api/activeUsers';
+import axios from 'axios';
+import io from 'socket.io-client';
+import Linking from 'react-native/Libraries/Linking/Linking';
 
 const DEFAULT_LOCATION = {
   latitude: 10.8505,
@@ -69,12 +51,52 @@ const getContactLabels = (featureKey) => {
     trustedContacts: 'Trusted Contacts',
     userSelect: 'Choose Service',
   };
-  return (featureToContacts[featureKey] || [])
-    .map(c => mapping[c] || c)
-    .join(', ');
+  const contacts = Array.isArray(featureToContacts[featureKey]) ? featureToContacts[featureKey] : [];
+  return contacts.map(c => mapping[c] || c).join(', ');
 };
 
+// Memoized feature item to prevent unnecessary re-renders
+const FeatureItem = React.memo(({ feature, onPress, getContactLabels }) => (
+  <TouchableOpacity
+    style={{
+      width: 74,
+      height: 74,
+      borderRadius: 18,
+      backgroundColor: '#f3f4f6',
+      alignItems: 'center',
+      justifyContent: 'center',
+      margin: 6,
+      shadowColor: feature.color,
+      shadowOpacity: 0.14,
+      shadowRadius: 7,
+      elevation: 4,
+    }}
+    onPress={onPress}
+  >
+    <MaterialCommunityIcons name={feature.icon} size={32} color={feature.color} />
+    <Text style={{ fontSize: 13, color: '#222', marginTop: 6, fontWeight: '600' }}>{feature.label}</Text>
+    {feature.key !== 'logout' && (
+      <Text style={{ fontSize: 10, color: '#64748b', textAlign: 'center', marginTop: 2 }}>
+        {getContactLabels(feature.key)}
+      </Text>
+    )}
+  </TouchableOpacity>
+));
+
 const UserDashboard = ({ navigation }) => {
+  // Add a flag to track component mount state
+  const isMounted = useRef(true);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+      // Cleanup any running timers or subscriptions
+      if (locationWatchId.current) {
+        Geolocation.clearWatch(locationWatchId.current);
+      }
+    };
+  }, []);
   const mapRef = useRef(null);
   const { user, logout } = useAuth();
   
@@ -99,6 +121,74 @@ const UserDashboard = ({ navigation }) => {
   const [reportRecipient, setReportRecipient] = useState(null);
 
   const [activeUsers, setActiveUsers] = useState([]);
+  // Defensive: always ensure activeUsers is an array
+  const safeActiveUsers = Array.isArray(activeUsers) ? activeUsers : [];
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const locationWatchId = useRef(null);
+  
+  // Fetch active users with error handling
+  const fetchActiveUsers = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_ROUTES.users.activeUsers}`);
+      let users = response.data;
+      // Defensive: ensure users is an array
+      if (!Array.isArray(users)) {
+        if (users && Array.isArray(users.activeUsers)) {
+          users = users.activeUsers;
+        } else {
+          users = [];
+        }
+      }
+      if (isMounted.current) {
+        setActiveUsers(users);
+        setError(null);
+      }
+    } catch (err) {
+      console.error('Error fetching active users:', err);
+      if (isMounted.current) {
+        setActiveUsers([]);
+        setError('Failed to load active users. Please try again.');
+      }
+    } finally {
+      if (isMounted.current) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+  
+
+  
+  // Handle logout with cleanup
+  const handleLogout = useCallback(async () => {
+    try {
+      // Stop location tracking
+      if (locationWatchId.current) {
+        Geolocation.clearWatch(locationWatchId.current);
+        locationWatchId.current = null;
+      }
+      
+      // Disconnect socket before logout
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+
+      // Notify server about logout
+      socketRef.current?.emit('user_disconnected', { userId: user?.id });
+      
+      // Logout activity
+      if (user?.id) {
+        await markLogoutActivity(user.id);
+      }
+      
+      // Call the logout function from AuthContext
+      await logout();
+    } catch (err) {
+      console.error('Logout error:', err);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
+    }
+  }, [logout, user?.id]);
 
   const handleEmergencyAccepted = async (data) => {
     try {
@@ -180,12 +270,29 @@ const UserDashboard = ({ navigation }) => {
     };
   }, [user?.id]);
 
-  // Add a separate function to handle socket reconnection
-  const reconnectSocket = () => {
-    if (socketRef.current) {
+  // Add a separate function to handle socket reconnection with retry logic
+  const reconnectSocket = useCallback(() => {
+    if (!socketRef.current) return;
+    
+    let retryCount = 0;
+    const maxRetries = 5;
+    const baseDelay = 1000; // Start with 1 second
+    
+    const attemptReconnect = () => {
+      if (retryCount >= maxRetries || !isMounted.current) return;
+      
+      console.log(`Attempting to reconnect (${retryCount + 1}/${maxRetries})`);
+      
       socketRef.current.connect();
-    }
-  };
+      
+      // Set up a timeout for the next retry with exponential backoff
+      const delay = baseDelay * Math.pow(2, retryCount);
+      setTimeout(attemptReconnect, delay);
+      retryCount++;
+    };
+    
+    attemptReconnect();
+  }, []);
 
   const fetchNearbyServices = async (coords) => {
     try {
@@ -289,7 +396,7 @@ const UserDashboard = ({ navigation }) => {
     if (user?.id) {
       startLocationTracking();
     }
-  }, [user?.id]);
+  }, [user?.id, startLocationTracking]);
 
   useEffect(() => {
     // Automate login activity on mount
@@ -302,8 +409,10 @@ const UserDashboard = ({ navigation }) => {
       }
     };
   }, [user]);
-
-  const startLocationTracking = async () => {
+  
+  // Track user's location in real-time
+  // Location tracking: only one declaration allowed
+  const startLocationTracking = useCallback(async () => {
     try {
       setIsLocationLoading(true);
       setLocationError(null);
@@ -337,48 +446,33 @@ const UserDashboard = ({ navigation }) => {
       }
 
       // Get current position
-      const position = await Geolocation.getCurrentPosition(
-        (position) => {
-          const coords = position.coords;
-          setLocation({
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421
-          });
-          setIsLocationLoading(false);
-          fetchNearbyServices({
-            latitude: coords.latitude,
-            longitude: coords.longitude
-          });
-        },
-        (error) => {
-          setIsLocationLoading(false);
-          setLocationError(error);
-          console.error('Location error:', error);
-          
-          Alert.alert(
-            'Location Error',
-            error.message || 'Unable to get your location. Please try again.',
-            [
-              { 
-                text: 'Retry', 
-                onPress: () => startLocationTracking(),
-                style: 'default'
-              },
-              { 
-                text: 'Cancel', 
-                style: 'cancel'
-              }
-            ]
-          );
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 20000,
-          maximumAge: 1000
-        }
-      );
+      await new Promise((resolve, reject) => {
+        Geolocation.getCurrentPosition(
+          (position) => {
+            const coords = position.coords;
+            setLocation({
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421
+            });
+            fetchNearbyServices({
+              latitude: coords.latitude,
+              longitude: coords.longitude
+            });
+            resolve();
+          },
+          (error) => {
+            console.error('Location error:', error);
+            reject(error);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 20000,
+            maximumAge: 1000
+          }
+        );
+      });
 
       // Start watching for location updates
       const watchId = Geolocation.watchPosition(
@@ -433,7 +527,7 @@ const UserDashboard = ({ navigation }) => {
         ]
       );
     }
-  };
+  }, [fetchNearbyServices]);
 
   useEffect(() => {
     // If location is not set after 2 seconds, use default (for dev/testing)
@@ -467,7 +561,7 @@ const UserDashboard = ({ navigation }) => {
           ...prev,
           [data.id]: {
             ...data,
-            coordinate: new AnimatedRegion({
+            coordinate: new MapViewAnimated.AnimatedRegion({
               latitude: data.location.latitude,
               longitude: data.location.longitude,
               latitudeDelta: 0.0005,
@@ -700,9 +794,9 @@ const UserDashboard = ({ navigation }) => {
   const updateNearbyService = (data) => {
     setNearbyServices(prev => ({
       ...prev,
-      [data.type]: prev[data.type]?.map(service =>
+      [data.type]: Array.isArray(prev[data.type]) ? prev[data.type].map(service =>
         service.id === data.id ? { ...service, location: data.location } : service
-      ) || []
+      ) : []
     }));
   };
 
@@ -711,24 +805,7 @@ const UserDashboard = ({ navigation }) => {
     await fetchNearbyServices(newLocation);
   };
 
-  const handleLogout = async () => {
-    try {
-      // Disconnect socket before logout
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-      await logout();
-      navigation.replace('LoginScreen');
-    } catch (error) {
-      console.error('Logout error:', error);
-      Alert.alert(
-        'Error',
-        'Failed to logout. Please try again.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
+  // handleLogout is already defined with useCallback above
 
   const handleEmergency = async (type) => {
     if (isEmergencyActive) {
@@ -829,7 +906,7 @@ const UserDashboard = ({ navigation }) => {
         <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 12 }}>Report Incident</Text>
         <Text style={{ fontSize: 15, color: '#555', marginBottom: 14 }}>Who do you want to send this report to?</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 18 }}>
-          {recipients.map(r => (
+          {(Array.isArray(recipients) ? recipients : []).map(r => (
             <TouchableOpacity
               key={r.key}
               style={{
@@ -903,7 +980,7 @@ const UserDashboard = ({ navigation }) => {
           </Marker>
         )}
         {/* Animated responder markers */}
-        {Object.values(animatedResponderMarkers).map((responder, idx) => (
+        {(Object.values(animatedResponderMarkers) || []).map((responder, idx) => (
           responder.coordinate ? (
             <Marker.Animated
               key={responder.id || idx}
@@ -929,7 +1006,7 @@ const UserDashboard = ({ navigation }) => {
             </Marker.Animated>
           ) : null
         ))}
-        {activeUsers.map(user => (
+        {(Array.isArray(activeUsers) ? activeUsers : []).map(user => (
           user.latitude && user.longitude ? (
             <Marker
               key={user.id}
@@ -1190,10 +1267,10 @@ const UserDashboard = ({ navigation }) => {
       </Modal>
       <View style={{ marginVertical: 12 }}>
         <Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 6 }}>Active Responders:</Text>
-        {activeUsers.length === 0 ? (
+        {safeActiveUsers.length === 0 ? (
           <Text style={{ color: '#888' }}>No responders online.</Text>
         ) : (
-          activeUsers.map(user => (
+          safeActiveUsers.map(user => (
             <View key={user.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
               <MaterialCommunityIcons name={
                 user.role === 'police' ? 'police-badge' :
@@ -1214,9 +1291,36 @@ const UserDashboard = ({ navigation }) => {
       </View>
     </View>
   );
-};
 
 const styles = StyleSheet.create({
+  errorBanner: {
+    backgroundColor: '#ef4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    margin: 12,
+    marginBottom: 0,
+  },
+  errorText: {
+    color: 'white',
+    marginLeft: 8,
+    flex: 1,
+  },
+  offlineBanner: {
+    backgroundColor: '#f59e0b',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    margin: 12,
+    marginBottom: 0,
+  },
+  offlineText: {
+    color: 'white',
+    marginLeft: 8,
+    flex: 1,
+  },
   modernContainer: {
     flex: 1,
     backgroundColor: '#f4f6fb',
@@ -1314,5 +1418,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+}
 
 export default UserDashboard;
