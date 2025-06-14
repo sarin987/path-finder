@@ -56,6 +56,7 @@
     "react-native-gifted-chat": "^2.8.0",
     "react-native-image-picker": "^8.2.0",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",
+    "react-native-keyboard-controller": "^1.17.4",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-location": "^2.5.0",
     "react-native-location-enabler": "^4.1.1",

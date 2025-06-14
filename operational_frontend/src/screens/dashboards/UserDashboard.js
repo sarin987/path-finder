@@ -1,1424 +1,1039 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, TextInput, Modal, Alert, StyleSheet, Platform } from 'react-native';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  SafeAreaView, 
+  StatusBar, 
+  Dimensions,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Image,
+  FlatList
+} from 'react-native';
+import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import MapView, { Marker, PROVIDER_GOOGLE, AnimatedRegion as MapViewAnimated } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
 import { useAuth } from '../../contexts/AuthContext';
-import API_ROUTES from '../../config';
-import IncidentReportForm from '../../components/IncidentReportForm';
-import TrustedContacts from '../../components/TrustedContacts';
-import HealthMonitor from '../../components/HealthMonitor';
-import EmergencyAlertButton from '../../components/EmergencyAlertButton';
-import IncidentMap from '../../components/IncidentMap';
-import SafeRouteSuggester from '../../components/SafeRouteSuggester';
-import ResourceAvailabilityPanel from '../../components/ResourceAvailabilityPanel';
-import AgencyCollaborationPanel from '../../components/AgencyCollaborationPanel';
-import CheckInPanel from '../../components/CheckInPanel';
-import EmergencyCallPanel from '../../components/EmergencyCallPanel';
-import axios from 'axios';
-import io from 'socket.io-client';
-import Linking from 'react-native/Libraries/Linking/Linking';
+import { GiftedChat, Bubble, Send } from 'react-native-gifted-chat';
+import { collection, addDoc, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 
-const DEFAULT_LOCATION = {
-  latitude: 10.8505,
-  longitude: 76.2711,
-  latitudeDelta: 0.0922,
-  longitudeDelta: 0.0421,
-};
+const { width, height } = Dimensions.get('window');
+const ASPECT_RATIO = width / height;
+const LATITUDE_DELTA = 0.0922;
+const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 
-const featureToContacts = {
-  reportIncident: ['police', 'fire', 'ambulance', 'parents', 'trustedContacts'],
-  trustedContacts: ['parents', 'trustedContacts'],
-  healthMonitor: ['ambulance', 'parents'],
-  emergencyAlert: ['police', 'ambulance', 'fire', 'parents'],
-  nearbyIncidents: [],
-  safeRoute: [],
-  resourceAvailability: [],
-  agencyCollaboration: ['police', 'fire', 'ambulance'],
-  checkIn: ['parents', 'trustedContacts'],
-  emergencyCall: ['userSelect'],
-};
+// Mock data for responders
+const MOCK_RESPONDERS = [
+  {
+    id: '1',
+    name: 'Police Unit 101',
+    type: 'police',
+    location: {
+      latitude: 10.8515,
+      longitude: 76.2711,
+    },
+    status: 'available',
+    eta: '2 min',
+  },
+  {
+    id: '2',
+    name: 'Ambulance A23',
+    type: 'ambulance',
+    location: {
+      latitude: 10.8495,
+      longitude: 76.2700,
+    },
+    status: 'available',
+    eta: '3 min',
+  },
+  {
+    id: '3',
+    name: 'Fire Truck F45',
+    type: 'fire',
+    location: {
+      latitude: 10.8500,
+      longitude: 76.2720,
+    },
+    status: 'on_call',
+    eta: '5 min',
+  },
+];
 
-const getContactLabels = (featureKey) => {
-  const mapping = {
-    police: 'Police',
-    fire: 'Fire Brigade',
-    ambulance: 'Ambulance',
-    parents: 'Parents',
-    trustedContacts: 'Trusted Contacts',
-    userSelect: 'Choose Service',
-  };
-  const contacts = Array.isArray(featureToContacts[featureKey]) ? featureToContacts[featureKey] : [];
-  return contacts.map(c => mapping[c] || c).join(', ');
-};
-
-// Memoized feature item to prevent unnecessary re-renders
-const FeatureItem = React.memo(({ feature, onPress, getContactLabels }) => (
-  <TouchableOpacity
-    style={{
-      width: 74,
-      height: 74,
-      borderRadius: 18,
-      backgroundColor: '#f3f4f6',
-      alignItems: 'center',
-      justifyContent: 'center',
-      margin: 6,
-      shadowColor: feature.color,
-      shadowOpacity: 0.14,
-      shadowRadius: 7,
-      elevation: 4,
-    }}
-    onPress={onPress}
-  >
-    <MaterialCommunityIcons name={feature.icon} size={32} color={feature.color} />
-    <Text style={{ fontSize: 13, color: '#222', marginTop: 6, fontWeight: '600' }}>{feature.label}</Text>
-    {feature.key !== 'logout' && (
-      <Text style={{ fontSize: 10, color: '#64748b', textAlign: 'center', marginTop: 2 }}>
-        {getContactLabels(feature.key)}
-      </Text>
-    )}
-  </TouchableOpacity>
-));
+// Mock incident history
+const MOCK_INCIDENTS = [
+  {
+    id: '1',
+    type: 'medical',
+    status: 'resolved',
+    date: '2023-06-10',
+    responder: 'Ambulance A23',
+    location: '123 Main St, City',
+  },
+  {
+    id: '2',
+    type: 'safety',
+    status: 'in_progress',
+    date: '2023-06-08',
+    responder: 'Police Unit 101',
+    location: '456 Park Ave, City',
+  },
+];
 
 const UserDashboard = ({ navigation }) => {
-  // Add a flag to track component mount state
+  // Refs
+  const mapRef = useRef(null);
   const isMounted = useRef(true);
   
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMounted.current = false;
-      // Cleanup any running timers or subscriptions
-      if (locationWatchId.current) {
-        Geolocation.clearWatch(locationWatchId.current);
-      }
-    };
-  }, []);
-  const mapRef = useRef(null);
+  // Auth context
   const { user, logout } = useAuth();
   
-  const [location, setLocation] = useState(null);
-  const [isLocationLoading, setIsLocationLoading] = useState(false);
+  // State
+  const [loading, setLoading] = useState(true);
+  const [location, setLocation] = useState({
+    latitude: 10.8505,
+    longitude: 76.2711,
+    latitudeDelta: LATITUDE_DELTA,
+    longitudeDelta: LONGITUDE_DELTA,
+  });
+  const [sosActive, setSosActive] = useState(false);
+  const [activeTab, setActiveTab] = useState('map');
   const [locationError, setLocationError] = useState(null);
-  const [isLocationTracking, setIsLocationTracking] = useState(false);
+  const [responders, setResponders] = useState(MOCK_RESPONDERS);
+  const [incidents, setIncidents] = useState(MOCK_INCIDENTS);
+  const [selectedResponder, setSelectedResponder] = useState(null);
+  const [showChat, setShowChat] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [responderFilter, setResponderFilter] = useState('all');
+  const [emergencyContacts, setEmergencyContacts] = useState([
+    { id: '1', name: 'Mom', phone: '+1234567890', isPrimary: true },
+    { id: '2', name: 'Dad', phone: '+1987654321', isPrimary: false },
+  ]);
+  const [showContactsModal, setShowContactsModal] = useState(false);
 
-  const [nearbyServices, setNearbyServices] = useState([]);
-  const [isEmergencyActive, setIsEmergencyActive] = useState(false);
-  const [isOfflineMode, setIsOfflineMode] = useState(false);
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredServices, setFilteredServices] = useState([]);
-
-  const [selectedMenu, setSelectedMenu] = useState('');
-
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  const [animatedResponderMarkers, setAnimatedResponderMarkers] = useState({});
-
-  const [reportRecipient, setReportRecipient] = useState(null);
-
-  const [activeUsers, setActiveUsers] = useState([]);
-  // Defensive: always ensure activeUsers is an array
-  const safeActiveUsers = Array.isArray(activeUsers) ? activeUsers : [];
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const locationWatchId = useRef(null);
-  
-  // Fetch active users with error handling
-  const fetchActiveUsers = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_ROUTES.users.activeUsers}`);
-      let users = response.data;
-      // Defensive: ensure users is an array
-      if (!Array.isArray(users)) {
-        if (users && Array.isArray(users.activeUsers)) {
-          users = users.activeUsers;
-        } else {
-          users = [];
-        }
-      }
-      if (isMounted.current) {
-        setActiveUsers(users);
-        setError(null);
-      }
-    } catch (err) {
-      console.error('Error fetching active users:', err);
-      if (isMounted.current) {
-        setActiveUsers([]);
-        setError('Failed to load active users. Please try again.');
-      }
-    } finally {
-      if (isMounted.current) {
-        setIsLoading(false);
-      }
-    }
-  }, []);
-  
-
-  
-  // Handle logout with cleanup
-  const handleLogout = useCallback(async () => {
-    try {
-      // Stop location tracking
-      if (locationWatchId.current) {
-        Geolocation.clearWatch(locationWatchId.current);
-        locationWatchId.current = null;
-      }
-      
-      // Disconnect socket before logout
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-
-      // Notify server about logout
-      socketRef.current?.emit('user_disconnected', { userId: user?.id });
-      
-      // Logout activity
-      if (user?.id) {
-        await markLogoutActivity(user.id);
-      }
-      
-      // Call the logout function from AuthContext
-      await logout();
-    } catch (err) {
-      console.error('Logout error:', err);
-      Alert.alert('Error', 'Failed to logout. Please try again.');
-    }
-  }, [logout, user?.id]);
-
-  const handleEmergencyAccepted = async (data) => {
-    try {
-      // Update UI to show emergency service is on the way
-      Alert.alert(
-        'Emergency Accepted',
-        `A ${data.type} service has accepted your request and is on the way.`,
-        [{ text: 'OK' }]
-      );
-
-      // Update the markers on the map if needed
-      if (mapRef.current) {
-        mapRef.current.animateToRegion({
-          latitude: data.location.latitude,
-          longitude: data.location.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        }, 1000);
-      }
-
-      // Update emergency status
-      setIsEmergencyActive(true);
-    } catch (error) {
-      console.error('Emergency acceptance error:', error);
-      Alert.alert(
-        'Error',
-        'Failed to process emergency acceptance.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
-  const socketRef = useRef(null);
-
-  useEffect(() => {
-    if (!socketRef.current) {
-      socketRef.current = io(API_ROUTES.socket, {
-        transports: ['websocket'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        timeout: 10000,
-        autoConnect: false
-      });
-
-      // Set up event listeners
-      socketRef.current.on('connect', () => {
-        console.log('Socket connected');
-        socketRef.current.emit('user_connected', { userId: user?.id });
-      });
-
-      socketRef.current.on('disconnect', () => {
-        console.log('Socket disconnected');
-      });
-
-      socketRef.current.on('location_update', updateNearbyService);
-      socketRef.current.on('emergency_accepted', handleEmergencyAccepted);
-      socketRef.current.on('emergency_completed', () => setIsEmergencyActive(false));
-      socketRef.current.on('responder_location_update', handleResponderUpdate);
-
-      // Connect the socket
-      socketRef.current.connect();
-    }
-
-    return () => {
-      if (socketRef.current) {
-        // Remove event listeners
-        socketRef.current.off('connect');
-        socketRef.current.off('disconnect');
-        socketRef.current.off('location_update');
-        socketRef.current.off('emergency_accepted');
-        socketRef.current.off('emergency_completed');
-        socketRef.current.off('responder_location_update');
-        
-        // Close the socket connection
-        socketRef.current.close();
-        socketRef.current = null;
-      }
-    };
-  }, [user?.id]);
-
-  // Add a separate function to handle socket reconnection with retry logic
-  const reconnectSocket = useCallback(() => {
-    if (!socketRef.current) return;
-    
-    let retryCount = 0;
-    const maxRetries = 5;
-    const baseDelay = 1000; // Start with 1 second
-    
-    const attemptReconnect = () => {
-      if (retryCount >= maxRetries || !isMounted.current) return;
-      
-      console.log(`Attempting to reconnect (${retryCount + 1}/${maxRetries})`);
-      
-      socketRef.current.connect();
-      
-      // Set up a timeout for the next retry with exponential backoff
-      const delay = baseDelay * Math.pow(2, retryCount);
-      setTimeout(attemptReconnect, delay);
-      retryCount++;
-    };
-    
-    attemptReconnect();
+  // Get current location
+  const getCurrentLocation = useCallback(() => {
+    Geolocation.getCurrentPosition(
+      position => {
+        const { latitude, longitude } = position.coords;
+        setLocation(prev => ({
+          ...prev,
+          latitude,
+          longitude
+        }));
+        setLoading(false);
+      },
+      error => {
+        console.log('Error getting location:', error);
+        setLocationError('Unable to get your current location');
+        setLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    );
   }, []);
 
-  const fetchNearbyServices = async (coords) => {
+  // Request location permission
+  const requestLocationPermission = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
-
-      const isConnected = await NetInfo.fetch();
-      if (!isConnected.isConnected) {
-        throw new Error('No internet connection');
-      }
-
-      console.log('Fetching services with coords:', coords);
-      
-      const response = await fetch(`${API_ROUTES.services}/nearby`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          radius: 5000,
-          timestamp: new Date().getTime()
-        })
-      });
-
-      const data = await response.json();
-      console.log('Service response:', data);
-      
-      if (!response.ok) {
-        console.error('API Error:', data);
-        throw new Error(data.error || data.message || 'Server error');
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || data.message || 'Request failed');
-      }
-
-      if (!data.services || !Array.isArray(data.services)) {
-        throw new Error('Invalid response format');
-      }
-
-      // Store services in cache
-      await AsyncStorage.setItem('lastServices', JSON.stringify(data.services));
-      setNearbyServices(data.services);
-      
-    } catch (error) {
-      console.error('Fetch services error:', error);
-      
-      // Try to use cached services
-      try {
-        const lastServices = await AsyncStorage.getItem('lastServices');
-        if (lastServices) {
-          const services = JSON.parse(lastServices);
-          setNearbyServices(services);
-        }
-      } catch (storageError) {
-        console.error('Storage error:', storageError);
-      }
-      
-      Alert.alert(
-        'Service Error',
-        error.message || 'Failed to fetch nearby services. Please check your connection.',
-        [
-          { 
-            text: 'Retry', 
-            onPress: () => fetchNearbyServices(coords)
-          },
-          { 
-            text: 'Use Offline Mode', 
-            onPress: () => {
-              setIsOfflineMode(true);
-            }
-          },
-          { text: 'Cancel', style: 'cancel' }
-        ]
-      );
-    }
-  };
-
-  // Add retry mechanism
-  const retryFetchWithBackoff = async (coords, attempt = 1, maxAttempts = 3) => {
-    try {
-      return await fetchNearbyServices(coords);
-    } catch (error) {
-      if (attempt === maxAttempts) throw error;
-      
-      const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      
-      return retryFetchWithBackoff(coords, attempt + 1, maxAttempts);
-    }
-  };
-
-  useEffect(() => {
-    // Start location tracking after login
-    if (user?.id) {
-      startLocationTracking();
-    }
-  }, [user?.id, startLocationTracking]);
-
-  useEffect(() => {
-    // Automate login activity on mount
-    if (user && user.id) {
-      markLoginActivity(user.id);
-    }
-    return () => {
-      if (user && user.id) {
-        markLogoutActivity(user.id);
-      }
-    };
-  }, [user]);
-  
-  // Track user's location in real-time
-  // Location tracking: only one declaration allowed
-  const startLocationTracking = useCallback(async () => {
-    try {
-      setIsLocationLoading(true);
-      setLocationError(null);
-
-      // Request location permissions
-      const permission = 
-        Platform.OS === 'ios' 
-          ? PERMISSIONS.IOS.LOCATION_WHEN_IN_USE 
-          : PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION;
+      const permission = Platform.OS === 'ios' 
+        ? PERMISSIONS.IOS.LOCATION_WHEN_IN_USE 
+        : PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION;
 
       const result = await request(permission);
-
-      if (result !== RESULTS.GRANTED) {
-        Alert.alert(
-          'Permission Required',
-          'Location permission is required to use this feature. Please enable it in your device settings.',
-          [
-            { 
-              text: 'Settings', 
-              onPress: () => Linking.openSettings(),
-              style: 'default'
-            },
-            { 
-              text: 'Cancel', 
-              style: 'cancel'
-            }
-          ]
-        );
-        setIsLocationLoading(false);
-        return;
-      }
-
-      // Get current position
-      await new Promise((resolve, reject) => {
-        Geolocation.getCurrentPosition(
-          (position) => {
-            const coords = position.coords;
-            setLocation({
-              latitude: coords.latitude,
-              longitude: coords.longitude,
-              latitudeDelta: 0.0922,
-              longitudeDelta: 0.0421
-            });
-            fetchNearbyServices({
-              latitude: coords.latitude,
-              longitude: coords.longitude
-            });
-            resolve();
-          },
-          (error) => {
-            console.error('Location error:', error);
-            reject(error);
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 20000,
-            maximumAge: 1000
-          }
-        );
-      });
-
-      // Start watching for location updates
-      const watchId = Geolocation.watchPosition(
-        (position) => {
-          const coords = position.coords;
-          setLocation({
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421
-          });
-          fetchNearbyServices({
-            latitude: coords.latitude,
-            longitude: coords.longitude
-          });
-        },
-        (error) => {
-          console.error('Location update error:', error);
-          setLocationError(error);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 20000,
-          maximumAge: 1000,
-          distanceFilter: 10
-        }
-      );
-
-      setIsLocationTracking(true);
-      return () => {
-        Geolocation.clearWatch(watchId);
-        setIsLocationTracking(false);
-      };
-    } catch (error) {
-      setIsLocationLoading(false);
-      setLocationError(error);
-      console.error('Location initialization error:', error);
       
-      Alert.alert(
-        'Location Error',
-        error.message || 'Unable to get your location. Please try again.',
-        [
-          { 
-            text: 'Retry', 
-            onPress: () => startLocationTracking(),
-            style: 'default'
-          },
-          { 
-            text: 'Cancel', 
-            style: 'cancel'
-          }
-        ]
-      );
-    }
-  }, [fetchNearbyServices]);
-
-  useEffect(() => {
-    // If location is not set after 2 seconds, use default (for dev/testing)
-    const timeout = setTimeout(() => {
-      if (!location) {
-        setLocation(DEFAULT_LOCATION);
-      }
-    }, 2000);
-    return () => clearTimeout(timeout);
-  }, [location]);
-
-  // Debug output for location and map rendering
-  useEffect(() => {
-    console.log('Current location state:', location);
-  }, [location]);
-
-  const handleResponderUpdate = (data) => {
-    if (!data || !data.id || !data.location) return;
-    setAnimatedResponderMarkers(prev => {
-      const prevMarker = prev[data.id];
-      if (prevMarker && prevMarker.coordinate) {
-        prevMarker.coordinate.timing({
-          latitude: data.location.latitude,
-          longitude: data.location.longitude,
-          duration: 1000,
-          useNativeDriver: false,
-        }).start();
-        return { ...prev };
+      if (result === RESULTS.GRANTED) {
+        getCurrentLocation();
       } else {
-        return {
-          ...prev,
-          [data.id]: {
-            ...data,
-            coordinate: new MapViewAnimated.AnimatedRegion({
-              latitude: data.location.latitude,
-              longitude: data.location.longitude,
-              latitudeDelta: 0.0005,
-              longitudeDelta: 0.0005,
-            })
-          }
-        };
+        setLocationError('Location permission denied');
+        setLoading(false);
       }
-    });
-  };
-
-  const renderLocationButton = () => {
-    return (
-      <TouchableOpacity
-        style={styles.locationButton}
-        onPress={() => {
-          if (isLocationTracking) {
-            startLocationTracking();
-          } else {
-            // Center map on user's location
-            if (location) {
-              setLocation(location);
-            }
-          }
-        }}
-      >
-        <View style={styles.buttonContent}>
-          <MaterialCommunityIcons 
-            name="crosshairs-gps" 
-            size={24} 
-            color={isLocationTracking ? '#4CAF50' : '#9E9E9E'}
-          />
-          <Text style={styles.buttonText}>My Location</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-    if (!query) {
-      setFilteredServices([]);
-      return;
+    } catch (err) {
+      console.log('Permission request error:', err);
+      setLocationError('Error requesting location permission');
+      setLoading(false);
     }
-    const lower = query.toLowerCase();
-    setFilteredServices(
-      nearbyServices.filter(service =>
-        service.name?.toLowerCase().includes(lower) ||
-        service.type?.toLowerCase().includes(lower) ||
-        (service.category && service.category.toLowerCase().includes(lower))
-      )
-    );
-  };
+  }, [getCurrentLocation]);
 
-  const renderHeader = () => (
-    <View style={{
-      position: 'absolute',
-      top: 20,
-      left: 16,
-      right: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      backgroundColor: 'rgba(255,255,255,0.97)',
-      borderRadius: 14,
-      paddingVertical: 8,
-      paddingHorizontal: 10,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
-      elevation: 5,
-      zIndex: 10
-    }}>
-      <TouchableOpacity onPress={() => setIsMenuOpen(true)} style={{ marginRight: 10 }}>
-        <MaterialCommunityIcons name="menu" size={28} color="#204080" />
-      </TouchableOpacity>
-      <View style={{ flex: 1, marginRight: 10 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 10, paddingHorizontal: 8 }}>
-          <MaterialCommunityIcons name="magnify" size={20} color="#666" />
-          <TextInput
-            style={{ flex: 1, fontSize: 15, paddingVertical: 4, marginLeft: 4, color: '#222' }}
-            placeholder="Search hospitals, police, fire..."
-            placeholderTextColor="#888"
-            value={searchQuery}
-            onChangeText={handleSearch}
-            returnKeyType="search"
-          />
-        </View>
-      </View>
-      <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-        <MaterialCommunityIcons name="account-circle" size={32} color="#007AFF" />
-      </TouchableOpacity>
-    </View>
-  );
-
-  const policeOptions = [
-    { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Police', action: 'start chat' },
-    { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: 'share location' },
-    { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Nearest Station', action: 'call station' },
-    { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Police', action: 'send thank you' }
-  ];
-
-  const ambulanceOptions = [
-    { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Ambulance', action: 'start chat' },
-    { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: 'share location' },
-    { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Ambulance', action: 'call ambulance' },
-    { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Ambulance', action: 'send thank you' }
-  ];
-
-  const fireOptions = [
-    { type: 'chat', icon: 'chat', color: '#4CAF50', label: 'Chat with Fire Brigade', action: 'start chat' },
-    { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: 'share location' },
-    { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Fire Brigade', action: 'call fire brigade' },
-    { type: 'thanks', icon: 'heart', color: '#E91E63', label: 'Thank Fire Brigade', action: 'send thank you' }
-  ];
-
-  const parentsOptions = [
-    { type: 'share', icon: 'share-variant', color: '#2196F3', label: 'Share Location', action: 'share location' },
-    { type: 'call', icon: 'phone', color: '#FF9800', label: 'Call Parents', action: 'call parents' },
-    { type: 'alert', icon: 'alert', color: '#E91E63', label: 'Send Alert', action: 'send alert' },
-    { type: 'zone', icon: 'map-marker-radius', color: '#4CAF50', label: 'Set Safe Zone', action: 'set safe zone' }
-  ];
-
-  const [emergencyMenu, setEmergencyMenu] = useState(null);
-
-  const handleEmergencyMenu = (type) => {
-    if (isEmergencyActive) return;
-    setEmergencyMenu(type);
-  };
-
-  const renderEmergencyPanel = () => (
-    <>
-      <View style={styles.leftEmergencyPanel}>
-        <TouchableOpacity 
-          style={[styles.emergencyButton, { backgroundColor: '#4A90E2' }]}
-          onPress={() => handleEmergencyMenu('police')}
-          disabled={isEmergencyActive}
-        >
-          <View style={styles.buttonContent}>
-            <MaterialCommunityIcons name="police-badge" size={20} color="white" />
-            <Text style={styles.emergencyButtonText}>Police</Text>
-          </View>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.emergencyButton, { backgroundColor: '#D0021B' }]}
-          onPress={() => handleEmergencyMenu('ambulance')}
-          disabled={isEmergencyActive}
-        >
-          <View style={styles.buttonContent}>
-            <MaterialCommunityIcons name="ambulance" size={20} color="white" />
-            <Text style={styles.emergencyButtonText}>Ambulance</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-      
-      <View style={styles.rightEmergencyPanel}>
-        <TouchableOpacity 
-          style={[styles.emergencyButton, { backgroundColor: '#F5A623' }]}
-          onPress={() => handleEmergencyMenu('fire')}
-          disabled={isEmergencyActive}
-        >
-          <View style={styles.buttonContent}>
-            <MaterialCommunityIcons name="fire-truck" size={20} color="white" />
-            <Text style={styles.emergencyButtonText}>Fire Brigade</Text>
-          </View>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.emergencyButton, { backgroundColor: '#7ED321' }]}
-          onPress={() => handleEmergencyMenu('parents')}
-          disabled={isEmergencyActive}
-        >
-          <View style={styles.buttonContent}>
-            <MaterialCommunityIcons name="account-multiple" size={20} color="white" />
-            <Text style={styles.emergencyButtonText}>Parents</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-    </>
-  );
-
-  const handleEmergencyRequest = async (type) => {
-    switch (type) {
-      case 'chat':
-        // Open chat screen with the relevant service
-        navigation.navigate('ChatScreen', { type: emergencyMenu });
-        break;
-      case 'share':
-        // Share current location with the selected service
-        Alert.alert('Location Shared', `Your location has been shared with the ${emergencyMenu}.`);
-        // Optionally, emit socket or API call here
-        break;
-      case 'call':
-        // Call the nearest service (police, ambulance, fire, parents)
-        let phoneNumber = '';
-        switch (emergencyMenu) {
-          case 'police': phoneNumber = '100'; break;
-          case 'ambulance': phoneNumber = '102'; break;
-          case 'fire': phoneNumber = '101'; break;
-          case 'parents': phoneNumber = '1234567890'; break; // Replace with real parent number
-          default: phoneNumber = '';
-        }
-        if (phoneNumber) {
-          Linking.openURL(`tel:${phoneNumber}`);
-        } else {
-          Alert.alert('Error', 'No phone number available.');
-        }
-        break;
-      case 'thanks':
-        Alert.alert('Thank You', `Thank you message sent to the ${emergencyMenu}.`);
-        // Optionally, send a thank you message via socket or API
-        break;
-      case 'alert':
-        Alert.alert('Alert Sent', 'Alert has been sent to your parents.');
-        // Optionally, emit alert event here
-        break;
-      case 'zone':
-        Alert.alert('Safe Zone', 'Safe zone has been set for your parents.');
-        // Optionally, implement safe zone logic
-        break;
-      default:
-        setEmergencyMenu(null);
-        break;
-    }
-    setEmergencyMenu(null);
-  };
-
-  const updateNearbyService = (data) => {
-    setNearbyServices(prev => ({
-      ...prev,
-      [data.type]: Array.isArray(prev[data.type]) ? prev[data.type].map(service =>
-        service.id === data.id ? { ...service, location: data.location } : service
-      ) : []
-    }));
-  };
-
-  const handleLocationChange = async (newLocation) => {
-    setLocation(newLocation);
-    await fetchNearbyServices(newLocation);
-  };
-
-  // handleLogout is already defined with useCallback above
-
-  const handleEmergency = async (type) => {
-    if (isEmergencyActive) {
+  // Toggle SOS
+  const toggleSOS = () => {
+    if (sosActive) {
+      setSosActive(false);
+      setShowChat(false);
+      setSelectedResponder(null);
+      Alert.alert('SOS Deactivated', 'Emergency services have been notified of your cancellation.');
+    } else {
+      setSosActive(true);
       Alert.alert(
-        'Active Emergency',
-        'You already have an active emergency request. Do you want to cancel it?',
+        'SOS Activated', 
+        'Emergency services have been notified. Help is on the way!',
         [
-          { text: 'No', style: 'cancel' },
-          { 
-            text: 'Yes, Cancel',
-            style: 'destructive',
-            onPress: () => cancelEmergency(type)
-          }
+          {
+            text: 'Chat with Responder',
+            onPress: () => setShowChat(true),
+          },
+          { text: 'OK' },
         ]
       );
-      return;
-    }
-  
-    Alert.alert(
-      'Emergency Alert',
-      `Requesting ${type} service. Do you want to proceed?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Proceed',
-          onPress: () => sendEmergencyRequest(type)
-        }
-      ]
-    );
-  };
-
-  const sendEmergencyRequest = async (featureKey, ...args) => {
-    const contacts = featureToContacts[featureKey] || [];
-    // For each contact, send the request (API, socket, etc.)
-    for (const contact of contacts) {
-      // Example: send to each contact (implement actual logic as needed)
-      // await sendRequestToContact(contact, ...args);
-      // For demo, just log:
-      console.log(`Sending emergency request for ${featureKey} to ${contact}`);
-    }
-    // Existing logic...
-  };
-
-  const cancelEmergency = async (type) => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      
-      socketRef.current?.emit('emergency_cancel', {
-        type,
-        userId: user?.id,
-      });
-  
-      const response = await fetch(`${API_ROUTES.emergency}/cancel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          type,
-          userId: user?.id,
-        }),
-      });
-  
-      if (!response.ok) {
-        throw new Error('Failed to cancel emergency request');
-      }
-  
-      setIsEmergencyActive(false);
-      Alert.alert('Emergency Cancelled', 'Your emergency request has been cancelled.');
-  
-    } catch (error) {
-      console.error('Emergency cancellation error:', error);
-      Alert.alert(
-        'Error',
-        'Failed to cancel emergency request. Please try again.',
-        [{ text: 'OK' }]
-      );
     }
   };
 
-  const handleMenuSelect = menu => {
-    setSelectedMenu(menu);
-    setIsMenuOpen(false);
-  };
-
-  const renderReportPanel = () => {
-    // Define possible recipients (can be dynamic if needed)
-    const recipients = [
-      { key: 'police', label: 'Police', icon: 'police-badge', color: '#204080' },
-      { key: 'fire', label: 'Fire Brigade', icon: 'fire-truck', color: '#ef4444' },
-      { key: 'ambulance', label: 'Ambulance', icon: 'ambulance', color: '#ea580c' },
-      { key: 'parents', label: 'Parents', icon: 'account-group', color: '#0ea5e9' },
-      { key: 'trustedContacts', label: 'Trusted Contacts', icon: 'account-multiple', color: '#6366f1' },
-    ];
-    return (
-      <View style={{ padding: 20 }}>
-        <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 12 }}>Report Incident</Text>
-        <Text style={{ fontSize: 15, color: '#555', marginBottom: 14 }}>Who do you want to send this report to?</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 18 }}>
-          {(Array.isArray(recipients) ? recipients : []).map(r => (
-            <TouchableOpacity
-              key={r.key}
-              style={{
-                backgroundColor: reportRecipient === r.key ? r.color : '#f3f4f6',
-                borderRadius: 12,
-                padding: 12,
-                alignItems: 'center',
-                margin: 5,
-                minWidth: 90,
-                shadowColor: r.color,
-                shadowOpacity: 0.1,
-                shadowRadius: 6,
-                elevation: 2,
-              }}
-              onPress={() => setReportRecipient(r.key)}
-            >
-              <MaterialCommunityIcons name={r.icon} size={28} color={reportRecipient === r.key ? '#fff' : r.color} />
-              <Text style={{ color: reportRecipient === r.key ? '#fff' : '#222', marginTop: 5, fontWeight: '600' }}>{r.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {/* Show incident form only if a recipient is selected */}
-        {reportRecipient && (
-          <IncidentReportForm
-            recipient={reportRecipient}
-            onSubmit={() => setReportRecipient(null)}
-            onCancel={() => setReportRecipient(null)}
-          />
-        )}
-      </View>
-    );
-  };
-
-  const getActiveUsers = async () => {
-    try {
-      const users = await fetchActiveUsers();
-      setActiveUsers(users);
-    } catch (err) {
-      setActiveUsers([]);
-    }
-  };
-
-  useEffect(() => {
-    getActiveUsers();
-    const interval = setInterval(getActiveUsers, 10000); // poll every 10s
-    return () => clearInterval(interval);
+  // Handle sending a message
+  const onSend = useCallback((messages = []) => {
+    setMessages(previousMessages => GiftedChat.append(previousMessages, messages));
   }, []);
 
+  // Handle responder selection
+  const handleResponderSelect = (responder) => {
+    setSelectedResponder(responder);
+    setShowChat(true);
+    
+    // Add system message
+    const systemMessage = {
+      _id: Math.round(Math.random() * 1000000),
+      text: `Connected to ${responder.name}. Please describe your emergency.`,
+      createdAt: new Date(),
+      system: true,
+    };
+    
+    setMessages(previousMessages => GiftedChat.append(previousMessages, [systemMessage]));
+  };
+
+  // Render chat bubble
+  const renderBubble = (props) => {
+    return (
+      <Bubble
+        {...props}
+        wrapperStyle={{
+          right: {
+            backgroundColor: '#FF3B30',
+          },
+          left: {
+            backgroundColor: '#f0f0f0',
+          },
+        }}
+        textStyle={{
+          right: {
+            color: '#fff',
+          },
+        }}
+      />
+    );
+  };
+
+  // Render responder marker
+  const renderResponderMarker = (responder) => {
+    let iconName = 'account';
+    let color = '#4CAF50'; // Default green
+    
+    switch(responder.type) {
+      case 'police':
+        iconName = 'police-badge';
+        color = '#3F51B5'; // Blue
+        break;
+      case 'ambulance':
+        iconName = 'ambulance';
+        color = '#F44336'; // Red
+        break;
+      case 'fire':
+        iconName = 'fire-truck';
+        color = '#FF9800'; // Orange
+        break;
+    }
+    
+    return (
+      <Marker
+        key={responder.id}
+        coordinate={responder.location}
+        onPress={() => handleResponderSelect(responder)}
+      >
+        <View style={[styles.responderMarker, { backgroundColor: color }]}>
+          <MaterialCommunityIcons name={iconName} size={20} color="#fff" />
+        </View>
+      </Marker>
+    );
+  };
+
+  // Filter responders by type
+  const filteredResponders = responderFilter === 'all' 
+    ? responders 
+    : responders.filter(r => r.type === responderFilter);
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
+    }
+  };
+
+  // Initialize location tracking
+  useEffect(() => {
+    requestLocationPermission();
+    
+    return () => {
+      isMounted.current = false;
+    };
+  }, [requestLocationPermission]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <StatusBar barStyle="dark-content" />
+        <ActivityIndicator size="large" color="#FF3B30" />
+        <Text style={{ marginTop: 10 }}>Loading your location...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#f4f6fb' }}>
-      {/* Map full screen as background */}
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={StyleSheet.absoluteFillObject}
-        region={location || DEFAULT_LOCATION}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        showsCompass={true}
-        loadingEnabled={true}
-        showsBuildings={true}
-        showsTraffic={true}
-        showsIndoors={true}
-        showsPointsOfInterest={true}
-        showsIndoorLevelPicker={true}
-      >
-        {/* Custom user location marker */}
-        {location && (
-          <Marker coordinate={location} anchor={{ x: 0.5, y: 0.5 }}>
-            <MaterialCommunityIcons name="crosshairs-gps" size={36} color="#2563eb" />
-          </Marker>
-        )}
-        {/* Animated responder markers */}
-        {(Object.values(animatedResponderMarkers) || []).map((responder, idx) => (
-          responder.coordinate ? (
-            <Marker.Animated
-              key={responder.id || idx}
-              coordinate={responder.coordinate}
-              title={responder.name || responder.role}
-              description={responder.contact ? `Contact: ${responder.contact}` : responder.role}
-            >
-              <MaterialCommunityIcons
-                name={
-                  responder.role === 'police' ? 'police-badge' :
-                  responder.role === 'ambulance' ? 'ambulance' :
-                  responder.role === 'fire' ? 'fire-truck' :
-                  'account-badge'
-                }
-                size={32}
-                color={
-                  responder.role === 'police' ? '#204080' :
-                  responder.role === 'ambulance' ? '#ea580c' :
-                  responder.role === 'fire' ? '#ef4444' :
-                  '#6366f1'
-                }
-              />
-            </Marker.Animated>
-          ) : null
-        ))}
-        {(Array.isArray(activeUsers) ? activeUsers : []).map(user => (
-          user.latitude && user.longitude ? (
-            <Marker
-              key={user.id}
-              coordinate={{ latitude: user.latitude, longitude: user.longitude }}
-              title={user.name}
-              description={user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-              pinColor={
-                user.role === 'police' ? '#204080' :
-                user.role === 'ambulance' ? '#ea580c' :
-                user.role === 'fire' ? '#ef4444' :
-                user.role === 'parent' ? '#0ea5e9' : '#888'
-              }
-            >
-              <MaterialCommunityIcons name={
-                user.role === 'police' ? 'police-badge' :
-                user.role === 'ambulance' ? 'ambulance' :
-                user.role === 'fire' ? 'fire-truck' :
-                user.role === 'parent' ? 'account-group' : 'account'
-              } size={28} color={
-                user.role === 'police' ? '#204080' :
-                user.role === 'ambulance' ? '#ea580c' :
-                user.role === 'fire' ? '#ef4444' :
-                user.role === 'parent' ? '#0ea5e9' : '#888'
-              } />
-            </Marker>
-          ) : null
-        ))}
-        {(searchQuery ? filteredServices : nearbyServices).map((service, index) => (
-          service.location && typeof service.location.lat === 'number' && typeof service.location.lng === 'number' ? (
-            <Marker
-              key={index}
-              coordinate={{
-                latitude: service.location.lat,
-                longitude: service.location.lng
-              }}
-              title={service.name}
-              description={service.description}
-            >
-              <MaterialCommunityIcons name="storefront" size={32} color="#4CAF50" />
-            </Marker>
-          ) : null
-        ))}
-      </MapView>
-      {/* Custom My Location Button */}
-      <TouchableOpacity
-        onPress={() => {
-          if (location && mapRef.current) {
-            mapRef.current.animateToRegion(location, 600);
-          }
-        }}
-        style={{
-          position: 'absolute',
-          bottom: Platform.OS === 'ios' ? 40 : 28,
-          right: 18,
-          backgroundColor: '#fff',
-          borderRadius: 26,
-          padding: 10,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.18,
-          shadowRadius: 6,
-          elevation: 6,
-          zIndex: 20,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <MaterialCommunityIcons name="crosshairs-gps" size={28} color="#2563eb" />
-      </TouchableOpacity>
-      {/* Floating top bar (profile, menu, greeting) */}
-      {renderHeader()}
-      {/* Modern modal for feature panels */}
-      <Modal
-        visible={!!selectedMenu}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setSelectedMenu('')}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(30,41,59,0.22)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{
-            width: '92%',
-            backgroundColor: '#fff',
-            borderRadius: 28,
-            paddingVertical: 32,
-            paddingHorizontal: 20,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.18,
-            shadowRadius: 18,
-            elevation: 15,
-            alignItems: 'stretch',
-            position: 'relative',
-          }}>
-            <TouchableOpacity
-              style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, backgroundColor: '#f3f4f6', borderRadius: 20, padding: 8, elevation: 2 }}
-              onPress={() => setSelectedMenu('')}
-            >
-              <MaterialCommunityIcons name="close" size={28} color="#64748b" />
-            </TouchableOpacity>
-            {/* Modal Header with Icon and Title */}
-            <View style={{ alignItems: 'center', marginBottom: 18, flexDirection: 'row', justifyContent: 'center' }}>
-              {selectedMenu === 'reportIncident' && <MaterialCommunityIcons name="alert-circle" size={32} color="#ef4444" style={{ marginRight: 12 }} />}
-              {selectedMenu === 'trustedContacts' && <MaterialCommunityIcons name="account-group" size={32} color="#0ea5e9" style={{ marginRight: 12 }} />}
-              {selectedMenu === 'healthMonitor' && <MaterialCommunityIcons name="heart-pulse" size={32} color="#f59e42" style={{ marginRight: 12 }} />}
-              {selectedMenu === 'emergencyAlert' && <MaterialCommunityIcons name="bell-alert" size={32} color="#f59e42" style={{ marginRight: 12 }} />}
-              {selectedMenu === 'nearbyIncidents' && <MaterialCommunityIcons name="map-marker" size={32} color="#6366f1" style={{ marginRight: 12 }} />}
-              {selectedMenu === 'safeRoute' && <MaterialCommunityIcons name="navigation" size={32} color="#10b981" style={{ marginRight: 12 }} />}
-              {selectedMenu === 'resourceAvailability' && <MaterialCommunityIcons name="database" size={32} color="#6366f1" style={{ marginRight: 12 }} />}
-              {selectedMenu === 'agencyCollaboration' && <MaterialCommunityIcons name="handshake" size={32} color="#f59e42" style={{ marginRight: 12 }} />}
-              <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1e293b', letterSpacing: 0.3 }}>
-                {selectedMenu === 'reportIncident' && 'Report Incident'}
-                {selectedMenu === 'trustedContacts' && 'Trusted Contacts'}
-                {selectedMenu === 'healthMonitor' && 'Health Monitor'}
-                {selectedMenu === 'emergencyAlert' && 'Emergency Alert'}
-                {selectedMenu === 'nearbyIncidents' && 'Nearby Incidents'}
-                {selectedMenu === 'safeRoute' && 'Safe Route'}
-                {selectedMenu === 'resourceAvailability' && 'Resource Availability'}
-                {selectedMenu === 'agencyCollaboration' && 'Agency Collaboration'}
-                {selectedMenu === 'checkIn' && 'Check-In'}
-                {selectedMenu === 'emergencyCall' && 'Emergency Call'}
-              </Text>
-            </View>
-            <View style={{ marginTop: 12, marginBottom: 6 }}>
-              {/* Style all direct child buttons/Touchables with spacing and curved design */}
-              {selectedMenu === 'reportIncident' && (
-                renderReportPanel()
-              )}
-              {selectedMenu === 'trustedContacts' && (
-                <View style={{ gap: 16 }}>
-                  <TrustedContacts userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
-                </View>
-              )}
-              {selectedMenu === 'healthMonitor' && (
-                <View style={{ gap: 16 }}>
-                  <HealthMonitor userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
-                </View>
-              )}
-              {selectedMenu === 'emergencyAlert' && (
-                <View style={{ gap: 16 }}>
-                  <EmergencyAlertButton userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
-                </View>
-              )}
-              {selectedMenu === 'nearbyIncidents' && (
-                <View style={{ gap: 16 }}>
-                  <IncidentMap userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
-                </View>
-              )}
-              {selectedMenu === 'safeRoute' && (
-                <View style={{ gap: 16 }}>
-                  <SafeRouteSuggester userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
-                </View>
-              )}
-              {selectedMenu === 'resourceAvailability' && (
-                <View style={{ gap: 16 }}>
-                  <ResourceAvailabilityPanel userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
-                </View>
-              )}
-              {selectedMenu === 'agencyCollaboration' && (
-                <View style={{ gap: 16 }}>
-                  <AgencyCollaborationPanel userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
-                </View>
-              )}
-              {selectedMenu === 'checkIn' && (
-                <View style={{ gap: 16 }}>
-                  <CheckInPanel userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
-                </View>
-              )}
-              {selectedMenu === 'emergencyCall' && (
-                <View style={{ gap: 16 }}>
-                  <EmergencyCallPanel userId={user?.id} buttonStyle={{ borderRadius: 16, marginBottom: 12, paddingVertical: 14, backgroundColor: '#e0e7ff' }} />
-                </View>
-              )}
-            </View>
-          </View>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.welcomeText}>Hello, {user?.name?.split(' ')[0] || 'User'}</Text>
+          <Text style={styles.locationText}>
+            <MaterialCommunityIcons name="map-marker" size={14} color="#FF3B30" /> 
+            {sosActive ? 'EMERGENCY ACTIVE' : 'You are safe'}
+            {sosActive && (
+              <Text style={{ color: '#FF3B30', fontWeight: 'bold' }}> • {selectedResponder?.name || 'Searching...'}</Text>
+            )}
+          </Text>
         </View>
-      </Modal>
-      {/* Feature Grid Modal (Hamburger Menu) */}
-      <Modal
-        visible={isMenuOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setIsMenuOpen(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(30,41,59,0.15)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{
-            width: '92%',
-            backgroundColor: '#fff',
-            borderRadius: 28,
-            paddingVertical: 28,
-            paddingHorizontal: 12,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.18,
-            shadowRadius: 18,
-            elevation: 15,
-            alignItems: 'center',
-            position: 'relative',
-          }}>
-            <TouchableOpacity
-              style={{ position: 'absolute', top: 18, right: 18, zIndex: 10, backgroundColor: '#f3f4f6', borderRadius: 20, padding: 8, elevation: 2 }}
-              onPress={() => setIsMenuOpen(false)}
+        <View style={styles.headerActions}>
+          <TouchableOpacity 
+            style={[styles.headerButton, styles.contactsButton]}
+            onPress={() => setShowContactsModal(true)}
+          >
+            <MaterialCommunityIcons name="account-group" size={24} color="#333" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={handleLogout}
+          >
+            <MaterialCommunityIcons name="logout" size={24} color="#333" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Main Content */}
+      <View style={styles.content}>
+        {/* Map View */}
+        {activeTab === 'map' && (
+          <View style={styles.mapContainer}>
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              provider={PROVIDER_GOOGLE}
+              initialRegion={location}
+              showsUserLocation={true}
+              showsMyLocationButton={false}
+              followsUserLocation={true}
+              showsCompass={true}
             >
-              <MaterialCommunityIcons name="close" size={28} color="#64748b" />
-            </TouchableOpacity>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1e293b', marginBottom: 12 }}>Menu</Text>
-            <View style={{
-              flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 18,
-              backgroundColor: 'rgba(255,255,255,0.93)', borderRadius: 18, padding: 10, marginBottom: 10
-            }}>
-              {[
-                { key: 'reportIncident', icon: 'alert-circle', color: '#ef4444', label: 'Report' },
-                { key: 'trustedContacts', icon: 'account-group', color: '#0ea5e9', label: 'Contacts' },
-                { key: 'healthMonitor', icon: 'heart-pulse', color: '#f59e42', label: 'Health' },
-                { key: 'emergencyAlert', icon: 'bell-alert', color: '#f59e42', label: 'Alert' },
-                { key: 'nearbyIncidents', icon: 'map-marker', color: '#6366f1', label: 'Incidents' },
-                { key: 'safeRoute', icon: 'navigation', color: '#10b981', label: 'Safe Route' },
-                { key: 'resourceAvailability', icon: 'database', color: '#6366f1', label: 'Resources' },
-                { key: 'agencyCollaboration', icon: 'handshake', color: '#f59e42', label: 'Collab' },
-                { key: 'checkIn', icon: 'check-circle', color: '#22c55e', label: 'Check-In' },
-                { key: 'emergencyCall', icon: 'phone-alert', color: '#f43f5e', label: 'Call' },
-                { key: 'logout', icon: 'logout', color: '#ef4444', label: 'Logout' },
-              ].map(feature => (
-                <TouchableOpacity
-                  key={feature.key}
-                  style={{
-                    width: 74,
-                    height: 74,
-                    borderRadius: 18,
-                    backgroundColor: '#f3f4f6',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: 6,
-                    shadowColor: feature.color,
-                    shadowOpacity: 0.14,
-                    shadowRadius: 7,
-                    elevation: 4,
+              {/* User Location Marker */}
+              <Marker
+                coordinate={{
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                }}
+              >
+                <View style={styles.userMarker}>
+                  <View style={[styles.pulse, sosActive && styles.pulseActive]} />
+                  <View style={styles.userMarkerInner}>
+                    <MaterialCommunityIcons name="account" size={20} color="#fff" />
+                  </View>
+                </View>
+              </Marker>
+
+              {/* Responder Markers */}
+              {filteredResponders.map(responder => renderResponderMarker(responder))}
+
+              {/* SOS Radius */}
+              {sosActive && (
+                <Circle
+                  center={{
+                    latitude: location.latitude,
+                    longitude: location.longitude,
                   }}
-                  onPress={() => {
-                    setIsMenuOpen(false);
-                    if (feature.key === 'logout') handleLogout();
-                    else if (feature.key === 'checkIn') setSelectedMenu('checkIn');
-                    else if (feature.key === 'emergencyCall') setSelectedMenu('emergencyCall');
-                    else setSelectedMenu(feature.key);
-                  }}
+                  radius={500} // 500 meters
+                  fillColor="rgba(239, 68, 68, 0.2)"
+                  strokeColor="rgba(239, 68, 68, 0.7)"
+                  strokeWidth={2}
+                />
+              )}
+            </MapView>
+
+            {/* Responder Type Filter */}
+            <View style={styles.responderFilter}>
+              <TouchableOpacity
+                style={[
+                  styles.filterButton,
+                  responderFilter === 'all' && styles.filterButtonActive
+                ]}
+                onPress={() => setResponderFilter('all')}
+              >
+                <MaterialCommunityIcons name="account-group" size={20} color={responderFilter === 'all' ? '#fff' : '#333'} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.filterButton,
+                  responderFilter === 'police' && styles.filterButtonActive
+                ]}
+                onPress={() => setResponderFilter('police')}
+              >
+                <MaterialCommunityIcons name="police-badge" size={20} color={responderFilter === 'police' ? '#fff' : '#333'} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.filterButton,
+                  responderFilter === 'ambulance' && styles.filterButtonActive
+                ]}
+                onPress={() => setResponderFilter('ambulance')}
+              >
+                <MaterialCommunityIcons name="ambulance" size={20} color={responderFilter === 'ambulance' ? '#fff' : '#333'} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.filterButton,
+                  responderFilter === 'fire' && styles.filterButtonActive
+                ]}
+                onPress={() => setResponderFilter('fire')}
+              >
+                <MaterialCommunityIcons name="fire-truck" size={20} color={responderFilter === 'fire' ? '#fff' : '#333'} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Map Controls */}
+            <View style={styles.mapControls}>
+              <TouchableOpacity 
+                style={styles.mapControlButton}
+                onPress={getCurrentLocation}
+              >
+                <MaterialCommunityIcons name="crosshairs-gps" size={24} color="#333" />
+              </TouchableOpacity>
+              {sosActive && (
+                <TouchableOpacity 
+                  style={[styles.mapControlButton, styles.sosChatButton]}
+                  onPress={() => setShowChat(true)}
                 >
-                  <MaterialCommunityIcons name={feature.icon} size={32} color={feature.color} />
-                  <Text style={{ fontSize: 13, color: '#222', marginTop: 6, fontWeight: '600' }}>{feature.label}</Text>
-                  {feature.key !== 'logout' && (
-                    <Text style={{ fontSize: 10, color: '#64748b', textAlign: 'center', marginTop: 2 }}>
-                      {getContactLabels(feature.key)}
-                    </Text>
-                  )}
+                  <MaterialCommunityIcons name="chat" size={24} color="#fff" />
                 </TouchableOpacity>
-              ))}
+              )}
             </View>
           </View>
-        </View>
-      </Modal>
-      <View style={{ marginVertical: 12 }}>
-        <Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 6 }}>Active Responders:</Text>
-        {safeActiveUsers.length === 0 ? (
-          <Text style={{ color: '#888' }}>No responders online.</Text>
-        ) : (
-          safeActiveUsers.map(user => (
-            <View key={user.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-              <MaterialCommunityIcons name={
-                user.role === 'police' ? 'police-badge' :
-                user.role === 'ambulance' ? 'ambulance' :
-                user.role === 'fire' ? 'fire-truck' :
-                user.role === 'parent' ? 'account-group' : 'account'
-              } size={20} color={
-                user.role === 'police' ? '#204080' :
-                user.role === 'ambulance' ? '#ea580c' :
-                user.role === 'fire' ? '#ef4444' :
-                user.role === 'parent' ? '#0ea5e9' : '#888'
-              } style={{ marginRight: 8 }} />
-              <Text style={{ fontWeight: '600' }}>{user.name}</Text>
-              <Text style={{ marginLeft: 8, color: '#666' }}>{user.role.charAt(0).toUpperCase() + user.role.slice(1)}</Text>
-            </View>
-          ))
+        )}
+
+        {/* Incidents Tab */}
+        {activeTab === 'incidents' && (
+          <View style={styles.tabContent}>
+            <Text style={styles.sectionTitle}>Incident History</Text>
+            {incidents.length > 0 ? (
+              <FlatList
+                data={incidents}
+                keyExtractor={item => item.id}
+                renderItem={({ item }) => (
+                  <View style={styles.incidentCard}>
+                    <View style={styles.incidentHeader}>
+                      <View style={styles.incidentTypeBadge}>
+                        <MaterialCommunityIcons 
+                          name={item.type === 'medical' ? 'medical-bag' : 'shield-alert'} 
+                          size={16} 
+                          color="#fff" 
+                        />
+                        <Text style={styles.incidentTypeText}>
+                          {item.type === 'medical' ? 'Medical' : 'Safety'}
+                        </Text>
+                      </View>
+                      <Text style={styles.incidentDate}>{item.date}</Text>
+                    </View>
+                    <Text style={styles.incidentResponder}>Responder: {item.responder}</Text>
+                    <Text style={styles.incidentLocation}>{item.location}</Text>
+                    <View style={[
+                      styles.incidentStatus,
+                      item.status === 'resolved' ? styles.statusResolved : styles.statusInProgress
+                    ]}>
+                      <Text style={styles.incidentStatusText}>
+                        {item.status === 'resolved' ? 'Resolved' : 'In Progress'}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              />
+            ) : (
+              <View style={styles.emptyState}>
+                <MaterialCommunityIcons name="shield-check" size={48} color="#e0e0e0" />
+                <Text style={styles.emptyStateText}>No incidents reported</Text>
+                <Text style={styles.emptyStateSubtext}>Your safety history will appear here</Text>
+              </View>
+            )}
+          </View>
         )}
       </View>
-    </View>
+
+      {/* SOS Button */}
+      <TouchableOpacity 
+        style={[styles.sosButton, sosActive && styles.sosButtonActive]}
+        onPress={toggleSOS}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.sosButtonText}>
+          {sosActive ? 'CANCEL SOS' : 'SOS'}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Chat Modal */}
+      <Modal
+        visible={showChat}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowChat(false)}
+      >
+        <View style={styles.chatContainer}>
+          <View style={styles.chatHeader}>
+            <TouchableOpacity 
+              style={styles.chatBackButton}
+              onPress={() => setShowChat(false)}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={24} color="#333" />
+            </TouchableOpacity>
+            <Text style={styles.chatTitle}>
+              {selectedResponder ? `Chat with ${selectedResponder.name}` : 'Emergency Chat'}
+            </Text>
+          </View>
+          <GiftedChat
+            messages={messages}
+            onSend={messages => onSend(messages)}
+            user={{
+              _id: user?.id || 'user',
+              name: user?.name || 'User',
+            }}
+            renderBubble={renderBubble}
+            alwaysShowSend
+            renderSend={(props) => (
+              <Send {...props} containerStyle={styles.sendButtonContainer}>
+                <MaterialCommunityIcons name="send-circle" size={32} color="#FF3B30" />
+              </Send>
+            )}
+          />
+        </View>
+      </Modal>
+
+      {/* Emergency Contacts Modal */}
+      <Modal
+        visible={showContactsModal}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowContactsModal(false)}
+      >
+        <View style={styles.contactsContainer}>
+          <View style={styles.contactsHeader}>
+            <TouchableOpacity 
+              style={styles.contactsBackButton}
+              onPress={() => setShowContactsModal(false)}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={24} color="#333" />
+            </TouchableOpacity>
+            <Text style={styles.contactsTitle}>Emergency Contacts</Text>
+          </View>
+          <FlatList
+            data={emergencyContacts}
+            keyExtractor={item => item.id}
+            renderItem={({ item }) => (
+              <View style={styles.contactItem}>
+                <View style={styles.contactAvatar}>
+                  <Text style={styles.contactInitial}>{item.name.charAt(0)}</Text>
+                </View>
+                <View style={styles.contactInfo}>
+                  <Text style={styles.contactName}>{item.name}</Text>
+                  <Text style={styles.contactPhone}>{item.phone}</Text>
+                </View>
+                {item.isPrimary && (
+                  <View style={styles.primaryBadge}>
+                    <Text style={styles.primaryBadgeText}>Primary</Text>
+                  </View>
+                )}
+                <TouchableOpacity style={styles.contactAction}>
+                  <MaterialCommunityIcons name="message-text" size={20} color="#3B82F6" />
+                </TouchableOpacity>
+              </View>
+            )}
+            ListFooterComponent={
+              <TouchableOpacity style={styles.addContactButton}>
+                <MaterialCommunityIcons name="plus-circle" size={20} color="#3B82F6" />
+                <Text style={styles.addContactText}>Add Emergency Contact</Text>
+              </TouchableOpacity>
+            }
+          />
+        </View>
+      </Modal>
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity 
+          style={[styles.navButton, activeTab === 'map' && styles.navButtonActive]}
+          onPress={() => setActiveTab('map')}
+        >
+          <MaterialCommunityIcons 
+            name="map" 
+            size={24} 
+            color={activeTab === 'map' ? '#FF3B30' : '#666'} 
+          />
+          <Text style={[styles.navButtonText, activeTab === 'map' && styles.navButtonTextActive]}>
+            Map
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.navButton, activeTab === 'incidents' && styles.navButtonActive]}
+          onPress={() => setActiveTab('incidents')}
+        >
+          <MaterialCommunityIcons 
+            name="clipboard-list" 
+            size={24} 
+            color={activeTab === 'incidents' ? '#FF3B30' : '#666'} 
+          />
+          <Text style={[styles.navButtonText, activeTab === 'incidents' && styles.navButtonTextActive]}>
+            Incidents
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
+};
 
 const styles = StyleSheet.create({
-  errorBanner: {
-    backgroundColor: '#ef4444',
+  // Header Actions
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    margin: 12,
-    marginBottom: 0,
   },
-  errorText: {
-    color: 'white',
-    marginLeft: 8,
-    flex: 1,
+  headerButton: {
+    marginLeft: 10,
+    padding: 5,
   },
-  offlineBanner: {
-    backgroundColor: '#f59e0b',
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    margin: 12,
-    marginBottom: 0,
+  contactsButton: {
+    marginRight: 5,
   },
-  offlineText: {
-    color: 'white',
-    marginLeft: 8,
-    flex: 1,
-  },
-  modernContainer: {
-    flex: 1,
-    backgroundColor: '#f4f6fb',
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  modernHeader: {
-    paddingVertical: 16,
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#204080',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  cardCentered: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 18,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  panel: {
-    position: 'absolute',
-    top: 60,
-    left: 30,
-    right: 30,
-    backgroundColor: 'rgba(255,255,255,0.97)',
-    borderRadius: 18,
-    padding: 20,
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  dashboardPanel: {
-    // Style for dashboard summary if needed
-    position: 'absolute',
-    top: 60,
-    left: 30,
-    right: 30,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 18,
-    padding: 20,
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  centered: {
+  
+  // Loading Container
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#fff',
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6b7280',
+  
+  // Main Container
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
   },
-  dashboardSummary: {
+  
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  welcomeText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  locationText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  profileButton: {
+    padding: 8,
+  },
+  
+  // Content
+  content: {
+    flex: 1,
+    position: 'relative',
+  },
+  
+  // Map
+  mapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  mapControls: {
+    position: 'absolute',
+    right: 16,
+    bottom: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 25,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sosChatButton: {
+    backgroundColor: '#FF3B30',
+  },
+  responderFilter: {
+    position: 'absolute',
+    top: 20,
+    right: 15,
+    backgroundColor: 'white',
+    borderRadius: 25,
+    padding: 5,
+    flexDirection: 'row',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  filterButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 2,
+  },
+  filterButtonActive: {
+    backgroundColor: '#FF3B30',
+  },
+  responderMarker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  mapControlButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  
+  // User Marker
+  userMarker: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  userMarkerInner: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pulse: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 59, 48, 0.3)',
+    top: -14,
+    left: -14,
+    opacity: 0,
+  },
+  pulseActive: {
+    opacity: 1,
+    transform: [{ scale: 1 }],
+  },
+  
+  // Tab Content
+  tabContent: {
+    flex: 1,
+    padding: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
+  },
+  
+  // Incident Card
+  incidentCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  incidentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  incidentTypeBadge: {
+    backgroundColor: '#FF3B30',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  incidentTypeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  incidentDate: {
+    color: '#666',
+    fontSize: 12,
+  },
+  incidentResponder: {
+    fontWeight: '600',
+    marginBottom: 4,
+    color: '#333',
+  },
+  incidentLocation: {
+    color: '#666',
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  incidentStatus: {
+    alignSelf: 'flex-start',
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  statusResolved: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+  },
+  statusInProgress: {
+    backgroundColor: 'rgba(249, 115, 22, 0.1)',
+  },
+  incidentStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyStateText: {
     fontSize: 16,
-    color: '#64748b',
+    color: '#666',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
     marginTop: 8,
     textAlign: 'center',
   },
+  
+  // SOS Button
+  sosButton: {
+    position: 'absolute',
+    bottom: 100,
+    alignSelf: 'center',
+    backgroundColor: '#FF3B30',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 10,
+  },
+  sosButtonActive: {
+    backgroundColor: '#dc2626',
+    transform: [{ scale: 1.1 }],
+  },
+  sosButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  
+  // Chat Modal
+  chatContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  chatBackButton: {
+    marginRight: 15,
+  },
+  chatTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  sendButtonContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    marginBottom: 5,
+  },
+  
+  // Contacts Modal
+  contactsContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  contactsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  contactsBackButton: {
+    marginRight: 15,
+  },
+  contactsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  contactAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#3B82F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  contactInitial: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  contactPhone: {
+    color: '#666',
+    fontSize: 14,
+  },
+  primaryBadge: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginRight: 10,
+  },
+  primaryBadgeText: {
+    color: '#10B981',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  contactAction: {
+    padding: 8,
+  },
+  addContactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  addContactText: {
+    color: '#3B82F6',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  
+  // Bottom Navigation
+  bottomNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  navButton: {
+    alignItems: 'center',
+    padding: 8,
+    flex: 1,
+  },
+  navButtonActive: {
+    // Active state styles
+  },
+  navButtonText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
+  navButtonTextActive: {
+    color: '#FF3B30',
+    fontWeight: 'bold',
+  },
 });
-
-}
 
 export default UserDashboard;

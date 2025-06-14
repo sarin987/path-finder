@@ -7,7 +7,6 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import UserDashboard from '../screens/dashboards/UserDashboard';
 import Profile from '../screens/Profile/Profile';
-import ChatScreen from '../screens/ChatScreen';
 
 const Stack = createStackNavigator();
 
@@ -17,13 +16,11 @@ const AppNavigator = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="UserDashboard"
         screenOptions={{
           headerShown: false
         }}
       >
         {loading ? (
-          // Splash Screen
           <Stack.Screen name="Splash" component={SplashScreen} />
         ) : !user ? (
           // Auth Stack
@@ -32,20 +29,16 @@ const AppNavigator = () => {
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
         ) : (
-          // App Stack
+          // Main App
           <>
             <Stack.Screen 
-              name="UserDashboard" 
+              name="Dashboard" 
               component={UserDashboard}
-              options={{ gestureEnabled: false }}
+              options={{ 
+                gestureEnabled: false
+              }}
             />
-            
             <Stack.Screen name="Profile" component={Profile} />
-            <Stack.Screen
-              name="ChatScreen"
-              component={ChatScreen}
-              options={{ title: 'Chat' }}
-            />
           </>
         )}
       </Stack.Navigator>

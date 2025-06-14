@@ -75,7 +75,6 @@ const RegisterScreen = ({ navigation }) => {
         name: name.trim(),
         phone: phone.trim(),
         password: password.trim(),
-        role: 'user',
         gender: gender.toLowerCase(),
         email: `${phone.replace('+91', '')}@example.com`,
         user_verified: 1
