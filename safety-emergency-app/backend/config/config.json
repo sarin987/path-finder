@@ -1,0 +1,29 @@
+{
+  "development": {
+    "username": "sarin_raj",
+    "password": "Sarinraj@2025!",
+    "database": "safety_emergency_db",
+    "host": "139.59.40.236",
+    "port": 3306,
+    "dialect": "mysql",
+    "logging": false
+  },
+  "test": {
+    "username": "sarin_raj",
+    "password": "Sarinraj@2025!",
+    "database": "safety_emergency_test",
+    "host": "139.59.40.236",
+    "port": 3306,
+    "dialect": "mysql",
+    "logging": false
+  },
+  "production": {
+    "username": "sarin_raj",
+    "password": "Sarinraj@2025!",
+    "database": "safety_emergency_prod",
+    "host": "139.59.40.236",
+    "port": 3306,
+    "dialect": "mysql",
+    "logging": false
+  }
+}
