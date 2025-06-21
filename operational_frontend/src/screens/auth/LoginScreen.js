@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { API_ROUTES } from '../../config';
+import { buildApiUrl } from '../../utils/urlUtils';
+import { logError, logInfo } from '../../utils/logger';
+import { ENDPOINTS } from '../../config/apiEndpoints';
 import {
   View,
   Text,
@@ -97,12 +99,16 @@ const LoginScreen = ({ navigation }) => {
   }, [resendTimer]);
 
   const handleSendOtp = async () => {
-    if (!validatePhoneNumber(phone)) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+    console.log('[OTP] Sending OTP...');
+    if (!phone) {
+      const errorMsg = 'Please enter your phone number';
+      console.warn('[OTP] Validation failed:', errorMsg);
+      Alert.alert('Error', errorMsg);
       return;
     }
 
     try {
+      console.log('[OTP] Starting OTP send process for phone:', phone);
       setIsOtpLoading(true);
       
       // Format phone number (remove all non-digit characters)
@@ -118,217 +124,166 @@ const LoginScreen = ({ navigation }) => {
       });
       
       if (response.data.success) {
+        console.log('[OTP] OTP sent successfully');
         console.log('OTP sent successfully to:', formattedPhone);
         
         // Show success message
         Alert.alert(
-          'OTP Sent', 
-          'A 6-digit OTP has been sent to your phone number.',
-          [{ text: 'OK', onPress: () => console.log('User acknowledged OTP sent') }],
-          { cancelable: false }
-        );
-        
-        // Update UI state
-        setIsOtpSent(true);
-        setResendTimer(60); // 60 seconds cooldown
-        setOtp(''); // Clear previous OTP if any
-        
-        // Auto-focus OTP input field
-        // Note: You'll need to add a ref to the OTP TextInput and focus it here
-        // Example: otpInputRef.current?.focus();
-        
-        return true;
-      } else {
-        throw new Error(response.data.message || 'Failed to send OTP');
+        'OTP Sent', 
+        'A 6-digit OTP has been sent to your phone number.'
+      );
+      
+      setIsOtpSent(true);
+      Alert.alert('Success', 'OTP sent successfully');
+    } else {
+        logError('OTP send failed', { 
+          phone, 
+          error: response.data.message || 'No error message'
+        });
+        Alert.alert('Error', response.data.message || 'Failed to send OTP');
       }
     } catch (error) {
-      console.error('Error sending OTP:', error);
+      logError('Error sending OTP', {
+        phone,
+        error: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
       
       let errorMessage = 'Failed to send OTP. Please try again.';
-      
-      if (error.response) {
-        // Handle specific error status codes
-        switch (error.response.status) {
-          case 400:
-            errorMessage = 'Invalid phone number format.';
-            break;
-          case 429:
-            errorMessage = 'Too many attempts. Please try again later.';
-            const retryAfter = parseInt(error.response.headers['retry-after']) || 60;
-            setResendTimer(retryAfter);
-            break;
-          case 500:
-            errorMessage = 'Server error. Please try again later.';
-            break;
-          default:
-            errorMessage = error.response.data?.message || errorMessage;
-        }
-      } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      if (error.code === 'ECONNABORTED') {
         errorMessage = 'Request timed out. Please check your internet connection.';
-      } else if (error.request) {
-        // The request was made but no response was received
-        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (error.response?.status === 429) {
+        errorMessage = 'Too many attempts. Please try again later.';
       }
       
       Alert.alert('Error', errorMessage);
-      return false;
     } finally {
-      setIsOtpLoading(false);
+      setLoading(false);
     }
   };
 
-  const handlePasswordLogin = async () => {
-    if (!validateInput()) {
-      return false;
+  const handleLogin = async () => {
+    if (!phone || !password) {
+      Alert.alert('Error', 'Please enter both phone number and password');
+      return;
     }
 
-    let retryCount = 0;
-    const maxRetries = 2;
-
-    const attemptLogin = async () => {
-      try {
-        setIsPasswordLoading(true);
-        
-        const credentials = {
-          phone: phone.replace(/\s+/g, '').trim(),
-          password: password.trim()
-        };
-
-        console.log('Attempting login with:', { ...credentials, password: '***' });
-        
-        // Call the AuthContext login function
-        const loginResult = await login(credentials);
-        
-        if (loginResult.success) {
-          console.log('Login successful, navigating to UserDashboard');
-          // Navigation is handled by the AuthContext after successful login
-          return true;
-        } else {
-          throw new Error(loginResult.error || 'Login failed');
-        }
-
-      } catch (error) {
-        console.error('Login Error:', error);
-        
-        // Check if error is timeout
-        if ((error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') && retryCount < maxRetries) {
-          retryCount++;
-          console.log(`Retrying login attempt ${retryCount}...`);
-          return attemptLogin();
-        }
-
-        // Extract error message from response if available
-        let errorMessage = 'Login failed. Please check your credentials and try again.';
-        
-        if (error.response) {
-          // The request was made and the server responded with a status code
-          // that falls out of the range of 2xx
-          errorMessage = error.response.data?.message || error.message;
-          
-          // Handle common error status codes
-          switch (error.response.status) {
-            case 401:
-              errorMessage = 'Invalid phone number or password';
-              break;
-            case 403:
-              errorMessage = 'Account is inactive or blocked';
-              break;
-            case 429:
-              errorMessage = 'Too many login attempts. Please try again later.';
-              break;
-            case 500:
-              errorMessage = 'Server error. Please try again later.';
-              break;
-            default:
-              break;
-          }
-        } else if (error.request) {
-          // The request was made but no response was received
-          errorMessage = 'Network error. Please check your internet connection.';
-        }
-        
-        Alert.alert('Login Failed', errorMessage);
-        return false;
-      } finally {
-        setIsPasswordLoading(false);
-      }
-    };
-
+    setLoading(true);
     try {
-      return await attemptLogin();
-    } finally {
-      setIsPasswordLoading(false);
-    }
-  };
+      const credentials = { 
+        phone: phone.replace(/\D/g, ''), // Remove any non-digit characters
+        password 
+      };
 
-  const handleOtpLogin = async () => {
-    if (!validatePhoneNumber(phone)) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
-      return false;
-    }
-
-    if (!otp || otp.length !== 6) {
-      Alert.alert('Error', 'Please enter a valid 6-digit OTP');
-      return false;
-    }
-
-    try {
-      setIsOtpLoading(true);
+      logInfo('Attempting login', { phone: credentials.phone, method: 'Password' });
       
-      // Call the AuthContext login function with OTP credentials
-      const loginResult = await login({
-        phone: phone.replace(/\D/g, ''), // Remove non-digit characters
-        otp: otp.trim()
-      });
-
-      if (loginResult.success) {
-        console.log('OTP Login successful, navigating to UserDashboard');
-        // Clear OTP field after successful login
-        setOtp('');
-        return true;
+      const url = buildApiUrl(ENDPOINTS.LOGIN);
+      console.log('Sending login request to:', url);
+      console.log('Request payload:', credentials);
+      
+      const response = await axios.post(
+        url,
+        credentials,
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 15000,
+        }
+      );
+      
+      console.log('Login response status:', response.status);
+      console.log('Login response data:', response.data);
+      
+      if (response.data && response.data.success) {
+        logInfo('Login successful', { 
+          phone: credentials.phone,
+          responseData: response.data // Log the full response for debugging
+        });
+        
+        // Extract token and user data from the response
+        const responseData = response.data.data || {};
+        const { token, ...userData } = responseData;
+        
+        // Store the token if it exists in the response
+        if (token) {
+          // Prepare user data for AuthContext
+          const authData = {
+            token,
+            ...userData,
+            phone: credentials.phone, // Ensure phone is included
+            id: userData.id || responseData.id, // Ensure user ID is included
+            role: userData.role || 'user' // Default role if not provided
+          };
+          
+          console.log('Auth data prepared:', authData);
+          
+          // Call the login function from AuthContext with the token and user data
+          if (login) {
+            await login(authData);
+          } else {
+            console.error('Login function from AuthContext is not available');
+            // Fallback navigation if AuthContext is not available
+            navigation.navigate('Home');
+          }
+        } else {
+          // Log the full response for debugging
+          console.error('No token in response:', response.data);
+          throw new Error('No authentication token received from server');
+        }
       } else {
-        throw new Error(loginResult.error || 'Login failed');
+        const errorMessage = response.data?.message || 'Login failed';
+        logError('Login failed', {
+          phone: credentials.phone,
+          error: errorMessage,
+        });
+        Alert.alert('Error', errorMessage);
       }
     } catch (error) {
-      console.error('OTP Login Error:', error);
+      // Log the error details
+      const errorDetails = {
+        phone,
+        error: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        stack: error.stack,
+        responseData: error.response?.data
+      };
       
-      let errorMessage = 'OTP verification failed. Please try again.';
+      logError('Login error', errorDetails);
       
-      if (error.response) {
-        // Handle specific error status codes
-        switch (error.response.status) {
-          case 400:
-            errorMessage = 'Invalid OTP. Please check and try again.';
-            break;
-          case 401:
-            errorMessage = 'Invalid or expired OTP. Please request a new one.';
-            break;
-          case 404:
-            errorMessage = 'No OTP request found. Please request a new OTP.';
-            break;
-          case 410:
-            errorMessage = 'OTP has expired. Please request a new one.';
-            break;
-          case 429:
-            errorMessage = 'Too many attempts. Please try again later.';
-            break;
-          default:
-            errorMessage = error.response.data?.message || errorMessage;
-        }
-      } else if (error.request) {
-        // The request was made but no response was received
+      // Determine user-friendly error message
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error.message === 'No authentication token received from server') {
+        errorMessage = 'Authentication error. Please try again or contact support.';
+      } else if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. Please check your internet connection.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Invalid credentials. Please try again.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Account not verified. Please verify your account first.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Service not found. Please check your connection or try again later.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (!error.response) {
         errorMessage = 'Network error. Please check your internet connection.';
-      } else {
-        // Something happened in setting up the request
-        errorMessage = error.message || errorMessage;
       }
       
-      // Clear OTP field on error to force user to enter a new one
-      setOtp('');
+      // Clear any invalid tokens
+      try {
+        const currentToken = await AsyncStorage.getItem('userToken');
+        if (!currentToken) {
+          await AsyncStorage.removeItem('userToken');
+        }
+      } catch (storageError) {
+        console.error('Error clearing invalid token:', storageError);
+      }
+      
+      // Show error to user
       Alert.alert('Error', errorMessage);
-      return false;
     } finally {
-      setIsOtpLoading(false);
+      setLoading(false);
     }
   };
 
@@ -398,7 +353,11 @@ const LoginScreen = ({ navigation }) => {
           throw new Error(response.data.message || 'Google sign-in failed');
         }
       } catch (error) {
-        console.error('Google Sign-In Error:', error);
+        console.error('Google Sign-In Error:', {
+          message: error.message,
+          stack: error.stack,
+          response: error.response?.data
+        });
         
         // Handle specific Google Sign-In errors
         if (error.code === statusCodes.SIGN_IN_CANCELLED) {
@@ -424,7 +383,11 @@ const LoginScreen = ({ navigation }) => {
       }
       */
     } catch (error) {
-      console.error('Google Sign In Error:', error);
+      console.error('Google Sign In Error:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response?.data
+      });
       
       let errorMessage = 'Google sign-in is currently not available. Please try another method.';
       
@@ -455,47 +418,41 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const handleLoginAction = async (type) => {
+    // Set the appropriate loading state based on login type
     const setLoading = {
       'password': setIsPasswordLoading,
       'otp': setIsOtpLoading,
       'google': setIsGoogleLoading
     }[type];
 
-    if (setLoading) {
-      setLoading(true);
-    }
-
     try {
-      let success = false;
+      // Set loading state
+      if (setLoading) setLoading(true);
       
       switch(type) {
         case 'password':
-          success = await handlePasswordLogin();
-          // Navigation is handled by AuthContext after successful login
-          break;
+          // For password login, just call handleLogin
+          await handleLogin();
+          return true;
           
         case 'otp':
           if (!isOtpSent) {
             // Send OTP
             await handleSendOtp();
-            success = true; // Just sent OTP, don't navigate yet
+            return true; // Just sent OTP, don't navigate yet
           } else {
             // Verify OTP and login
-            success = await handleOtpLogin();
-            // Navigation is handled by AuthContext after successful login
+            await handleLogin();
+            return true;
           }
-          break;
           
         case 'google':
-          success = await handleGoogleSignIn();
-          // Navigation is handled by AuthContext after successful login
-          break;
+          // Handle Google Sign In
+          return await handleGoogleSignIn();
           
         default:
           throw new Error('Invalid login type');
       }
-      
-      return success;
       
     } catch (error) {
       console.error(`${type} Login Error:`, error);
@@ -525,6 +482,10 @@ const LoginScreen = ({ navigation }) => {
             errorMessage = 'Server error. Please try again later.';
             break;
           default:
+            // Try to get error message from response if available
+            if (error.response.data?.message) {
+              errorMessage = error.response.data.message;
+            }
             break;
         }
       } else if (error.request) {
@@ -532,13 +493,16 @@ const LoginScreen = ({ navigation }) => {
         errorMessage = 'Network error. Please check your internet connection.';
       }
       
-      Alert.alert('Error', errorMessage);
+      // Only show alert if there's a meaningful error message
+      if (errorMessage) {
+        Alert.alert('Error', errorMessage);
+      }
+      
       return false;
       
     } finally {
-      if (setLoading) {
-        setLoading(false);
-      }
+      // Reset loading state
+      if (setLoading) setLoading(false);
     }
   };
 

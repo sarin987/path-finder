@@ -207,52 +207,95 @@ export const AuthProvider = ({ children }) => {
     };
   }, [user, resetSessionTimer]);
 
-  // Login user with phone and password or OTP
+  // Login user with phone and password or token
   const login = useCallback(async (credentials) => {
     try {
+      console.log('[AUTH] Starting login process...');
       setLoading(true);
       setAuthError(null);
       
-      // Determine if this is a password or OTP login
-      const isOtpLogin = credentials.hasOwnProperty('otp');
+      // Determine the login method based on provided credentials
+      const loginMethod = credentials.token ? 'token' : 
+                         (credentials.otp ? 'otp' : 'password');
+      
+      console.log(`[AUTH] Login method: ${loginMethod}`);
+      console.log('[AUTH] Credentials:', {
+        phone: credentials.phone,
+        hasPassword: !!credentials.password,
+        hasOtp: !!credentials.otp,
+        hasToken: !!credentials.token
+      });
       
       let response;
       
-      if (isOtpLogin) {
-        // Handle OTP login
-        response = await axios.post(API_ROUTES.auth.verifyOtp, {
-          phone: credentials.phone,
-          otp: credentials.otp
-        });
+      if (loginMethod === 'otp') {
+        // Handle OTP verification (now moved to LoginScreen)
+        console.log('[AUTH] OTP verification should be handled by the LoginScreen');
+        throw new Error('OTP verification should be handled by the LoginScreen');
+      } else if (loginMethod === 'token') {
+        // Handle token-based login (after OTP verification)
+        console.log('[AUTH] Processing token-based login');
+        
+        // For token-based login, we already have the user data in credentials
+        // No need to make an additional API call
+        console.log('[AUTH] Using provided user data for token-based login');
+        response = {
+          data: {
+            token: credentials.token,
+            ...credentials
+          }
+        };
+        console.log('[AUTH] Token-based login successful');
       } else {
         // Handle password login
+        console.log('[AUTH] Attempting password login...');
         response = await axios.post(API_ROUTES.auth.login, {
           phone: credentials.phone,
           password: credentials.password
         });
+        console.log('[AUTH] Password login response received');
       }
       
+      console.log('[AUTH] Processing authentication response...');
       const { token, ...userData } = response.data;
       
       if (!token || !userData) {
+        console.error('[AUTH] Invalid response from server - missing token or user data');
         throw new Error('Invalid response from server');
       }
       
+      console.log('[AUTH] Token received. User data:', userData);
+      
       // Store token and user data
+      console.log('[AUTH] Storing authentication data...');
       await Promise.all([
-        secureStorage.setItem('userToken', token),
-        secureStorage.setItem('userData', userData),
+        secureStorage.setItem('userToken', token).then(() => console.log('[AUTH] Token stored successfully')),
+        secureStorage.setItem('userData', userData).then(() => console.log('[AUTH] User data stored successfully')),
       ]);
       
       // Set axios default auth header
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      console.log('[AUTH] Axios auth header set');
       
       setUser(userData);
       resetSessionTimer();
+      console.log('[AUTH] Login successful');
       
       return { success: true, user: userData };
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('[AUTH] Login error:', {
+        message: error.message,
+        response: error.response ? {
+          status: error.response.status,
+          data: error.response.data
+        } : 'No response',
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data
+        }
+      });
+      
       let errorMessage = 'Failed to sign in';
       
       // Handle specific error cases
