@@ -134,38 +134,61 @@ router.put('/update-password', auth, async (req, res) => {
   }
 });
 
-// Update email
-router.put('/update-email', auth, async (req, res) => {
+// Update phone number
+router.put('/update-phone', auth, async (req, res) => {
   try {
-    const { email } = req.body;
+    const { phone } = req.body;
 
-    // Check if email is already in use
+    if (!phone || phone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid phone number format',
+        field: 'phone',
+        code: 'INVALID_PHONE_FORMAT'
+      });
+    }
+
+    // Clean and validate phone number
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid phone number format',
+        field: 'phone',
+        code: 'INVALID_PHONE_FORMAT'
+      });
+    }
+
+    // Check if phone is already in use
     const [existingUsers] = await db.query(
-      'SELECT id FROM users WHERE email = ? AND id != ?',
-      [email, req.user.userId]
+      'SELECT id FROM users WHERE phone = ? AND id != ?',
+      [cleanPhone, req.user.userId]
     );
 
     if (existingUsers.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Email already in use'
+        message: 'Phone number already in use',
+        field: 'phone',
+        code: 'PHONE_ALREADY_IN_USE'
       });
     }
 
     await db.query(
-      'UPDATE users SET email = ? WHERE id = ?',
-      [email, req.user.userId]
+      'UPDATE users SET phone = ? WHERE id = ?',
+      [cleanPhone, req.user.userId]
     );
 
     res.json({
       success: true,
-      message: 'Email updated successfully'
+      message: 'Phone number updated successfully'
     });
   } catch (error) {
-    console.error('Email update error:', error);
+    console.error('Phone update error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update email'
+      message: 'Failed to update phone number',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

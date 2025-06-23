@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
+import { WEBSOCKET_URL } from '../config';
 
-export const useSocket = (url = 'http://localhost:3000', handlers = {}) => {
+export const useSocket = (url = WEBSOCKET_URL, handlers = {}) => {
   const socketRef = useRef(null);
   const [isReady, setIsReady] = useState(false);
 

@@ -1,9 +1,7 @@
-import bcrypt from 'bcryptjs';
-import models from '../models/index.js';
+const bcrypt = require('bcryptjs');
+const { PoliceUser, AmbulanceUser, FireUser, ParentUser } = require('../models');
 
-const { PoliceUser, AmbulanceUser, FireUser, ParentUser } = models;
-
-export default {
+module.exports = {
   up: async (queryInterface, Sequelize) => {
     // Hash passwords
     const salt = await bcrypt.genSalt(10);

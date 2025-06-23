@@ -13,7 +13,6 @@ import {
   Typography,
   Box,
   Collapse,
-  useMediaQuery,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -29,39 +28,40 @@ import {
   Notifications as AlertsIcon,
   History as HistoryIcon,
   Assessment as ReportsIcon,
+  Chat as ChatIcon,
 } from '@mui/icons-material';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 const drawerWidth = 240;
 
-const Sidebar = () => {
+interface SidebarProps {
+  mobileOpen: boolean;
+  onClose: () => void;
+  isMobile: boolean;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose, isMobile }) => {
   const theme = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [mobileOpen, setMobileOpen] = useState(false);
+  // Remove local mobile state as it's now controlled by parent
   const [open, setOpen] = useState({
     emergencies: false,
     management: false,
   });
 
-  // Toggle sidebar on mobile
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
+  // Close drawer when route changes
+  useEffect(() => {
+    if (isMobile) {
+      onClose();
+    }
+  }, [location.pathname, isMobile, onClose]);
 
   // Toggle submenu
   const handleClick = (item: string) => {
     setOpen({ ...open, [item]: !open[item as keyof typeof open] });
   };
-
-  // Close mobile drawer when route changes
-  useEffect(() => {
-    if (isMobile) {
-      setMobileOpen(false);
-    }
-  }, [location, isMobile]);
 
   // Menu items
   const mainMenuItems = [
@@ -72,6 +72,7 @@ const Sidebar = () => {
     { text: 'All Emergencies', icon: <EmergencyListIcon />, path: '/emergencies' },
     { text: 'Create Emergency', icon: <CreateEmergencyIcon />, path: '/emergencies/create' },
     { text: 'Map View', icon: <MapIcon />, path: '/map' },
+    { text: 'Chat', icon: <ChatIcon />, path: '/chat' },
   ];
 
   const adminMenuItems = [
@@ -114,7 +115,7 @@ const Sidebar = () => {
     ));
   };
 
-  const drawer = (
+  const drawerContent = (
     <div>
       <Toolbar>
         <Box
@@ -178,34 +179,27 @@ const Sidebar = () => {
         width: { sm: drawerWidth },
         flexShrink: { sm: 0 },
       }}
-      aria-label="mailbox folders"
+      aria-label="navigation"
     >
-      {/* Mobile drawer */}
       <Drawer
-        variant="temporary"
+        variant={isMobile ? 'temporary' : 'persistent'}
         open={mobileOpen}
-        onClose={handleDrawerToggle}
+        onClose={onClose}
         ModalProps={{
-          keepMounted: true, // Better open performance on mobile.
+          keepMounted: true, // Better open performance on mobile
         }}
         sx={{
-          display: { xs: 'block', sm: 'none' },
-          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
+            boxSizing: 'border-box',
+            borderRight: 'none',
+            boxShadow: isMobile ? theme.shadows[16] : 'none',
+            backgroundColor: 'background.paper',
+            backgroundImage: 'none',
+          },
         }}
       >
-        {drawer}
-      </Drawer>
-      
-      {/* Desktop drawer */}
-      <Drawer
-        variant="permanent"
-        sx={{
-          display: { xs: 'none', sm: 'block' },
-          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-        }}
-        open
-      >
-        {drawer}
+        {drawerContent}
       </Drawer>
     </Box>
   );

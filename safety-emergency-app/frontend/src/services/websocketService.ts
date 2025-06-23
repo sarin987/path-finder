@@ -110,13 +110,25 @@ class WebSocketService {
     if (callback) {
       this.callbacks.get(event)?.delete(callback);
       this.socket?.off(event, callback);
+      
+      // If no more callbacks for this event, clean up
+      const callbacks = this.callbacks.get(event);
+      if (callbacks && callbacks.size === 0) {
+        this.callbacks.delete(event);
+        this.socket?.off(event);
+      }
     } else {
+      // Remove all callbacks for this event
       this.callbacks.delete(event);
       this.socket?.off(event);
     }
   }
 
-  public emit<T = any>(event: string, data?: T): void {
+  public isConnected(): boolean {
+    return this.socket?.connected || false;
+  }
+
+  public emit(event: string, data: any): void {
     if (!this.socket?.connected) {
       console.warn(`Attempted to emit '${event}' but socket is not connected`);
       return;
@@ -147,7 +159,7 @@ class WebSocketService {
     return () => this.off(event, wrappedCallback);
   }
   
-  // Type guard for LocationUpdateData
+  // Type guard for LocationUpdateData (updated to be more permissive)
   private isLocationUpdateData(data: unknown): data is LocationUpdateData {
     return (
       typeof data === 'object' && 
@@ -163,8 +175,45 @@ class WebSocketService {
     );
   }
 
-  public isConnected(): boolean {
-    return this.socket?.connected || false;
+  // Get the socket instance (use with caution)
+  public get socketInstance(): Socket | null {
+    return this.socket;
+  }
+
+  // Subscribe to responder location updates
+  public subscribeToResponderLocations(callback: (data: LocationUpdateData) => void): () => void {
+    const event = 'responder_location_updated';
+    
+    const wrappedCallback = (data: any) => {
+      if (this.isValidLocationData(data)) {
+        callback({
+          userId: data.userId,
+          lat: data.lat,
+          lng: data.lng,
+          role: data.role,
+          name: data.name,
+          status: data.status,
+          lastUpdated: data.lastUpdated || new Date().toISOString()
+        });
+      } else {
+        console.warn('Received invalid responder location data:', data);
+      }
+    };
+    
+    this.on(event, wrappedCallback);
+    return () => this.off(event, wrappedCallback);
+  }
+  
+  // Helper to validate location data
+  private isValidLocationData(data: any): boolean {
+    return (
+      data &&
+      typeof data === 'object' &&
+      'userId' in data &&
+      'lat' in data &&
+      'lng' in data &&
+      'role' in data
+    );
   }
 }
 

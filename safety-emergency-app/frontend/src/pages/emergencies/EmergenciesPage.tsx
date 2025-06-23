@@ -39,7 +39,7 @@ import {
   Report as EmergencyIcon
 } from '@mui/icons-material'; 
 
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import type { SelectChangeEvent } from '@mui/material/Select';
 
 interface Emergency {

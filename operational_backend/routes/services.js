@@ -1,13 +1,4 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-
-// Example: List of emergency services
-router.get('/', (req, res) => {
-  res.json([
-    { type: 'ambulance', label: 'Ambulance Service' },
-    { type: 'fire', label: 'Fire Service' },
-    { type: 'police', label: 'Police Service' }
-  ]);
-});
-
-module.exports = router;
+router.get('/', (req, res) => res.json({ message: 'Services routes are working' }));
+export default router;

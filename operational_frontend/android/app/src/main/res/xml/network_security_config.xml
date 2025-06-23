@@ -1,13 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <!-- Base config uses system CAs for all domains -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!-- Development domains allow cleartext traffic for local development -->
     <domain-config cleartextTrafficPermitted="true">
+        <!-- Android Emulator -->
         <domain includeSubdomains="true">10.0.2.2</domain>
+        
+        <!-- Localhost -->
         <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">192.168.1.4</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        
+        <!-- Common local network IPs - add your development machine's IP -->
+        <domain includeSubdomains="true">192.168.14.111</domain>
+        <domain includeSubdomains="true">192.168.1.0/24</domain>
+        
+        <!-- For Genymotion emulator -->
+        <domain includeSubdomains="true">10.0.3.2</domain>
+        
+        <!-- For Android 9+ emulator -->
+        <domain includeSubdomains="true">10.0.2.16</domain>
+    </domain-config>
+    
+    <!-- Production domain configuration -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">your-production-api.com</domain>
     </domain-config>
 </network-security-config>

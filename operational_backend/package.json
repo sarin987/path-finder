@@ -1,13 +1,11 @@
 {
-  "name": "operational-backend",
+  "name": "safety-emergency-backend",
   "version": "1.0.0",
-  "description": "Operational Backend for Safety Emergency Application",
+  "description": "Backend for Safety Emergency Application",
   "main": "server.js",
-  "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "NODE_ENV=development nodemon server.js",
-    "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "migrate": "npx sequelize-cli db:migrate",
     "migrate:undo": "npx sequelize-cli db:migrate:undo",
     "migrate:undo:all": "npx sequelize-cli db:migrate:undo:all",
@@ -15,40 +13,54 @@
     "seed:undo": "npx sequelize-cli db:seed:undo:all",
     "db:create": "npx sequelize-cli db:create",
     "db:drop": "npx sequelize-cli db:drop",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "sync-db": "node scripts/sync-db.js",
+    "test:auth": "node scripts/test-auth.js",
+    "test": "NODE_ENV=test jest --detectOpenHandles --forceExit",
+    "test:watch": "NODE_ENV=test jest --watch --detectOpenHandles --forceExit",
+    "test:coverage": "NODE_ENV=test jest --coverage --detectOpenHandles --forceExit"
   },
+  "type": "commonjs",
   "dependencies": {
     "@react-google-maps/api": "^2.20.6",
     "@types/google.maps": "^3.58.1",
+    "@types/multer": "^1.4.13",
+    "@types/uuid": "^10.0.0",
     "axios": "^1.10.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
-    "firebase-admin": "^13.3.0",
+    "express-validator": "^7.2.1",
+    "firebase-admin": "^13.4.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
     "mysql2": "^3.14.1",
     "sequelize": "^6.37.7",
-    "sequelize-cli": "^6.6.2",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.8.1",
+    "typescript": "^5.8.3",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "eslint": "^8.56.0",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.29.1",
-    "jest": "^29.7.0",
-    "nodemon": "^3.1.0",
-    "supertest": "^6.3.3"
-  },
-  "engines": {
-    "node": ">=14.0.0"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "coveragePathIgnorePatterns": [
-      "/node_modules/"
-    ]
+    "@babel/core": "^7.27.4",
+    "@babel/plugin-proposal-class-properties": "^7.18.6",
+    "@babel/plugin-proposal-nullish-coalescing-operator": "^7.18.6",
+    "@babel/plugin-proposal-optional-chaining": "^7.21.0",
+    "@babel/plugin-transform-runtime": "^7.27.4",
+    "@babel/preset-env": "^7.27.2",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jest": "^29.5.14",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^24.0.1",
+    "@types/socket.io": "^3.0.1",
+    "@types/socket.io-client": "^1.4.36",
+    "@types/supertest": "^6.0.3",
+    "babel-jest": "^30.0.0",
+    "jest": "^30.0.0",
+    "nodemon": "^3.0.2",
+    "sequelize-cli": "^6.6.1",
+    "supertest": "^7.1.1",
+    "ts-node": "^10.9.2"
   }
 }

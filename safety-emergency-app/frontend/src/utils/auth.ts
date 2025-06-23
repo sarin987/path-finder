@@ -11,23 +11,39 @@ const TOKEN_KEY = 'auth_token';
 
 // Get token from localStorage
 export const getToken = (): string | null => {
-  if (typeof window === 'undefined') {
+  try {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    return localStorage.getItem(TOKEN_KEY);
+  } catch (error) {
+    console.error('Error getting auth token:', error);
     return null;
   }
-  return localStorage.getItem(TOKEN_KEY);
 };
 
 // Set token in localStorage
 export const setToken = (token: string): void => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(TOKEN_KEY, token);
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(TOKEN_KEY, token);
+      // Also store a flag to know we have a token
+      sessionStorage.setItem('hasAuthToken', 'true');
+    }
+  } catch (error) {
+    console.error('Error setting auth token:', error);
   }
 };
 
 // Remove token from localStorage
 export const removeToken = (): void => {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(TOKEN_KEY);
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem('hasAuthToken');
+    }
+  } catch (error) {
+    console.error('Error removing auth token:', error);
   }
 };
 
@@ -60,12 +76,20 @@ export const getAuthHeader = (): Record<string, string> => {
 
 // Check if user is authenticated
 export const isAuthenticated = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  
-  const token = getToken();
-  if (!token) return false;
-  
-  return !isTokenExpired(token);
+  try {
+    // First check if we have the token flag in sessionStorage
+    const hasToken = sessionStorage.getItem('hasAuthToken') === 'true';
+    if (!hasToken) return false;
+    
+    // Then verify the token
+    const token = getToken();
+    if (!token) return false;
+    
+    return !isTokenExpired(token);
+  } catch (error) {
+    console.error('Error checking authentication status:', error);
+    return false;
+  }
 };
 
 // Get user info from token

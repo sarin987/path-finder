@@ -15,13 +15,15 @@ type AppConfig = {
 // Define the config object
 const config: AppConfig = {
   // API Configuration
-  API_URL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
-  
+  API_URL: process.env.REACT_APP_API_URL 
+    ? `${process.env.REACT_APP_API_URL}${process.env.REACT_APP_API_URL.endsWith('/') ? '' : '/'}api`
+    : 'http://103.176.135.37/api',
+    
   // Google Maps Configuration
   GOOGLE_MAPS_API_KEY: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '',
   
   // WebSocket Configuration
-  WS_URL: process.env.REACT_APP_WS_URL || 'ws://localhost:5000',
+  WS_URL: process.env.REACT_APP_WS_URL || 'ws://103.176.135.37',
   
   // Map Defaults
   MAP_DEFAULTS: {

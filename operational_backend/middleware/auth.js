@@ -1,5 +1,5 @@
-import jwt from 'jsonwebtoken';
-import models from '../models/index.js';
+const jwt = require('jsonwebtoken');
+const models = require('../models/index.js');
 
 // Role to model mapping
 const roleToModel = {
@@ -9,7 +9,7 @@ const roleToModel = {
   parent: models.ParentUser
 };
 
-export const authenticateToken = (req, res, next) => {
+const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -54,7 +54,7 @@ export const authenticateToken = (req, res, next) => {
   });
 };
 
-export const authorizeRoles = (...roles) => {
+const authorizeRoles = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Not authenticated' });
@@ -66,4 +66,9 @@ export const authorizeRoles = (...roles) => {
     }
     next();
   };
+};
+
+module.exports = {
+  authenticateToken,
+  authorizeRoles
 };

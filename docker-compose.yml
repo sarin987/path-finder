@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: emergency-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - dashboard
+      - backend
+    networks:
+      - emergency-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./operational_backend
+      dockerfile: Dockerfile
+    container_name: emergency-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${MYSQL_DATABASE:-emergency_db}
+      - DB_USER=${MYSQL_USER:-emergency_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-your_secure_password}
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret}
+      - CORS_ORIGIN=*
+    expose:
+      - "5000"
+    volumes:
+      - ./operational_backend:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - mysql
+    networks:
+      - emergency-network
+
+  frontend:
+    build:
+      context: ./operational_frontend
+      dockerfile: Dockerfile
+    container_name: emergency-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=http://103.176.135.37/api
+      - REACT_APP_WS_URL=ws://103.176.135.37
+    expose:
+      - "3000"
+    volumes:
+      - ./operational_frontend:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - emergency-network
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: emergency-dashboard
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=http://103.176.135.37/api
+      - REACT_APP_WS_URL=ws://103.176.135.37
+    expose:
+      - "3000"
+    volumes:
+      - ./safety-emergency-app:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - emergency-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: emergency-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-your_secure_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-emergency_db}
+      MYSQL_USER: ${MYSQL_USER:-emergency_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-your_secure_password}
+      MYSQL_ROOT_HOST: '%'
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - emergency-network
+
+networks:
+  emergency-network:
+    driver: bridge
+
+volumes:
+  mysql-data:

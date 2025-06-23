@@ -1,38 +1,51 @@
 import { Outlet } from 'react-router-dom';
-import { Box, CssBaseline, Toolbar } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { Box, CssBaseline } from '@mui/material';
+import React, { memo, useMemo } from 'react';
 
 // Components
-import Header from '@/components/layout/Header';
-import Sidebar from '@/components/layout/Sidebar';
+import ResponsiveLayout from '@/components/layout/ResponsiveLayout';
 
-const Main = styled('main')(({ theme }) => ({
-  flexGrow: 1,
-  padding: theme.spacing(3),
-  transition: theme.transitions.create('margin', {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen,
-  }),
-  marginLeft: 0,
-  [theme.breakpoints.up('sm')]: {
-    marginLeft: theme.spacing(7) + 1,
-  },
-}));
+interface MainLayoutProps {
+  children?: React.ReactNode;
+}
 
-const MainLayout = () => {
+const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+  // Memoize the main box styles to prevent recreation on every render
+  const mainBoxSx = useMemo(() => ({
+    flexGrow: 1,
+    width: '100%',
+    maxWidth: '100vw',
+    overflowX: 'hidden',
+    minHeight: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: 'background.default'
+  }), []);
+
+  const contentBoxSx = useMemo(() => ({
+    flex: 1, 
+    display: 'flex', 
+    flexDirection: 'column'
+  }), []);
+
   return (
-    <Box sx={{ display: 'flex' }}>
+    <ResponsiveLayout>
       <CssBaseline />
-      <Header />
-      <Sidebar />
-      <Main>
-        <Toolbar /> {/* This pushes content down below the app bar */}
-        <Box sx={{ mt: 2 }}>
-          <Outlet />
+      <Box 
+        component="main"
+        sx={mainBoxSx}
+      >
+        <Box sx={contentBoxSx}>
+          {children || <Outlet />}
         </Box>
-      </Main>
-    </Box>
-  );
+      </Box>
+    </ResponsiveLayout>
+  ) as React.ReactElement;
 };
 
-export default MainLayout;
+// Only re-render if children prop changes
+const areEqual = (prevProps: MainLayoutProps, nextProps: MainLayoutProps) => {
+  return prevProps.children === nextProps.children;
+};
+
+export default memo(MainLayout, areEqual);

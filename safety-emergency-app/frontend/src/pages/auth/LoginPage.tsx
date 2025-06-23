@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, useCallback, memo, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
-import { Button, TextField, Box, Typography, Container, Paper, Alert } from '@mui/material';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useAuth } from "@/contexts/AuthContext";
+import { TextField, Box, Typography, Container, Paper, Alert, Button } from '@mui/material';
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  phone: z.string().min(10, 'Phone number must be at least 10 digits'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
@@ -20,42 +20,62 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   
   const {
-    register,
-    handleSubmit,
-    formState: { errors },
+    register: formRegister,
+    handleSubmit: formHandleSubmit,
+    formState: { errors: formErrors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data: LoginFormData) => {
-    console.log('LoginPage: Form submitted with data:', data);
-    setError('');
-    setIsLoading(true);
-    
-    try {
-      console.log('LoginPage: Attempting to login...');
-      await login(data.email, data.password);
-      console.log('LoginPage: Login successful, navigating to dashboard');
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('LoginPage: Login error:', err);
-      setError('Failed to log in. Please check your credentials and try again.');
-    } finally {
-      console.log('LoginPage: Setting loading to false');
-      setIsLoading(false);
-    }
-  };
+  const handleFormSubmit = useCallback(
+    async (data: LoginFormData) => {
+      console.log('LoginPage: Form submitted with data:', data);
+      setError('');
+      setIsLoading(true);
+      
+      try {
+        console.log('LoginPage: Attempting to login...');
+        
+        const user = await login(data.phone, data.password);
+        
+        if (!user) {
+          console.log('LoginPage: Login was aborted');
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log('LoginPage: Login successful, user:', user);
+        
+        // Navigate based on user role or to a default route
+        const redirectPath = user.role === 'admin' ? '/admin' : '/dashboard';
+        console.log('LoginPage: Navigating to', redirectPath);
+        navigate(redirectPath, { replace: true });
+      } catch (err) {
+        console.error('LoginPage: Login error:', err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [login, navigate]
+  );
+
+  // Memoize form styles to prevent recreation on every render
+  const formContainerStyles = useMemo(() => ({
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  }), []);
+
+  const formStyles = useMemo(() => ({
+    mt: 1,
+    width: '100%'
+  }), []);
 
   return (
     <Container component="main" maxWidth="xs">
       <Paper elevation={3} sx={{ p: 4, mt: 8 }}>
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
+        <Box sx={formContainerStyles}>
           <Typography component="h1" variant="h5">
             Sign in
           </Typography>
@@ -66,18 +86,23 @@ const LoginPage: React.FC = () => {
             </Alert>
           )}
           
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ mt: 1, width: '100%' }}>
+          <Box 
+            component="form" 
+            onSubmit={formHandleSubmit(handleFormSubmit)} 
+            sx={formStyles}
+          >
             <TextField
               margin="normal"
               required
               fullWidth
-              id="email"
-              label="Email Address"
-              autoComplete="email"
+              id="phone"
+              label="Phone Number"
+              type="tel"
+              autoComplete="tel"
               autoFocus
-              {...register('email')}
-              error={!!errors.email}
-              helperText={errors.email?.message}
+              {...formRegister('phone')}
+              error={!!formErrors.phone}
+              helperText={formErrors.phone?.message}
             />
             <TextField
               margin="normal"
@@ -87,9 +112,9 @@ const LoginPage: React.FC = () => {
               type="password"
               id="password"
               autoComplete="current-password"
-              {...register('password')}
-              error={!!errors.password}
-              helperText={errors.password?.message}
+              {...formRegister('password')}
+              error={!!formErrors.password}
+              helperText={formErrors.password?.message}
             />
             <Button
               type="submit"
@@ -101,11 +126,16 @@ const LoginPage: React.FC = () => {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
             <Box sx={{ textAlign: 'center' }}>
-              <Link to="/register" style={{ textDecoration: 'none' }}>
+              <RouterLink to="/forgot-password" style={{ textDecoration: 'none' }}>
+                <Typography variant="body2" color="primary">
+                  Forgot Password?
+                </Typography>
+              </RouterLink>
+              <RouterLink to="/register" style={{ textDecoration: 'none' }}>
                 <Typography variant="body2" color="primary">
                   Don't have an account? Sign Up
                 </Typography>
-              </Link>
+              </RouterLink>
             </Box>
           </Box>
         </Box>
@@ -114,4 +144,7 @@ const LoginPage: React.FC = () => {
   );
 };
 
-export default LoginPage;
+// Only re-render if props change (none in this case, so it will never re-render)
+const areEqual = () => true;
+
+export default memo(LoginPage, areEqual);

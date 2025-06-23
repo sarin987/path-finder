@@ -27,25 +27,53 @@ const generateToken = (id, role) => {
 // @desc    Register a new user with role
 // @route   POST /api/auth/register/:role
 // @access  Public
+// Helper function to clean phone number
+const cleanPhoneNumber = (phone) => {
+  if (!phone) return '';
+  // Remove all non-digit characters and ensure it starts with country code
+  const cleaned = phone.replace(/\D/g, '');
+  return cleaned.startsWith('91') && cleaned.length === 12 ? cleaned : `91${cleaned}`;
+};
+
 export const register = async (req, res) => {
   try {
     const { role } = req.params;
-    const { name, email, password, phone } = req.body;
+    const { name, phone, password } = req.body;
 
     // Validate role
     if (!validRoles.includes(role)) {
-      return res.status(400).json({ message: 'Invalid role' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid role',
+        code: 'INVALID_ROLE'
+      });
     }
 
-    // Check if user already exists in any role table
+    // Clean and validate phone number
+    const cleanPhone = cleanPhoneNumber(phone);
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid phone number format',
+        field: 'phone',
+        code: 'INVALID_PHONE_FORMAT'
+      });
+    }
+
+    // Check if phone already exists in any role table
     const userExists = await Promise.any(
       Object.values(roleToModel).map(Model => 
-        Model.findOne({ where: { email } })
+        Model.findOne({ where: { phone: cleanPhone } })
       )
     );
 
     if (userExists) {
-      return res.status(400).json({ message: 'Email already registered' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Phone number already registered',
+        field: 'phone',
+        code: 'PHONE_ALREADY_REGISTERED'
+      });
     }
 
     // Get the appropriate model based on role
@@ -53,10 +81,9 @@ export const register = async (req, res) => {
     
     // Create user in the specific role table
     const user = await UserModel.create({
-      name,
-      email,
-      password,
-      phone
+      name: name.trim(),
+      phone: cleanPhone,
+      password
     });
 
     // Generate token
@@ -82,12 +109,31 @@ export const register = async (req, res) => {
 // @access  Public
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { phone, password } = req.body;
 
-    // Search for user in all role tables
+    if (!phone || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide phone and password',
+        code: 'MISSING_CREDENTIALS'
+      });
+    }
+
+    // Clean phone number
+    const cleanPhone = cleanPhoneNumber(phone);
+    if (cleanPhone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid phone number format',
+        field: 'phone',
+        code: 'INVALID_PHONE_FORMAT'
+      });
+    }
+
+    // Search for user in all role tables by phone
     const userResults = await Promise.all(
       Object.entries(roleToModel).map(async ([role, Model]) => {
-        const user = await Model.scope('withPassword').findOne({ where: { email } });
+        const user = await Model.scope('withPassword').findOne({ where: { phone: cleanPhone } });
         return user ? { ...user.toJSON(), role } : null;
       })
     );
@@ -96,7 +142,11 @@ export const login = async (req, res) => {
     const userWithRole = userResults.find(user => user !== null);
 
     if (!userWithRole) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid phone number or password',
+        code: 'INVALID_CREDENTIALS'
+      });
     }
 
     // Verify password

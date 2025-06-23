@@ -1,7 +1,37 @@
 import { Alert, Platform, NetInfo } from 'react-native';
-import { API_ROUTES, FEATURE_FLAGS, APP_CONFIG } from '../config';
+import { API_ROUTES, FEATURE_FLAGS, APP_CONFIG, BASE_URL } from '../config';
 import { useAuth } from '../contexts/AuthContext';
 import secureStorage from './secureStorage';
+import { logError, logInfo, logDebug } from './logger';
+
+// Request interceptor for logging
+const requestInterceptor = (url, options) => {
+  logDebug('API Request', {
+    url,
+    method: options?.method || 'GET',
+    headers: options?.headers || {},
+    body: options?.body ? JSON.parse(options.body) : undefined,
+  });
+  return { url, options };
+};
+
+// Response interceptor for handling errors
+const responseInterceptor = async (response) => {
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.clone().json();
+    } catch (e) {
+      errorData = await response.clone().text();
+    }
+    
+    const error = new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+    error.status = response.status;
+    error.data = errorData;
+    throw error;
+  }
+  return response;
+};
 
 // Request queue for offline support
 let requestQueue = [];
@@ -44,19 +74,15 @@ const addToQueue = (request) => {
 };
 
 /**
- * Enhanced API request with retry logic and offline support
+ * Make an API request with enhanced error handling and logging
  */
 export const apiRequest = async (endpoint, options = {}, requiresAuth = true) => {
   const { getAuthHeaders } = useAuth();
   
-  // Handle offline mode
-  if (FEATURE_FLAGS.enableOfflineMode && !(await isOnline())) {
-    if (options.queueIfOffline !== false) {
-      return addToQueue([endpoint, { ...options, queueIfOffline: false }, requiresAuth]);
-    }
-    throw new Error('You are currently offline. Please check your connection.');
-  }
-
+  // Normalize endpoint
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${BASE_URL}${normalizedEndpoint}`;
+  
   // Prepare headers
   const headers = {
     'Content-Type': 'application/json',
@@ -111,6 +137,7 @@ export const apiRequest = async (endpoint, options = {}, requiresAuth = true) =>
       throw error;
     }
 
+    logInfo('API Success', { url: endpoint, data: data ? 'Received data' : 'No data' });
     return data;
   } catch (error) {
     console.error('API Request Error:', {

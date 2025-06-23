@@ -1,19 +1,63 @@
-const express = require('express');
+import express from 'express';
+import jwt from 'jsonwebtoken';
+
 const router = express.Router();
-const {
-  registerUser,
-  loginWithPassword,
-  googleSignIn,
-  verifyOtp
-} = require('../controllers/authController');
 
-// Middleware
-router.use(express.json());
+// Mock user for testing
+const mockUser = {
+  id: 1,
+  email: 'test@example.com',
+  password: 'password123', // In a real app, this would be hashed
+  role: 'admin',
+};
 
-// Auth routes
-router.post('/register', registerUser);
-router.post('/login', loginWithPassword);
-router.post('/google', googleSignIn);
-router.post('/verify-otp', verifyOtp);
+// Login route
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-module.exports = router;
+    // In a real app, you would validate against the database
+    if (email !== mockUser.email || password !== mockUser.password) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Create token
+    const token = jwt.sign(
+      { userId: mockUser.id, role: mockUser.role },
+      process.env.JWT_SECRET || 'your_jwt_secret',
+      { expiresIn: '24h' }
+    );
+
+    res.json({ 
+      token,
+      user: {
+        id: mockUser.id,
+        email: mockUser.email,
+        role: mockUser.role,
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Register route
+router.post('/register', async (req, res) => {
+  try {
+    // In a real app, you would create a new user in the database
+    res.status(201).json({ 
+      message: 'User registered successfully',
+      user: {
+        id: mockUser.id,
+        email: mockUser.email,
+        role: mockUser.role,
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+export default router;

@@ -1,65 +1,94 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const http = require('http');
-const { Server } = require('socket.io');
-const { initializeSocket } = require('./src/services/socketService');
-const { sequelize } = require('./src/config/sequelize');
+const { createServer } = require('http');
+const path = require('path');
+const fs = require('fs').promises;
 
-// Import routes from operational backend
-const fireRoutes = require('./routes/fireRoutes');
-const userActiveRoutes = require('./routes/userActiveRoutes');
-const incidentsRoutes = require('./routes/incidents');
-const servicesRoutes = require('./routes/services');
-const authRoutes = require('./routes/authRoutes');
+// Initialize Firebase Admin (optional)
+const firebase = require('./config/firebase-admin');
+const admin = firebase.admin;
 
-// Import routes from safety-emergency-app
-const chatRoutes = require('./routes/chatRoutes');
-const emergencyRoutes = require('./routes/emergencyRoutes');
-const userRoutes = require('./routes/userRoutes');
+// Import database initialization
+const { init, sequelize } = require('./models');
 
+// Import routes
+const notificationRoutes = require('./routes/notificationRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const locationRoutes = require('./src/routes/locationRoutes');
+const authRoutes = require('./src/routes/auth');
+const chatRoutes = require('./src/routes/chat.routes');
+
+// Import socket services
+const LocationSocketService = require('./src/services/locationSocketService');
+const SocketService = require('./src/services/socket.service');
+
+// Initialize Express app
 const app = express();
-const server = http.createServer(app);
+const httpServer = createServer(app);
 
-// Initialize Socket.IO
-const io = initializeSocket(server);
+// Track connected users
+const connectedUsers = new Map();
+
+// CORS configuration
+const corsOptions = {
+  origin: [
+    'http://localhost:2222', // Frontend on port 2222
+    'http://localhost:8080', // Dashboard
+    'http://localhost:3000', // Original frontend port
+    ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [])
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+};
 
 // Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
-}));
+app.use(cors(corsOptions));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Database connection
-sequelize.authenticate()
-  .then(() => console.log('✅ Database connected successfully'))
-  .catch(err => console.error('❌ Database connection error:', err));
+// Socket.IO will be initialized by the SocketService
 
-// Operational Backend Routes
-app.use('/api/fire', fireRoutes);
-app.use('/api/users', userActiveRoutes);
-app.use('/api/incidents', incidentsRoutes);
-app.use('/api/services', servicesRoutes);
+// Ensure uploads directory exists
+async function ensureUploadsDir() {
+  const uploadsDir = path.join(__dirname, 'uploads');
+  try {
+    await fs.access(uploadsDir);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      await fs.mkdir(uploadsDir, { recursive: true });
+      console.log('📁 Created uploads directory');
+    } else {
+      throw error;
+    }
+  }
+}
+
+// Initialize file uploads directory
+ensureUploadsDir().catch(console.error);
+
+// API Routes
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/locations', locationRoutes);
 app.use('/api/auth', authRoutes);
-
-// Safety Emergency App Routes
 app.use('/api/chat', chatRoutes);
-app.use('/api/emergency', emergencyRoutes);
-app.use('/api/user', userRoutes);
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
+app.get('/health', (req, res) => {
+  res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    database: sequelize.authenticate ? 'connected' : 'disconnected'
+    uptime: process.uptime()
   });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error:', err);
   res.status(500).json({
     status: 'error',
     message: 'Internal Server Error',
@@ -67,16 +96,75 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+// Initialize socket.io services
+const socketService = new SocketService(httpServer);
+const io = socketService.getIO();
+
+// Initialize location socket service with the same io instance
+const locationSocketService = new LocationSocketService(io);
+
+// Location socket service will handle its own connection events
+// Chat socket events are handled in SocketService
+
+// Test database connection
+async function testConnection() {
+  try {
+    await sequelize.authenticate();
+    console.log('✅ Database connection has been established successfully.');
+    return true;
+  } catch (error) {
+    console.error('❌ Unable to connect to the database:', error);
+    return false;
+  }
+}
+
+// Initialize database and start server
+async function startServer() {
+  try {
+    // Test database connection
+    console.log('🔄 Testing database connection...');
+    const isConnected = await testConnection();
+    
+    if (!isConnected) {
+      throw new Error('Failed to connect to the database');
+    }
+    
+    // Initialize database and models
+    console.log('🔄 Initializing database...');
+    await init();
+    
+    const PORT = process.env.PORT || 5000;
+    
+    httpServer.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔄 CORS allowed origins: ${corsOptions.origin}`);
+      console.log('📊 Database models initialized successfully');
+    });
+    
+    // Handle server errors
+    httpServer.on('error', (error) => {
+      console.error('❌ Server error:', error);
+      process.exit(1);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// Start the application
+startServer();
 
 // Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err);
-  // Close server & exit process
-  server.close(() => process.exit(1));
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+module.exports = { app, httpServer, io };

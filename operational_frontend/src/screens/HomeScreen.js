@@ -15,6 +15,9 @@ import Geolocation from "@react-native-community/geolocation";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { useNavigation } from "@react-navigation/native";
 import axios from "axios";
+import { BASE_URL, API_VERSION } from "../config";
+import { ENDPOINTS } from "../config/apiEndpoints";
+import { useAuth } from "../contexts/AuthContext";
 
 const HomeScreen = () => {
   const [location, setLocation] = useState(null);
@@ -85,11 +88,16 @@ const HomeScreen = () => {
             };
             setLocation(newLocation);
             // Send location to backend
-            await axios.post("http://192.168.14.103:5000/api/location/update", {
-              latitude: newLocation.latitude,
-              longitude: newLocation.longitude,
-              userId: "USER_ID_HERE",
-            });
+            const { user } = useAuth();
+            try {
+              await axios.post(`${BASE_URL}${ENDPOINTS.UPDATE_LOCATION}`, {
+                latitude: newLocation.latitude,
+                longitude: newLocation.longitude,
+                userId: user?.id,
+              });
+            } catch (error) {
+              console.error('Error updating location:', error);
+            }
           },
           (error) => console.error(error),
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }

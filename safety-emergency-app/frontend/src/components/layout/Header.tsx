@@ -1,18 +1,19 @@
-import { useState } from 'react';
+import { useState, useCallback, memo, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from '@mui/material/styles';
 import {
   AppBar,
   Toolbar,
   IconButton,
   Typography,
+  Box,
   Avatar,
   Menu,
   MenuItem,
-  Box,
-  Divider,
   ListItemIcon,
   ListItemText,
   Badge,
+  Divider,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -21,73 +22,93 @@ import {
   Settings as SettingsIcon,
   ExitToApp as LogoutIcon,
 } from '@mui/icons-material';
-import { useTheme } from '@mui/material/styles';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
-const Header = () => {
+interface HeaderProps {
+  onMenuClick: () => void;
+}
+
+const HeaderComponent: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const theme = useTheme();
   const navigate = useNavigate();
+
   const { user, logout } = useAuth();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notificationsAnchorEl, setNotificationsAnchorEl] = useState<null | HTMLElement>(null);
+  
+  // Memoize user initial to prevent recalculation on every render
+  const userInitial = useMemo(() => user?.name?.charAt(0).toUpperCase() || 'U', [user?.name]);
 
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+  const handleProfileMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
-  };
+  }, []);
 
-  const handleNotificationsMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+  const handleNotificationsMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>) => {
     setNotificationsAnchorEl(event.currentTarget);
-  };
+  }, []);
 
-  const handleMenuClose = () => {
+  const handleMenuClose = useCallback(() => {
     setAnchorEl(null);
     setNotificationsAnchorEl(null);
-  };
+  }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     handleMenuClose();
     await logout();
-    navigate('/login');
-  };
+    navigate('/login', { replace: true });
+  }, [handleMenuClose, logout, navigate]);
 
-  const handleProfile = () => {
+  const handleProfile = useCallback(() => {
     handleMenuClose();
     navigate('/profile');
-  };
+  }, [handleMenuClose, navigate]);
 
-  const handleSettings = () => {
+  const handleSettings = useCallback(() => {
     handleMenuClose();
     navigate('/settings');
-  };
+  }, [handleMenuClose, navigate]);
 
   const notificationsOpen = Boolean(notificationsAnchorEl);
   const profileOpen = Boolean(anchorEl);
 
+  // Memoize the app bar and toolbar styles
+  const appBarSx = useMemo(() => ({
+    zIndex: (theme: any) => theme.zIndex.drawer + 1,
+    backgroundColor: 'background.paper',
+    color: 'text.primary',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+  }), []);
+
+  const toolbarSx = useMemo(() => ({
+    minHeight: { xs: '56px', sm: '64px' },
+    px: { xs: 1, sm: 2 }
+  }), []);
+
+  const titleSx = useMemo(() => ({
+    flexGrow: 1,
+    display: { xs: 'none', sm: 'block' },
+    color: 'primary.main',
+    fontWeight: 600
+  }), []);
+
   return (
-    <AppBar
-      position="fixed"
-      sx={{
-        zIndex: (theme) => theme.zIndex.drawer + 1,
-        backgroundColor: theme.palette.background.paper,
-        color: theme.palette.text.primary,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-      }}
-    >
-      <Toolbar>
+    <AppBar position="fixed" sx={appBarSx}>
+      <Toolbar sx={toolbarSx}>
         <IconButton
           color="inherit"
           aria-label="open drawer"
           edge="start"
-          sx={{ mr: 2, display: { sm: 'none' } }}
+          onClick={onMenuClick}
+          sx={{ mr: 2, color: 'text.primary' }}
         >
           <MenuIcon />
         </IconButton>
-
-        <Typography
-          variant="h6"
-          noWrap
+        
+        <Typography 
+          variant="h6" 
+          noWrap 
           component="div"
-          sx={{ flexGrow: 1, fontWeight: 600, color: theme.palette.primary.main }}
+          sx={titleSx}
         >
           Safety Emergency App
         </Typography>
@@ -119,7 +140,7 @@ const Header = () => {
               src={user?.avatar}
               sx={{ width: 36, height: 36, bgcolor: theme.palette.primary.main }}
             >
-              {user?.name?.charAt(0).toUpperCase() || 'U'}
+              {userInitial}
             </Avatar>
           </IconButton>
         </Box>
@@ -128,105 +149,67 @@ const Header = () => {
       {/* Notifications Menu */}
       <Menu
         anchorEl={notificationsAnchorEl}
+        open={notificationsOpen}
+        onClose={handleMenuClose}
         anchorOrigin={{
           vertical: 'bottom',
           horizontal: 'right',
         }}
-        id="notifications-menu"
         keepMounted
         transformOrigin={{
           vertical: 'top',
           horizontal: 'right',
         }}
-        open={notificationsOpen}
-        onClose={handleMenuClose}
-        PaperProps={{
-          style: {
-            width: 360,
-            maxHeight: 440,
-          },
-        }}
       >
-        <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
-          <Typography variant="subtitle1" fontWeight={600}>
-            Notifications
-          </Typography>
-        </Box>
-        <Box sx={{ p: 2, textAlign: 'center' }}>
-          <Typography variant="body2" color="textSecondary">
-            No new notifications
-          </Typography>
-        </Box>
+        <MenuItem onClick={handleMenuClose}>
+          <ListItemText primary="No new notifications" />
+        </MenuItem>
       </Menu>
 
       {/* Profile Menu */}
       <Menu
         anchorEl={anchorEl}
+        open={profileOpen}
+        onClose={handleMenuClose}
         anchorOrigin={{
           vertical: 'bottom',
           horizontal: 'right',
         }}
-        id="profile-menu"
         keepMounted
         transformOrigin={{
           vertical: 'top',
           horizontal: 'right',
         }}
-        open={profileOpen}
-        onClose={handleMenuClose}
-        PaperProps={{
-          style: {
-            width: 200,
-          },
-        }}
       >
-        <Box sx={{ p: 2, textAlign: 'center' }}>
-          <Avatar
-            alt={user?.name || 'User'}
-            src={user?.avatar}
-            sx={{
-              width: 64,
-              height: 64,
-              mb: 1,
-              mx: 'auto',
-              bgcolor: theme.palette.primary.main,
-            }}
-          >
-            {user?.name?.charAt(0).toUpperCase() || 'U'}
-          </Avatar>
-          <Typography variant="subtitle1" noWrap>
-            {user?.name || 'User'}
-          </Typography>
-          <Typography variant="body2" color="textSecondary" noWrap>
-            {user?.email || ''}
-          </Typography>
-          <Typography variant="caption" color="primary" fontWeight={600}>
-            {user?.role?.toUpperCase() || 'USER'}
-          </Typography>
-        </Box>
-        <Divider />
         <MenuItem onClick={handleProfile}>
           <ListItemIcon>
             <PersonIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="Profile" />
+          <ListItemText>Profile</ListItemText>
         </MenuItem>
         <MenuItem onClick={handleSettings}>
           <ListItemIcon>
             <SettingsIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="Settings" />
+          <ListItemText>Settings</ListItemText>
         </MenuItem>
         <Divider />
         <MenuItem onClick={handleLogout}>
           <ListItemIcon>
             <LogoutIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="Logout" />
+          <ListItemText>Logout</ListItemText>
         </MenuItem>
       </Menu>
     </AppBar>
   );
 };
+
+// Only re-render if props change
+const areEqual = (prevProps: HeaderProps, nextProps: HeaderProps) => {
+  return prevProps.onMenuClick === nextProps.onMenuClick;
+};
+
+const Header = memo(HeaderComponent, areEqual);
 
 export default Header;

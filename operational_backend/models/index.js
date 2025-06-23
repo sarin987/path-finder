@@ -1,86 +1,59 @@
-import { fileURLToPath } from 'url';
-import { dirname, basename } from 'path';
-import { Sequelize, DataTypes } from 'sequelize';
-import fs from 'fs';
-import path from 'path';
+const { sequelize, Sequelize } = require('../config/database');
+const User = require('./User');
+const SOSRequest = require('./SOSRequest');
+const ChatMessage = require('./ChatMessage');
+const RoleLocation = require('./RoleLocation');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const db = {
+  sequelize,
+  Sequelize,
+  User,
+  SOSRequest,
+  ChatMessage,
+  RoleLocation
+};
 
-const env = process.env.NODE_ENV || 'development';
+// Set up model associations
+function setupAssociations() {
+  // SOSRequest belongs to a user
+  SOSRequest.belongsTo(db.User, { foreignKey: 'user_id' });
 
-// Read config file directly since we can't use import with assert in this Node.js version
-const configPath = path.join(__dirname, '..', 'config', 'config.json');
-const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))[env];
+  // ChatMessage associations
+  ChatMessage.belongsTo(db.User, { as: 'sender', foreignKey: 'sender_id' });
+  ChatMessage.belongsTo(db.User, { as: 'receiver', foreignKey: 'receiver_id' });
+  
+  // Add associations for quick access from User model
+  User.hasMany(ChatMessage, { as: 'sentMessages', foreignKey: 'sender_id' });
+  User.hasMany(ChatMessage, { as: 'receivedMessages', foreignKey: 'receiver_id' });
+  User.hasMany(SOSRequest, { foreignKey: 'user_id' });
 
-const db = {};
+  // RoleLocation belongs to a user
+  RoleLocation.belongsTo(db.User, { foreignKey: 'user_id' });
+  User.hasOne(RoleLocation, { foreignKey: 'user_id' });
 
-let sequelize;
-if (config.use_env_variable) {
-  sequelize = new Sequelize(process.env[config.use_env_variable], config);
-} else {
-  sequelize = new Sequelize(
-    config.database,
-    config.username,
-    config.password,
-    {
-      ...config,
-      logging: process.env.NODE_ENV === 'development' ? console.log : false,
+  console.log('✅ Model associations set up successfully');
+}
+
+// Initialize database connection and models
+async function init() {
+  try {
+    // Test the database connection
+    const connected = await require('../config/database').testConnection();
+    if (!connected) {
+      throw new Error('Failed to connect to database');
     }
-  );
-}
-
-// Import models dynamically
-const modelFiles = fs.readdirSync(__dirname)
-  .filter(file => (
-    file.indexOf('.') !== 0 &&
-    file !== basename(__filename) &&
-    file.slice(-3) === '.js' &&
-    !file.endsWith('.bak.js') &&
-    !file.endsWith('.old.js') &&
-    !file.endsWith('-new.js')
-  ));
-
-// Import all models
-for (const file of modelFiles) {
-  try {
-    const module = await import(`./${file}`);
-    const model = module.default(sequelize, DataTypes);
-    db[model.name] = model;
-    console.log(`✅ Loaded model: ${model.name}`);
-  } catch (error) {
-    console.error(`❌ Error loading model from file ${file}:`, error);
-  }
-}
-
-// Set up associations
-Object.keys(db).forEach(modelName => {
-  if (db[modelName].associate) {
-    db[modelName].associate(db);
-  }
-});
-
-db.sequelize = sequelize;
-db.Sequelize = Sequelize;
-
-// Test the database connection
-async function testConnection() {
-  try {
-    await sequelize.authenticate();
-    console.log('✅ Database connection has been established successfully.');
     
-    // Sync all models
-    if (process.env.NODE_ENV !== 'production') {
-      await sequelize.sync({ alter: true });
-      console.log('✅ All models were synchronized successfully.');
-    }
+    // Setup model associations
+    setupAssociations();
+    
+    return db;
   } catch (error) {
-    console.error('❌ Unable to connect to the database:', error);
-    process.exit(1);
+    console.error('Failed to initialize database:', error);
+    throw error;
   }
 }
 
-// Run the connection test
-testConnection();
-
-export default db;
+module.exports = {
+  init,
+  ...db
+};

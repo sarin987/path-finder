@@ -8,8 +8,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (userData: { name: string; email: string; password: string }) => Promise<User>;
+  login: (email: string, password: string, phoneNumber: string) => Promise<void>;
+  register: (userData: { name: string; email: string; password: string; phoneNumber: string; role: string }) => Promise<User>;
   logout: () => Promise<void>;
   updateProfile: (userData: Partial<User>) => Promise<User>;
 }
@@ -34,6 +34,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!token) {
           console.log('AuthProvider: No token found, setting user to null');
           setUser(null);
+          setIsLoading(false);
           return;
         }
 
@@ -43,36 +44,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const decoded: any = jwtDecode(token);
           const currentTime = Date.now() / 1000;
           
-          console.log('AuthProvider: Token decoded, exp:', decoded.exp, 'current time:', currentTime);
+          console.log('AuthProvider: Token decoded, exp:', new Date(decoded.exp * 1000).toISOString(), 'current time:', new Date().toISOString());
           
           if (decoded.exp && decoded.exp < currentTime) {
             // Token expired
             console.log('AuthProvider: Token expired');
-            removeToken();
-            setUser(null);
+            await logout();
             return;
           }
-
-
-          // Token is valid, set mock user
-          const mockUser: User = {
-            id: decoded.sub || '1',
-            name: decoded.name || 'Test User',
-            email: decoded.email || 'test@example.com',
-            role: (decoded.role || 'user') as 'user' | 'admin' | 'responder',
-            isActive: true,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          console.log('AuthProvider: Setting user from token:', mockUser);
-          setUser(mockUser);
-        } catch (err) {
-          console.error('Error decoding token:', err);
-          removeToken();
-          setUser(null);
+          
+          // Token is valid, fetch user data
+          console.log('AuthProvider: Fetching current user data...');
+          const userData = await fetchCurrentUser();
+          if (!userData) {
+            throw new Error('Failed to fetch user data');
+          }
+          console.log('AuthProvider: User data loaded:', userData.email);
+          setUser(userData);
+        } catch (error) {
+          console.error('AuthProvider: Error during auth check:', error);
+          await logout();
         }
       } catch (error) {
-        console.error('Auth check error:', error);
+        console.error('AuthProvider: Error in auth check:', error);
         setUser(null);
       } finally {
         console.log('AuthProvider: Auth check complete, setting loading to false');
@@ -81,75 +75,135 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     checkAuth();
-  }, []); // Empty dependency array since we don't use any external values
+  }, []); 
+
+  // Fetch current user data
+  const fetchCurrentUser = async (): Promise<User | null> => {
+    try {
+      const token = getToken();
+      if (!token) {
+        console.log('No token found');
+        return null;
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const userData = await response.json();
+      
+      // Validate the response data
+      if (!userData?.id) {
+        console.error('Invalid user data received:', userData);
+        throw new Error('Invalid user data received from server');
+      }
+      
+      return userData;
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      await logout();
+      return null;
+    }
+  };
 
   // Login function
-  const login = async (email: string, _password: string) => {
+  const login = async (email: string, password: string, phoneNumber: string) => {
     try {
       console.log('AuthProvider: Attempting login for:', email);
       
-      // Mock login - in a real app, this would be an API call
-      // Using a properly formatted JWT token for testing
-      const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEiLCJuYW1lIjoiVGVzdCBVc2VyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwicm9sZSI6InVzZXIiLCJpYXQiOjE2MjM5MDc5ODUsImV4cCI6MTY1NTQ2NTU4NX0.7d9d9a2f9d9a2f9d9a2f9d9a2f9d9a2f9d9a2f9d9a2f9d9a2f9d9a2f9d9a2f9';
-      const mockUser: User = {
-        id: '1',
-        name: 'Test User',
-        email,
-        role: 'user',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      if (!email || !password || !phoneNumber) {
+        throw new Error('Missing required fields: ' + 
+          (!email ? 'email ' : '') + 
+          (!password ? 'password ' : '') + 
+          (!phoneNumber ? 'phone number' : ''));
+      }
       
-      // Set token in storage
-      setToken(mockToken);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, phoneNumber }),
+        credentials: 'include',
+      });
+
+      const responseData = await response.json().catch(() => ({}));
       
-      // Update user state
-      setUser(mockUser);
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Login failed');
+      }
+
+      if (!responseData.user || !responseData.token) {
+        throw new Error('Invalid response from server');
+      }
       
-      console.log('AuthProvider: Login successful, user:', mockUser);
-      navigate('/dashboard');
+      setToken(responseData.token);
+      setUser(responseData.user);
+      console.log('AuthProvider: Login successful, user:', responseData.user.email);
+      return responseData.user;
     } catch (error) {
-      console.error('AuthProvider: Login failed:', error);
-      removeToken();
-      setUser(null);
-      throw error; // Re-throw to be handled by the component
+      console.error('AuthProvider: Login error:', error);
+      // Clear any partial auth state on error
+      await logout();
+      throw error;
     }
   };
 
   // Register function
-  const register = async (userData: { name: string; email: string; password: string }) => {
+  const register = async (userData: { name: string; email: string; password: string; phoneNumber: string; role: string }) => {
     try {
       console.log('AuthProvider: Attempting to register user:', userData.email);
       
-      // Mock registration - in a real app, this would be an API call
-      // Using a properly formatted JWT token for testing
-      const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjIiLCJuYW1lIjoiTmV3IFVzZXIiLCJlbWFpbCI6Im5ld0BleGFtcGxlLmNvbSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNjIzOTA3OTg1LCJleHAiOjE2NTU0NjU1ODV9.8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e';
-      const mockUser: User = {
-        id: Math.random().toString(36).substr(2, 9), // Generate a random ID
-        name: userData.name,
-        email: userData.email,
-        role: 'user',
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      if (!userData.name || !userData.email || !userData.password || !userData.phoneNumber || !userData.role) {
+        throw new Error('Missing required fields: ' + 
+          (!userData.name ? 'name ' : '') + 
+          (!userData.email ? 'email ' : '') + 
+          (!userData.password ? 'password ' : '') + 
+          (!userData.phoneNumber ? 'phoneNumber ' : '') +
+          (!userData.role ? 'role' : ''));
+      }
       
-      // Set token in storage
-      setToken(mockToken);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: userData.name,
+          email: userData.email,
+          password: userData.password,
+          phoneNumber: userData.phoneNumber,
+          role: userData.role
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || 'Registration failed');
+      }
+
+      const data = await response.json();
+      if (!data.user || !data.token) {
+        throw new Error('Invalid response from server');
+      }
       
-      // Update user state
-      setUser(mockUser);
-      
-      console.log('AuthProvider: Registration successful, user:', mockUser);
-      navigate('/dashboard');
-      
-      return mockUser;
+      setToken(data.token);
+      setUser(data.user);
+      console.log('AuthProvider: Registration successful, user:', data.user.email);
+      return data.user;
     } catch (error) {
       console.error('AuthProvider: Registration failed:', error);
-      removeToken();
-      setUser(null);
-      throw error; // Re-throw to be handled by the component
+      await logout();
+      throw error;
     }
   };
 

@@ -1,19 +1,24 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Alert, 
+  ScrollView, 
+  KeyboardAvoidingView, 
+  Platform, 
+  TouchableWithoutFeedback, 
+  Keyboard 
 } from "react-native";
-import auth from "@react-native-firebase/auth"; 
-import axios from "axios"; 
+import { useNavigation } from "@react-navigation/native";
+import { auth } from "../config/firebase";
+import { signInWithCredential, PhoneAuthProvider } from "firebase/auth";
+import axios from "axios";
+import { buildApiUrl } from '../utils/urlUtils';
+import { ENDPOINTS } from '../config/apiEndpoints';
+import { logError, logInfo } from '../utils/logger'; 
 import { styles } from "../styles/RegisterScreenStyles"; 
 
 const OtpVerificationScreen = ({ route, navigation }) => {
@@ -22,7 +27,12 @@ const OtpVerificationScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(false);
 
   const handleVerifyOtp = async () => {
+    console.log('[OTP Verification] Starting OTP verification process');
+    console.log('[OTP Verification] Verification ID:', verificationId);
+    console.log('[OTP Verification] OTP entered:', otp);
+    
     if (!otp) {
+      console.error('[OTP Verification] Error: OTP is empty');
       alert("Please enter the OTP.");
       return;
     }
@@ -30,18 +40,40 @@ const OtpVerificationScreen = ({ route, navigation }) => {
     setLoading(true);
   
     try {
+      console.log('[OTP Verification] Creating credential with verification ID and OTP');
       const credential = auth.PhoneAuthProvider.credential(verificationId, otp);
+      console.log('[OTP Verification] Credential created, signing in...');
+      
       const userCredential = await auth().signInWithCredential(credential);
+      console.log('[OTP Verification] Firebase sign-in successful, UID:', userCredential.user?.uid);
   
       if (userCredential.user) {
         // Get the Firebase UID after successful OTP verification
         const firebaseUid = userCredential.user.uid;
   
-        // Send user data along with firebase_uid to backend after OTP verification
-        const response = await axios.post("http://192.168.1.121:5000/api/auth/verify-otp", {
+        // Prepare API request data
+        const requestData = {
           firebase_uid: firebaseUid,
           otp,
-          phone, // Send phone to link the user
+          phone,
+        };
+        
+        logInfo('Sending OTP verification', {
+          url: verificationUrl,
+          data: { ...requestData, otp: '***' } // Don't log actual OTP
+        });
+        
+        // Send verification request
+        const response = await axios.post(verificationUrl, requestData, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 15000, // 15 second timeout
+        });
+        
+        console.log('[OTP Verification] Backend response:', {
+          status: response.status,
+          data: response.data,
         });
   
         if (response.data.success) {
@@ -54,9 +86,43 @@ const OtpVerificationScreen = ({ route, navigation }) => {
         alert("OTP verification failed.");
       }
     } catch (error) {
-      console.error("OTP verification failed:", error);
-      alert("Failed to verify OTP.");
+      // Log the error with detailed information
+      logError('OTP Verification Error', {
+        error: error.message,
+        status: error.response?.status,
+        responseData: error.response?.data,
+        requestUrl: error.config?.url,
+        requestMethod: error.config?.method,
+        stack: error.stack,
+      });
+      
+      // Determine user-friendly error message
+      let errorMessage = 'Failed to verify OTP. Please try again.';
+      
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. Please check your internet connection and try again.';
+      } else if (error.response) {
+        // Server responded with an error status code
+        const { status, data } = error.response;
+        
+        if (status === 400) {
+          errorMessage = data?.message || 'Invalid request. Please check your OTP and try again.';
+        } else if (status === 401) {
+          errorMessage = 'Session expired. Please request a new OTP.';
+        } else if (status === 404) {
+          errorMessage = 'Verification endpoint not found. Please contact support.';
+        } else if (status >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+      } else if (error.request) {
+        // No response received
+        errorMessage = 'Unable to connect to the server. Please check your internet connection.';
+      }
+      
+      // Show error alert
+      Alert.alert('Verification Failed', errorMessage);
     } finally {
+      console.log('[OTP Verification] Verification process completed');
       setLoading(false);
     }
   };
