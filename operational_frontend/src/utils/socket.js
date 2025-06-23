@@ -1,6 +1,9 @@
 import io from 'socket.io-client';
 import { API_ROUTES } from '../config/network';
 
+// Defensive fallback for API_ROUTES.base
+const SOCKET_BASE_URL = (API_ROUTES && API_ROUTES.base) ? API_ROUTES.base : (typeof BASE_URL !== 'undefined' ? BASE_URL : 'http://localhost:5000/api');
+
 // Create a class to manage socket connections and events
 class SocketManager {
   constructor() {
@@ -13,8 +16,11 @@ class SocketManager {
     if (this.socket) {
       return this.socket;
     }
-
-    this.socket = io(API_ROUTES.base, {
+    if (!SOCKET_BASE_URL) {
+      console.error('Socket connection error: API_ROUTES.base is undefined. Please check your config/network.js and .env.');
+      return null;
+    }
+    this.socket = io(SOCKET_BASE_URL, {
       transports: ['websocket'],
       reconnection: true,
       reconnectionDelay: 1000,

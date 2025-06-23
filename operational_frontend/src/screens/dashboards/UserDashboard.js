@@ -1,406 +1,239 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  SafeAreaView, 
-  StatusBar,
-  ActivityIndicator,
-  PermissionsAndroid,
-  Platform,
-  Alert,
-  Linking,
-  Text,
-  TouchableOpacity
-} from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, SafeAreaView, StatusBar, Alert, ActivityIndicator, Animated, Dimensions } from 'react-native';
+import HeaderBar from '../../components/dashboard/HeaderBar';
+import MapCard from '../../components/dashboard/MapCard';
+import SOSButton from '../../components/dashboard/SOSButton';
+import SOSRoleModal from '../../components/dashboard/SOSRoleModal';
+import ResponderBottomSheet from '../../components/dashboard/ResponderBottomSheet';
+import FloatingChatButton from '../../components/dashboard/FloatingChatButton';
+import StatusBanner from '../../components/dashboard/StatusBanner';
+import socketManager from '../../utils/socket';
 import { useNavigation } from '@react-navigation/native';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import Geolocation from '@react-native-community/geolocation';
 import { useAuth } from '../../contexts/AuthContext';
-import useResponderLocations from '../../hooks/useResponderLocations';
-import { 
-  MapView, 
-  ResponderList, 
-  LocationPermission,
-  formatLocationData
-} from '../../components/map';
-import { socketManager } from '../../utils/socket';
+import Geolocation from '@react-native-community/geolocation';
 
-const INITIAL_REGION = {
-  latitude: 10.8505,
-  longitude: 76.2711,
-  latitudeDelta: 0.0922,
-  longitudeDelta: 0.0421,
-};
+const { height } = Dimensions.get('window');
+const SOS_ROLES = [
+  { key: 'police', label: 'Police', icon: 'local-police', color: '#1976D2' },
+  { key: 'ambulance', label: 'Ambulance', icon: 'local-hospital', color: '#43A047' },
+  { key: 'fire', label: 'Fire', icon: 'local-fire-department', color: '#E53935' },
+  { key: 'parent', label: 'Parent', icon: 'supervisor-account', color: '#FBC02D' },
+];
 
 const UserDashboard = () => {
   const { user } = useAuth();
-  const mapRef = useRef(null);
-  const mapViewRef = useRef(null);
-  const watchIdRef = useRef(null);
-  
-  const [userLocation, setUserLocation] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
-  const [mapRegion, setMapRegion] = useState(INITIAL_REGION);
-  
-  const {
-    responders = [],
-    loading: respondersLoading,
-    error: respondersError,
-    refresh: refreshResponders,
-  } = useResponderLocations(user?.token, !!user?.token);
-  
-  const formattedResponders = useMemo(() => {
-    if (!userLocation) return [];
-    return formatLocationData(responders, userLocation);
-  }, [responders, userLocation]);
-  
-  const handleRegionChange = useCallback((region) => {
-    setMapRegion(region);
-  }, []);
-  
   const navigation = useNavigation();
-  
-  const handleMarkerPress = useCallback((responder) => {
-    if (!responder) {
-      console.error('No responder data provided');
-      return;
-    }
-    
-    console.log('Responder data:', JSON.stringify({
-      id: responder.id,
-      name: responder.name,
-      role: responder.role,
-      latitude: responder.latitude,
-      longitude: responder.longitude
-    }, null, 2));
-    
-    // Show action sheet with options
-    Alert.alert(
-      responder.name || 'Responder',
-      `What would you like to do with ${responder.name || 'this responder'}?`,
-      [
-        {
-          text: 'View on Map',
-          onPress: () => {
-            if (mapViewRef.current && responder.latitude && responder.longitude) {
-              mapViewRef.current.animateToRegion({
-                latitude: responder.latitude,
-                longitude: responder.longitude,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-              });
-            } else {
-              Alert.alert('Error', 'Could not view responder on map: Missing location data');
-            }
-          }
-        },
-        {
-          text: 'Start Chat',
-          onPress: () => {
-            if (!responder.id) {
-              Alert.alert('Error', 'Cannot start chat: Missing responder ID');
-              return;
-            }
-            
-            console.log('Navigating to chat with responder:', {
-              id: responder.id,
-              name: responder.name || 'Responder',
-              role: responder.role || 'responder'
-            });
-            
-            navigation.navigate('Chat', { 
-              responder: {
-                id: String(responder.id), // Ensure ID is a string
-                name: responder.name || 'Responder',
-                role: responder.role || 'responder'
-              } 
-            });
-          }
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ]
-    );
-  }, [navigation]);
-  
-  const handleMapReady = useCallback(() => {
-    if (userLocation && mapViewRef.current) {
-      mapViewRef.current.animateToRegion({
-        ...userLocation,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
-    }
-  }, [userLocation]);
-  
-  const requestLocationPermission = useCallback(async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Location Permission',
-            message: 'This app needs access to your location to show nearby responders.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-        
-        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          return true;
-        } else {
-          setShowPermissionDialog(true);
-          return false;
-        }
-      } catch (err) {
-        console.warn('Error requesting location permission:', err);
-        return false;
-      }
-    }
-    return true;
-  }, []);
-  
-  const startWatchingLocation = useCallback(async () => {
-    if (!isMounted) return;
-    
-    try {
-      const hasPermission = await requestLocationPermission();
-      if (!hasPermission) return;
-      
-      if (watchIdRef.current !== null) {
-        Geolocation.clearWatch(watchIdRef.current);
-      }
-      
-      const position = await new Promise((resolve, reject) => {
-        Geolocation.getCurrentPosition(
-          resolve,
-          reject,
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      });
-      
-      if (position?.coords) {
-        const { latitude, longitude, accuracy } = position.coords;
-        const location = { latitude, longitude, accuracy };
-        
-        setUserLocation(location);
+  const [userLocation, setUserLocation] = useState(null);
+  const [responders, setResponders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sosRole, setSosRole] = useState('police');
+  const [showSosModal, setShowSosModal] = useState(false);
+  const [sendingSOS, setSendingSOS] = useState(false);
+  const [showBottomSheet, setShowBottomSheet] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [statusMsg, setStatusMsg] = useState('');
+  const [statusType, setStatusType] = useState('info');
+  const [activeRoleFilter, setActiveRoleFilter] = useState(null);
+  const bottomSheetAnim = useRef(new Animated.Value(0)).current;
+
+  // Get user location
+  const getLocation = () => {
+    setLoading(true);
+    setLocationError(null);
+    // First try: high accuracy, short timeout
+    Geolocation.getCurrentPosition(
+      pos => {
+        console.log('Location success:', pos);
+        setUserLocation({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
         setLoading(false);
-        
-        if (mapRef.current) {
-          mapRef.current.animateToRegion({
-            ...location,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          });
-        }
-      }
-      
-      watchIdRef.current = Geolocation.watchPosition(
-        (position) => {
-          if (position?.coords) {
-            const { latitude, longitude, accuracy } = position.coords;
-            setUserLocation({ latitude, longitude, accuracy });
-          }
-        },
-        (error) => {
-          console.error('Error watching position:', error);
-          setError('Error getting your location');
+      },
+      err => {
+        console.log('Location error (first try):', err);
+        if (err.code === 3) { // TIMEOUT
+          // Retry with lower accuracy and longer timeout
+          Geolocation.getCurrentPosition(
+            pos2 => {
+              console.log('Location success (retry):', pos2);
+              setUserLocation({
+                latitude: pos2.coords.latitude,
+                longitude: pos2.coords.longitude,
+              });
+              setLoading(false);
+            },
+            err2 => {
+              console.log('Location error (retry):', err2);
+              // Try getLastKnownPosition if available
+              if (Geolocation.getLastKnownPosition) {
+                Geolocation.getLastKnownPosition(
+                  pos3 => {
+                    if (pos3) {
+                      console.log('Last known location:', pos3);
+                      setUserLocation({
+                        latitude: pos3.coords.latitude,
+                        longitude: pos3.coords.longitude,
+                      });
+                      setLoading(false);
+                    } else {
+                      setLoading(false);
+                      setLocationError('Unable to get your location. Please move to an open area or check your device settings.');
+                    }
+                  },
+                  err3 => {
+                    setLoading(false);
+                    setLocationError('Unable to get your location. Please move to an open area or check your device settings.');
+                  }
+                );
+              } else {
+                setLoading(false);
+                setLocationError('Unable to get your location. Please move to an open area or check your device settings.');
+              }
+            },
+            { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 }
+          );
+        } else {
           setLoading(false);
-        },
-        {
-          enableHighAccuracy: true,
-          distanceFilter: 10,
-          interval: 10000,
-          fastestInterval: 5000,
+          setLocationError(err?.message || 'Unable to get your location. Please ensure location is enabled and try again.');
         }
-      );
-      
-    } catch (error) {
-      console.error('Error getting location:', error);
-      setError('Unable to get your location');
-      setLoading(false);
-    }
-  }, [requestLocationPermission]);
-  
-  const [isMounted, setIsMounted] = useState(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
+    );
+  };
 
+  // Get user location
   useEffect(() => {
-    setIsMounted(true);
-    
-    return () => {
-      setIsMounted(false);
-      if (watchIdRef.current !== null) {
-        Geolocation.clearWatch(watchIdRef.current);
-      }
-    };
+    getLocation();
   }, []);
 
-  // Start watching location after component is mounted and we have a user token
+  // Connect to socket and get responders
   useEffect(() => {
-    if (isMounted && user?.token) {
-      startWatchingLocation();
-    }
-  }, [isMounted, user?.token, startWatchingLocation]);
-  
-  const handleRefresh = useCallback(async () => {
-    console.log('Refreshing data...');
+    if (!user) return;
+    const socket = socketManager.connect(user.token);
+    socketManager.emit('user_location_update', {
+      userId: user.id,
+      role: 'user',
+      latitude: userLocation?.latitude,
+      longitude: userLocation?.longitude,
+      timestamp: new Date().toISOString(),
+    });
+    socket.on('responder_location_update', setResponders);
+    return () => { socket.disconnect(); };
+  }, [user, userLocation]);
+
+  // SOS send
+  const handleSendSOS = async (roleKey) => {
+    if (!userLocation || !roleKey) return;
+    setSendingSOS(true);
     try {
-      setError(null);
-      setLoading(true);
-      await refreshResponders();
-      await startWatchingLocation();
+      socketManager.emit('user_sos', {
+        userId: user.id,
+        role: roleKey,
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        timestamp: new Date().toISOString(),
+      });
+      setStatusMsg(`SOS sent to ${roleKey.charAt(0).toUpperCase() + roleKey.slice(1)}!`);
+      setStatusType('success');
+      setShowSosModal(false);
     } catch (err) {
-      console.error('Error refreshing data:', err);
-      setError('Failed to refresh data. Please try again.');
+      setStatusMsg('Failed to send SOS. Please try again.');
+      setStatusType('error');
     } finally {
-      setLoading(false);
+      setSendingSOS(false);
     }
-  }, [refreshResponders, startWatchingLocation]);
+  };
 
-  if (loading || respondersLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text style={styles.loadingText}>Loading map and responders...</Text>
-        <Text 
-          style={styles.retryText}
-          onPress={handleRefresh}
-        >
-          Taking too long? Tap to retry
-        </Text>
-      </View>
-    );
-  }
+  // Map recenter
+  const handleRecenter = () => getLocation();
 
-  if (error) {
+  // Chat actions
+  const handleChat = (responder) => navigation.navigate('Chat', { responder });
+  const handleCall = (responder) => Alert.alert('Call', `Calling ${responder.name || responder.role}...`);
+
+  // Filtered responders by role
+  const filteredResponders = activeRoleFilter
+    ? responders.filter(r => r.role === activeRoleFilter)
+    : responders;
+
+  // Handler for role button press
+  const handleRoleFilter = (roleKey) => {
+    setActiveRoleFilter(roleKey === activeRoleFilter ? null : roleKey);
+  };
+
+  if (loading || !userLocation) {
     return (
-      <View style={styles.errorContainer}>
-        <MaterialIcons name="error-outline" size={48} color="#FF6B6B" style={styles.errorIcon} />
-        <Text style={styles.errorText}>{error}</Text>
-        <Text 
-          style={styles.retryText}
-          onPress={handleRefresh}
-        >
-          Tap to retry
-        </Text>
-        {!userLocation && (
-          <TouchableOpacity 
-            style={styles.settingsButton}
-            onPress={() => {
-              setShowPermissionDialog(true);
-              setError(null);
-            }}
-          >
-            <Text style={styles.settingsButtonText}>Open Location Settings</Text>
-          </TouchableOpacity>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff', padding: 20 }}>
+        <ActivityIndicator size="large" color="#1976D2" />
+        <Text style={{ marginTop: 20, fontSize: 16, color: '#333', textAlign: 'center' }}>Getting your location...</Text>
+        {locationError && (
+          <>
+            <Text style={{ color: 'red', marginTop: 10 }}>{locationError}</Text>
+            <View style={{ marginTop: 16, backgroundColor: '#1976D2', padding: 10, borderRadius: 8 }}>
+              <Text style={{ color: '#fff', fontWeight: 'bold' }} onPress={getLocation}>Retry</Text>
+            </View>
+          </>
         )}
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafd' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
-      <View style={styles.mapContainer}>
-        <MapView
-          ref={mapViewRef}
-          region={mapRegion}
-          onRegionChangeComplete={handleRegionChange}
-          userLocation={userLocation}
-          responders={formattedResponders}
-          onMarkerPress={handleMarkerPress}
-          onMapReady={handleMapReady}
-        />
-        
-        <View style={styles.responderListContainer}>
-          <ResponderList 
-            responders={formattedResponders} 
-            onResponderPress={handleMarkerPress}
-          />
+      <HeaderBar user={user} onSettings={() => navigation.navigate('Profile')} />
+      <StatusBanner message={statusMsg} type={statusType} />
+      <View style={{ flex: 1, paddingHorizontal: 0, paddingTop: 0 }}>
+        <View style={{ flex: 0.62, justifyContent: 'center', alignItems: 'center', marginTop: 8 }}>
+          <View style={{ width: '94%', height: '100%', borderRadius: 24, overflow: 'hidden', elevation: 6, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } }}>
+            <MapCard userLocation={userLocation} responders={filteredResponders} onRecenter={handleRecenter} />
+            {/* Short SOS FAB at bottom right of map */}
+            <View style={{ position: 'absolute', bottom: 18, right: 18, zIndex: 20 }}>
+              <SOSButton onPress={() => setShowSosModal(true)} small />
+            </View>
+          </View>
         </View>
-      </View>
-      
-      {showPermissionDialog && (
-        <LocationPermission 
-          onRequestPermission={requestLocationPermission}
-          onDismiss={() => setShowPermissionDialog(false)}
+        {/* Responder Role Buttons */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginVertical: 12, marginHorizontal: 8 }}>
+          {SOS_ROLES.map(role => (
+            <View key={role.key} style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ borderRadius: 24, overflow: 'hidden', backgroundColor: activeRoleFilter === role.key ? role.color : '#f0f0f0', elevation: activeRoleFilter === role.key ? 4 : 0 }}>
+                <Text
+                  onPress={() => handleRoleFilter(role.key)}
+                  style={{ paddingVertical: 10, paddingHorizontal: 0, color: activeRoleFilter === role.key ? '#fff' : '#333', fontWeight: 'bold', fontSize: 15, textAlign: 'center', minWidth: 60 }}
+                >
+                  {role.label}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+        {/* Bottom Sheet Handle (always visible) */}
+        <View style={{ alignItems: 'center', marginTop: 8 }}>
+          <View style={{ width: 48, height: 6, borderRadius: 3, backgroundColor: '#ccc', marginBottom: 4 }} />
+        </View>
+        <ResponderBottomSheet
+          responders={filteredResponders}
+          onChat={handleChat}
+          onCall={handleCall}
+          onClose={() => setShowBottomSheet(false)}
+          visible={showBottomSheet}
         />
-      )}
+      </View>
+      <FloatingChatButton
+        onPress={() => filteredResponders.length > 0 ? handleChat(filteredResponders[0]) : Alert.alert('No responders', 'No responders are currently available to chat.')}
+        unreadCount={0}
+      />
+      <SOSRoleModal
+        visible={showSosModal}
+        onSelect={role => { setSosRole(role); handleSendSOS(role); }}
+        onCancel={() => setShowSosModal(false)}
+        sending={sendingSOS}
+        selectedRole={sosRole}
+      />
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  mapContainer: {
-    flex: 1,
-  },
-  responderListContainer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 16,
-    right: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 20,
-    marginBottom: 10,
-    fontSize: 16,
-    color: '#333',
-    textAlign: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
-  },
-  errorIcon: {
-    marginBottom: 16,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ff4444',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  retryText: {
-    color: '#2196F3',
-    fontSize: 16,
-    fontWeight: '500',
-    marginTop: 8,
-    padding: 8,
-  },
-  settingsButton: {
-    backgroundColor: '#2196F3',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 16,
-    width: '80%',
-    alignItems: 'center',
-  },
-  settingsButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
 
 export default UserDashboard;

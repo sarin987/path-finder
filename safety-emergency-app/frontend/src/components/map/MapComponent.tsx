@@ -128,10 +128,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
     const hasDimensions = container.offsetWidth > 0 && container.offsetHeight > 0;
     
     if (hasDimensions && !containerReady) {
-      console.log('Container ready with dimensions:', {
-        width: container.offsetWidth,
-        height: container.offsetHeight
-      });
       setContainerReady(true);
       return true;
     }
@@ -150,7 +146,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
   // Initialize map
   useEffect(() => {
     if (!containerReady || !mapContainerRef.current) {
-      console.log('Container not ready yet');
       return undefined;
     }
     
@@ -158,14 +153,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
     
     // Double check container has dimensions
     if (container.offsetWidth === 0 || container.offsetHeight === 0) {
-      console.log('Container has no dimensions, forcing check...');
       // Force a reflow and check again
       const checkAgain = () => {
         if (container.offsetWidth > 0 && container.offsetHeight > 0) {
-          console.log('Container now has dimensions, initializing map...');
           setContainerReady(true);
         } else {
-          console.log('Still no dimensions, waiting...');
           requestAnimationFrame(checkAgain);
         }
       };
@@ -173,25 +165,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
       return undefined;
     }
     
-    console.log('Map init effect running...');
-    console.log('Container dimensions:', {
-      width: container.offsetWidth,
-      height: container.offsetHeight,
-      clientWidth: container.clientWidth,
-      clientHeight: container.clientHeight,
-      scrollWidth: container.scrollWidth,
-      scrollHeight: container.scrollHeight
-    });
-    
     if (mapRef.current) {
-      console.log('Map already initialized, updating view...');
       mapRef.current.setView(center, zoom);
       return undefined;
     }
 
     try {
-      console.log('Creating map instance...');
-      
       // Create map instance
       const map = L.map(mapContainerRef.current, {
         center,
@@ -199,34 +178,25 @@ const MapComponent: React.FC<MapComponentProps> = ({
         zoomControl: false,
       });
       
-      console.log('Map instance created:', map);
-
       // Add tile layer
-      console.log('Adding tile layer...');
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map);
       
-      console.log('Tile layer added');
-
       // Set map reference
       mapRef.current = map;
-      console.log('Map ref set');
       
       // Force a reflow to ensure the map container has dimensions
       if (mapContainerRef.current) {
         const forceReflow = mapContainerRef.current.offsetHeight;
-        console.log('Forced reflow, container height:', forceReflow);
       }
       
       // Trigger a resize event to ensure Leaflet recalculates the map size
       setTimeout(() => {
         map.invalidateSize();
-        console.log('Map invalidated size');
       }, 0);
       
       setIsLoading(false);
-      console.log('Loading state set to false');
 
       // Cleanup function
       return () => {
@@ -244,11 +214,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
   // Update map view and markers when center, zoom, userLocation, or responderLocations changes
   useEffect(() => {
     if (!mapRef.current || !containerReady) {
-      console.log('Map not ready for update');
       return;
     }
 
-    console.log('Updating map view to:', center, zoom);
     // Update map view
     const map = mapRef.current;
     map.setView(center, zoom);
@@ -341,66 +309,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
     );
   }
 
-  const handleRef = useCallback((el: HTMLDivElement | null) => {
-    if (el) {
-      mapContainerRef.current = el;
-      console.log('Container ref set, checking dimensions...');
-      
-      // Force a reflow by accessing offsetHeight
-      el.offsetHeight; // This forces a reflow
-      
-      // Check immediately
-      if (el.offsetWidth > 0 && el.offsetHeight > 0) {
-        console.log('Container has dimensions, setting ready');
-        setContainerReady(true);
-        return;
-      }
-      
-      // If not ready, set up a more aggressive check
-      let rafId: number;
-      let timeoutId: NodeJS.Timeout;
-      
-      const checkDimensions = () => {
-        if (!el) return;
-        
-        if (el.offsetWidth > 0 && el.offsetHeight > 0) {
-          console.log('Container now has dimensions:', {
-            width: el.offsetWidth,
-            height: el.offsetHeight
-          });
-          setContainerReady(true);
-          return;
-        }
-        
-        // Continue checking on next frame
-        rafId = requestAnimationFrame(checkDimensions);
-        
-        // Force ready after a timeout as a fallback
-        timeoutId = setTimeout(() => {
-          if (document.body.contains(el)) {
-            console.log('Forcing container ready after timeout');
-            setContainerReady(true);
-          }
-        }, 2000);
-      };
-      
-      // Start checking
-      rafId = requestAnimationFrame(checkDimensions);
-      
-      return () => {
-        if (rafId) cancelAnimationFrame(rafId);
-        if (timeoutId) clearTimeout(timeoutId);
-      };
-    } else {
-      console.log('Container ref cleared');
-      mapContainerRef.current = null;
-      setContainerReady(false);
-    }
-  }, []);
-
   return (
     <Box 
-      ref={handleRef}
       sx={{
         position: 'relative',
         width: '100%',
@@ -424,6 +334,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
         }
       }}
     >
+      {/* Map container for Leaflet */}
+      <div
+        ref={mapContainerRef}
+        style={{ width: '100%', height: '100%', minHeight: 400 }}
+        id="leaflet-map-container"
+      />
       {isLoading && (
         <Box sx={{ 
           position: 'absolute', 

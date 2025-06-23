@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { getValidIconName } from './validMaterialIcons';
 
 const EmergencyButton = ({ icon, label, color, onPress }) => (
   <TouchableOpacity
@@ -8,7 +9,7 @@ const EmergencyButton = ({ icon, label, color, onPress }) => (
     onPress={onPress}
     activeOpacity={0.8}
   >
-    <MaterialCommunityIcons name={icon} size={24} color="white" />
+    <MaterialCommunityIcons name={getValidIconName(icon)} size={24} color="white" />
     <Text style={styles.label}>{label}</Text>
   </TouchableOpacity>
 );

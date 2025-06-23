@@ -17,13 +17,13 @@ const config: AppConfig = {
   // API Configuration
   API_URL: process.env.REACT_APP_API_URL 
     ? `${process.env.REACT_APP_API_URL}${process.env.REACT_APP_API_URL.endsWith('/') ? '' : '/'}api`
-    : 'http://103.176.135.37/api',
+    : 'http://192.168.14.111/api',
     
   // Google Maps Configuration
   GOOGLE_MAPS_API_KEY: process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '',
   
   // WebSocket Configuration
-  WS_URL: process.env.REACT_APP_WS_URL || 'ws://103.176.135.37',
+  WS_URL: process.env.REACT_APP_WS_URL || 'ws://192.168.14.111',
   
   // Map Defaults
   MAP_DEFAULTS: {

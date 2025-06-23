@@ -23,6 +23,7 @@ const chatRoutes = require('./src/routes/chat.routes');
 // Import socket services
 const LocationSocketService = require('./src/services/locationSocketService');
 const SocketService = require('./src/services/socket.service');
+const registerChatHandlers = require('./socket');
 
 // Initialize Express app
 const app = express();
@@ -75,7 +76,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/chat', chatRoutes);
+app.use('/api/chat', require('./routes/chat'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -99,6 +100,9 @@ app.use((err, req, res, next) => {
 // Initialize socket.io services
 const socketService = new SocketService(httpServer);
 const io = socketService.getIO();
+
+// Register chat socket handlers
+registerChatHandlers(io);
 
 // Initialize location socket service with the same io instance
 const locationSocketService = new LocationSocketService(io);

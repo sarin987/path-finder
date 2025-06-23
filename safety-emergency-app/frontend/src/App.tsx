@@ -23,7 +23,7 @@ import ProfilePage from '@/pages/profile/ProfilePage';
 import EmergenciesPage from '@/pages/emergencies/EmergenciesPage';
 import EmergencyDetailsPage from '@/pages/emergencies/EmergencyDetailsPage';
 import CreateEmergencyPage from '@/pages/emergencies/CreateEmergencyPage';
-import MapPage from '@/pages/map/MapPage';
+import MapPage from '@/pages/map/MapViewPage';
 import ChatPage from '@/pages/chat/ChatPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 

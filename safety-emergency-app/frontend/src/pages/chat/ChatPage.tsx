@@ -37,6 +37,7 @@ const ChatPage: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [receiverId, setReceiverId] = useState<string | null>(null);
+  const [userList, setUserList] = useState<any[]>([]);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Check if mobile view
@@ -52,29 +53,28 @@ const ChatPage: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Mock user list (replace with actual user list from your API)
-  const users = [
-    { id: '1', name: 'User 1' },
-    { id: '2', name: 'User 2' },
-    { id: '3', name: 'User 3' },
-  ] as const;
+  // Fetch user list from API (production)
+  useEffect(() => {
+    fetch(`${config.API_URL}/responders`)
+      .then(res => res.json())
+      .then(data => setUserList(data.filter((u: any) => u.id !== user.id)))
+      .catch(() => setUserList([]));
+  }, [user.id]);
 
   // Initialize socket connection
   useEffect(() => {
-    // Socket connection
-    const socket = io(config.API_URL, {
-      query: { 
-        userId: user.id.toString(), 
-        role: 'responder' // This is the responder portal
+    const socket = io(config.WS_URL, {
+      query: {
+        userId: user.id.toString(),
+        role: user.role || 'responder',
       },
       transports: ['websocket']
     });
-
     socketRef.current = socket;
 
     // Set up event listeners
     socket.on('connect', () => {
-      console.log('Connected to chat server');
+      socket.emit('join', { userId: user.id, role: user.role });
     });
 
     socket.on('receive_message', (message: Message) => {
@@ -88,36 +88,33 @@ const ChatPage: React.FC = () => {
       ]);
     });
 
-    socket.on('user_typing', ({ from, isTyping }) => {
-      if (from !== user.id) {
-        // Handle typing indicator
-        console.log(`User ${from} is typing: ${isTyping}`);
-      }
+    socket.on('user_typing', () => {
+      // Optionally show typing indicator
     });
 
     // Clean up on unmount
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
-  }, [user?.id]);
+    return () => { socket.disconnect(); };
+  }, [user.id, user.role]);
 
   // Handle receiver selection
   const handleSelectReceiver = useCallback(async (userId: string | number) => {
-    const userIdStr = userId.toString();  // Ensure we're using string ID
-    setReceiverId(userIdStr);
+    setReceiverId(userId.toString());
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setMessages([]);
+      // Fetch chat history from backend
+      const res = await fetch(`${config.API_URL}/chat/history?conversationId=${[user.id, userId].sort().join('_')}`);
+      const history = await res.json();
+      setMessages(history.map((msg: any) => ({
+        ...msg,
+        isOwn: msg.sender_id === user.id,
+        senderName: msg.sender_role === 'user' ? 'User' : 'You'
+      })));
     } catch (error) {
-      console.error('Error loading chat history:', error);
+      setMessages([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user.id]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -130,7 +127,7 @@ const ChatPage: React.FC = () => {
     const messageData = {
       senderId: user.id,
       receiverId,
-      senderRole: 'responder' as const,
+      senderRole: user.role || 'responder',
       message: newMessage.trim()
     };
 
@@ -138,9 +135,9 @@ const ChatPage: React.FC = () => {
     const tempId = Date.now();
     const newMsg: Message = {
       id: tempId,
-      sender_id: user.id,  // This should be a number based on the Message interface
+      sender_id: user.id,
       receiver_id: receiverId,
-      sender_role: 'responder',
+      sender_role: (user.role === 'user' ? 'user' : 'responder'),
       message: newMessage.trim(),
       timestamp: new Date().toISOString(),
       is_read: false,
@@ -221,28 +218,19 @@ const ChatPage: React.FC = () => {
         bgcolor: 'background.default'
       }}>
         {!receiverId ? (
-          <Box sx={{ 
-            flex: 1, 
-            overflowY: 'auto',
-            p: 2
-          }}>
+          <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
             <Typography variant="h6" color="text.secondary" align="center" sx={{ mt: 4 }}>
               Select a user to start chatting
             </Typography>
             <List>
-              {users.map((user) => (
+              {userList.map((u) => (
                 <ListItem 
-                  key={user.id} 
+                  key={u.id} 
                   button 
-                  onClick={() => handleSelectReceiver(user.id)}
-                  sx={{
-                    '&:hover': { bgcolor: 'action.hover' },
-                    borderBottom: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1
-                  }}
+                  onClick={() => handleSelectReceiver(u.id)}
+                  sx={{ '&:hover': { bgcolor: 'action.hover' }, borderBottom: '1px solid', borderColor: 'divider', borderRadius: 1 }}
                 >
-                  <Typography>{user.name}</Typography>
+                  <Typography>{u.name || u.email || u.id}</Typography>
                 </ListItem>
               ))}
             </List>

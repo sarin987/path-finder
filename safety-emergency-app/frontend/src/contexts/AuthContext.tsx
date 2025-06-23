@@ -58,7 +58,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const verifyAuth = async () => {
       try {
         const currentToken = getToken();
-        
         if (!currentToken) {
           if (isMounted) {
             setIsAuthenticated(false);
@@ -67,20 +66,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           return;
         }
-
         if (isMounted) {
           setIsLoading(true);
           setError(null);
         }
-        
-        // Set the token in the API service
         setAuthToken(currentToken);
-        
         try {
           // Verify the token with the backend
           const response = await api.get('/auth/me');
-          
-          if (isMounted && response) {
+          if (isMounted && response && response.data && response.data.id) {
             const userData = response.data;
             setUser({
               id: userData.id || 'temp-id',
@@ -92,24 +86,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
             setToken(currentToken);
             setIsAuthenticated(true);
+          } else if (isMounted) {
+            // If no user data or id, try offline mode before logging out
+            const userData = getUserFromToken();
+            if (userData && userData.id) {
+              setUser({
+                id: userData.id,
+                name: 'User',
+                email: `${userData.id}@user.com`,
+                role: userData.role || 'user',
+                phoneNumber: ''
+              });
+              setIsAuthenticated(true);
+              setIsLoading(false);
+              return;
+            }
+            setIsAuthenticated(false);
+            setUser(null);
+            setIsLoading(false);
+            return;
           }
         } catch (error: any) {
           // If connection failed but we have a valid token, use offline mode
-          if (error.message.includes('connect') || error.message.includes('timeout')) {
+          if (error.message && (error.message.includes('connect') || error.message.includes('timeout'))) {
             console.warn('Running in offline mode:', error.message);
             const tokenData = getToken();
             if (tokenData) {
               try {
                 const userData = getUserFromToken() as TokenPayload;
-                if (userData) {
+                if (userData && userData.id) {
                   setUser({
                     id: userData.id,
-                    name: userData.name || 'User',
-                    email: userData.email || `${userData.id}@user.com`,
+                    name: 'User',
+                    email: `${userData.id}@user.com`,
                     role: userData.role || 'user',
-                    phoneNumber: userData.phoneNumber || ''
+                    phoneNumber: ''
                   });
                   setIsAuthenticated(true);
+                  setIsLoading(false);
                   return;
                 }
               } catch (e) {
@@ -123,22 +137,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Auth verification error:', error);
         if (isMounted) {
-          // Don't clear auth state immediately, keep the user logged in
-          // and try to refresh the token if possible
+          // Try offline mode before logging out
           try {
             const currentToken = getToken();
             if (currentToken && !isTokenExpired(currentToken)) {
-              // If token is still valid, just update the user state
               const userData = getUserFromToken();
-              if (userData) {
+              if (userData && userData.id) {
                 setUser({
                   id: userData.id,
                   name: 'User',
-                  email: '',
-                  role: userData.role,
+                  email: `${userData.id}@user.com`,
+                  role: userData.role || 'user',
                   phoneNumber: ''
                 });
                 setIsAuthenticated(true);
+                setIsLoading(false);
                 return;
               }
             }

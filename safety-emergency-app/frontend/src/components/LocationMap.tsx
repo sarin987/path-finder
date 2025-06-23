@@ -189,6 +189,7 @@ interface LocationMapProps {
   className?: string;
   style?: React.CSSProperties;
   onLocationClick?: (location: Location) => void;
+  userLocation?: { lat: number; lng: number } | null;
 }
 
 const MOCK_RESPONDERS: Location[] = [
@@ -254,7 +255,8 @@ const LocationMap: React.FC<LocationMapProps> = ({
   role,
   className = '',
   style = { height: '500px', width: '100%' },
-  onLocationClick = () => {}
+  onLocationClick = () => {},
+  userLocation
 }): ReactElement => {
   const containerRef = useRef<HTMLDivElement>(null);
   // State for map instance and mock data
@@ -491,6 +493,34 @@ const LocationMap: React.FC<LocationMapProps> = ({
     };
   }, [mockLocations, mapInstance]);
   
+  // Add marker for responder's current location
+  useEffect(() => {
+    if (!mapInstance || !userLocation) return;
+    // Create marker
+    const marker = L.marker([userLocation.lat, userLocation.lng], {
+      title: 'Your Location',
+      alt: 'Your Location',
+      riseOnHover: true,
+      icon: L.icon({
+        iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+        iconSize: [30, 45],
+        iconAnchor: [15, 45],
+        popupAnchor: [0, -40],
+        shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+        shadowSize: [41, 41],
+      })
+    }).addTo(mapInstance);
+    marker.bindPopup('<b>Your Location</b>');
+    // Optionally center map on user location
+    mapInstance.setView([userLocation.lat, userLocation.lng], mapInstance.getZoom());
+    // Cleanup
+    return () => {
+      if (mapInstance.hasLayer(marker)) {
+        mapInstance.removeLayer(marker);
+      }
+    };
+  }, [mapInstance, userLocation]);
+
   // Cleanup function
   useEffect(() => {
     // Set mounted ref to false when component unmounts
