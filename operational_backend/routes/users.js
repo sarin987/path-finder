@@ -90,6 +90,24 @@ router.post('/profile-photo', auth, upload.single('profile_photo'), async (req, 
   }
 });
 
+// Update profile photo by URL (Firebase)
+router.post('/profile-photo-url', auth, async (req, res) => {
+  try {
+    const { avatarUrl } = req.body;
+    if (!avatarUrl) {
+      return res.status(400).json({ success: false, message: 'No avatar URL provided' });
+    }
+    await db.query(
+      'UPDATE users SET avatar = ? WHERE id = ?',
+      [avatarUrl, req.user.userId]
+    );
+    res.json({ success: true, avatar: avatarUrl });
+  } catch (error) {
+    console.error('Profile photo URL update error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update profile photo URL' });
+  }
+});
+
 // Update password
 router.put('/update-password', auth, async (req, res) => {
   try {
@@ -190,6 +208,85 @@ router.put('/update-phone', auth, async (req, res) => {
       message: 'Failed to update phone number',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+});
+
+// Update email
+router.put('/update-email', auth, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format',
+        field: 'email',
+        code: 'INVALID_EMAIL_FORMAT'
+      });
+    }
+    // Check if email is already in use
+    const [existingUsers] = await db.query(
+      'SELECT id FROM users WHERE email = ? AND id != ?',
+      [email, req.user.userId]
+    );
+    if (existingUsers.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already in use',
+        field: 'email',
+        code: 'EMAIL_ALREADY_IN_USE'
+      });
+    }
+    await db.query(
+      'UPDATE users SET email = ? WHERE id = ?',
+      [email, req.user.userId]
+    );
+    res.json({
+      success: true,
+      message: 'Email updated successfully'
+    });
+  } catch (error) {
+    console.error('Email update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update email',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Update settings (email, phone, password)
+router.put('/settings', auth, async (req, res) => {
+  try {
+    const { email, phone, password } = req.body;
+    const updates = [];
+    const params = [];
+    if (email) {
+      updates.push('email = ?');
+      params.push(email);
+    }
+    if (phone) {
+      updates.push('phone = ?');
+      params.push(phone);
+    }
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updates.push('password = ?');
+      params.push(hashedPassword);
+    }
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, message: 'No fields to update' });
+    }
+    params.push(req.user.userId);
+    await db.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+    // Return updated user
+    const [rows] = await db.query('SELECT id, name, email, phone FROM users WHERE id = ?', [req.user.userId]);
+    res.json({ success: true, user: rows[0] });
+  } catch (error) {
+    console.error('Settings update error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update settings' });
   }
 });
 

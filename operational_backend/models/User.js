@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const { sequelize } = require('../config/database');
 
-const User = sequelize.define('User', {
+const User = sequelize.define('user', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -53,6 +53,11 @@ const User = sequelize.define('User', {
     defaultValue: DataTypes.NOW,
     onUpdate: DataTypes.NOW
   },
+  avatar: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: "URL or path to the user's profile picture/avatar"
+  },
 }, {
   // Model options
   timestamps: true, // Enable timestamps
@@ -63,8 +68,8 @@ const User = sequelize.define('User', {
   updatedAt: 'updatedAt',
   // Ensure these column names are used in queries
   name: {
-    singular: 'User',
-    plural: 'Users'
+    singular: 'user',
+    plural: 'users'
   },
   hooks: {
     beforeCreate: async (user) => {

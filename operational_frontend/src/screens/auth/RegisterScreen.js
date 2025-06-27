@@ -34,6 +34,12 @@ const GENDER_OPTIONS = [
   { label: 'Other', value: 'other' }
 ];
 
+// Email validation function
+const validateEmail = (email) => {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(String(email).toLowerCase());
+};
+
 const RegisterScreen = ({ navigation }) => {
   const [phone, setPhone] = useState('+91');
   const [name, setName] = useState('');
@@ -46,6 +52,7 @@ const RegisterScreen = ({ navigation }) => {
   const [isFocus, setIsFocus] = useState(false);
   const [showOtpField, setShowOtpField] = useState(false);
   const [formData, setFormData] = useState(null);
+  const [email, setEmail] = useState('');
   
   // Check if all required fields are filled
   const isFormValid = React.useMemo(() => {
@@ -55,9 +62,9 @@ const RegisterScreen = ({ navigation }) => {
     const isPasswordValid = password?.length >= 6;
     const doPasswordsMatch = password === confirmPassword;
     const isGenderValid = gender !== '';
-    
-    return isNameValid && isPhoneValid && isPasswordValid && doPasswordsMatch && isGenderValid;
-  }, [name, phone, password, confirmPassword, gender]);
+    const isEmailValid = validateEmail(email);
+    return isNameValid && isPhoneValid && isPasswordValid && doPasswordsMatch && isGenderValid && isEmailValid;
+  }, [name, phone, password, confirmPassword, gender, email]);
   
   // Debug log - remove in production
   if (__DEV__) {
@@ -69,12 +76,6 @@ const RegisterScreen = ({ navigation }) => {
       gender: gender !== ''
     });
   }
-
-  // Email validation function
-  const validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(String(email).toLowerCase());
-  };
 
   useEffect(() => {
     // Add any necessary initialization logic here
@@ -111,6 +112,11 @@ const RegisterScreen = ({ navigation }) => {
       return;
     }
 
+    if (!email || !validateEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
     try {
       setIsLoading(true);
       logInfo('Sending OTP to', { phone });
@@ -123,7 +129,8 @@ const RegisterScreen = ({ navigation }) => {
         name,
         phone: formattedPhone,
         password,
-        gender
+        gender,
+        email
       });
       
       // Send OTP to the provided phone number
@@ -238,7 +245,8 @@ const RegisterScreen = ({ navigation }) => {
       const userData = {
         ...formData,
         firebase_uid: firebaseUid,
-        role: 'user'
+        role: 'user',
+        email
       };
 
       logInfo('Attempting registration with backend', { 
@@ -494,6 +502,23 @@ const RegisterScreen = ({ navigation }) => {
                   placeholderTextColor={colors.gray[200]}
                   value={name}
                   onChangeText={setName}
+                />
+              </View>
+
+              <View style={authStyles.inputContainer}>
+                <MaterialCommunityIcons 
+                  name="email" 
+                  size={20} 
+                  color={colors.primary}
+                  style={authStyles.inputIcon} 
+                />
+                <TextInput
+                  style={authStyles.input}
+                  placeholder="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
                 />
               </View>
 

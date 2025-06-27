@@ -78,6 +78,15 @@ module.exports = (sequelize) => {
         field: 'is_active',
         defaultValue: true,
         comment: 'Whether the user account is active'
+      },
+      email: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+        validate: {
+          isEmail: true
+        },
+        comment: 'User\'s email address (must be unique and required)'
       }
     },
     {

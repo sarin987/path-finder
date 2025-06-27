@@ -38,7 +38,7 @@ const cleanPhoneNumber = (phone) => {
 export const register = async (req, res) => {
   try {
     const { role } = req.params;
-    const { name, phone, password } = req.body;
+    const { name, phone, password, gender, email } = req.body;
 
     // Validate role
     if (!validRoles.includes(role)) {
@@ -60,19 +60,19 @@ export const register = async (req, res) => {
       });
     }
 
-    // Check if phone already exists in any role table
+    // Check if phone or email already exists in any role table
     const userExists = await Promise.any(
       Object.values(roleToModel).map(Model => 
-        Model.findOne({ where: { phone: cleanPhone } })
+        Model.findOne({ where: { [Op.or]: [{ phone: cleanPhone }, { email }] } })
       )
     );
 
     if (userExists) {
       return res.status(400).json({ 
         success: false,
-        message: 'Phone number already registered',
-        field: 'phone',
-        code: 'PHONE_ALREADY_REGISTERED'
+        message: 'Phone number or email already registered',
+        field: userExists.phone === cleanPhone ? 'phone' : 'email',
+        code: userExists.phone === cleanPhone ? 'PHONE_ALREADY_REGISTERED' : 'EMAIL_ALREADY_REGISTERED'
       });
     }
 
@@ -83,7 +83,9 @@ export const register = async (req, res) => {
     const user = await UserModel.create({
       name: name.trim(),
       phone: cleanPhone,
-      password
+      password,
+      email,
+      gender
     });
 
     // Generate token
@@ -160,6 +162,7 @@ export const login = async (req, res) => {
 
     // Remove password from response
     const { password: _, ...userWithoutPassword } = userWithRole;
+    if (userWithoutPassword.password) delete userWithoutPassword.password;
 
     res.json({
       ...userWithoutPassword,

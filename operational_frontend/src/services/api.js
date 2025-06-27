@@ -1,6 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_ROUTES } from '../config/network';
+import { API_ROUTES } from '../config/index';
 
 const BACKEND_URL = API_ROUTES.base;
 

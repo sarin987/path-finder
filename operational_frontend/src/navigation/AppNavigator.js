@@ -5,9 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import SplashScreen from '../screens/auth/SplashScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
-import UserDashboard from '../screens/dashboards/UserDashboard';
-import Profile from '../screens/Profile/Profile';
-import ChatScreen from '../screens/ChatScreen';
+import DrawerNavigator from './DrawerNavigator';
+import ChangeProfilePic from '../screens/ChangeProfilePic';
 
 const Stack = createStackNavigator();
 
@@ -30,25 +29,10 @@ const AppNavigator = () => {
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
         ) : (
-          // Main App
+          // Main App with Drawer
           <>
-            <Stack.Screen 
-              name="Dashboard" 
-              component={UserDashboard}
-              options={{ 
-                gestureEnabled: false
-              }}
-            />
-            <Stack.Screen name="Profile" component={Profile} />
-            <Stack.Screen 
-              name="Chat" 
-              component={ChatScreen} 
-              options={{ 
-                headerShown: true,
-                title: 'Chat',
-                headerBackTitle: 'Back'
-              }}
-            />
+            <Stack.Screen name="Main" component={DrawerNavigator} />
+            <Stack.Screen name="ChangeProfilePic" component={ChangeProfilePic} />
           </>
         )}
       </Stack.Navigator>

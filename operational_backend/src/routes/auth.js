@@ -50,20 +50,32 @@ const authenticateToken = (req, res, next) => {
 router.post('/register', async (req, res) => {
   try {
     console.log('Registration attempt with data:', req.body);
-    const { name, phone, password, firebase_uid, role = 'user' } = req.body;
+    const { name, phone, password, firebase_uid, role = 'user', email } = req.body;
 
     // Validate required fields
-    if (!name || !phone || !password || !firebase_uid) {
+    if (!name || !phone || !password || !firebase_uid || !email) {
       const missingFields = [];
       if (!name) missingFields.push('name');
       if (!phone) missingFields.push('phone');
       if (!password) missingFields.push('password');
       if (!firebase_uid) missingFields.push('firebase_uid');
+      if (!email) missingFields.push('email');
 
       return res.status(400).json({
         success: false,
         message: `Missing required fields: ${missingFields.join(', ')}`,
         missingFields
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format',
+        field: 'email',
+        code: 'INVALID_EMAIL_FORMAT'
       });
     }
 
@@ -77,15 +89,16 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Check if phone or firebase_uid already exists
+    // Check if phone, email, or firebase_uid already exists
     const existingUser = await User.findOne({
       where: {
         [Op.or]: [
           { phone: cleanPhone },
-          { firebase_uid }
+          { firebase_uid },
+          { email }
         ]
       },
-      attributes: ['id', 'phone', 'firebase_uid']
+      attributes: ['id', 'phone', 'firebase_uid', 'email']
     });
 
     if (existingUser) {
@@ -105,6 +118,14 @@ router.post('/register', async (req, res) => {
           code: 'DEVICE_ALREADY_REGISTERED'
         });
       }
+      if (existingUser.email === email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already registered',
+          field: 'email',
+          code: 'EMAIL_ALREADY_REGISTERED'
+        });
+      }
     }
     
     // Create user with cleaned phone number and trimmed inputs
@@ -112,7 +133,8 @@ router.post('/register', async (req, res) => {
       name: name.trim(),
       phone: cleanPhone,
       password: password,
-      firebase_uid: firebase_uid.trim()
+      firebase_uid: firebase_uid.trim(),
+      email: email.trim()
     };
     
     // Only add role if it's a valid role
@@ -136,6 +158,7 @@ router.post('/register', async (req, res) => {
           id: user.id,
           name: user.name,
           phone: user.phone,
+          email: user.email,
           role: user.role,
           token
         }
@@ -289,7 +312,7 @@ router.post('/login', async (req, res) => {
 router.post('/firebase', async (req, res) => {
   try {
     console.log('Firebase auth attempt:', req.body);
-    const { firebase_uid, name, phone } = req.body;
+    const { firebase_uid, name, phone, email } = req.body;
     
     if (!firebase_uid) {
       return res.status(400).json({ 
@@ -307,10 +330,11 @@ router.post('/firebase', async (req, res) => {
     
     if (!user) {
       // Validate required fields for new user
-      if (!name || !phone) {
+      if (!name || !phone || !email) {
         const missingFields = [];
         if (!name) missingFields.push('name');
         if (!phone) missingFields.push('phone');
+        if (!email) missingFields.push('email');
         
         return res.status(400).json({
           success: false,
@@ -330,14 +354,23 @@ router.post('/firebase', async (req, res) => {
         });
       }
       
-      // Check if phone number is already registered
-      const existingUser = await User.findOne({ where: { phone: cleanPhone } });
+      // Check if phone number or email is already registered
+      const existingUser = await User.findOne({ where: { [Op.or]: [{ phone: cleanPhone }, { email }] } });
       if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: 'Phone number already registered',
-          field: 'phone'
-        });
+        if (existingUser.phone === cleanPhone) {
+          return res.status(400).json({
+            success: false,
+            message: 'Phone number already registered',
+            field: 'phone'
+          });
+        }
+        if (existingUser.email === email) {
+          return res.status(400).json({
+            success: false,
+            message: 'Email already registered',
+            field: 'email'
+          });
+        }
       }
       
       // Create new user
@@ -346,7 +379,8 @@ router.post('/firebase', async (req, res) => {
         phone: cleanPhone,
         firebase_uid: firebase_uid.trim(),
         password: firebase_uid, // Will be hashed by the beforeCreate hook
-        role: 'user'
+        role: 'user',
+        email: email.trim()
       });
       
       console.log('New user created via Firebase auth:', user.id);
@@ -367,30 +401,19 @@ router.post('/firebase', async (req, res) => {
         id: user.id,
         name: user.name,
         phone: user.phone,
+        email: user.email,
         role: user.role,
         token
       }
     });
   } catch (error) {
-    console.error('Firebase auth error:', error);
-    res.status(500).json({ message: 'Error authenticating with Firebase', error: error.message });
+    console.error('Firebase authentication error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error during Firebase authentication',
+      error: error.message
+    });
   }
 });
-
-// Get current user
-router.get('/me', authenticateToken, async (req, res) => {
-  try {
-    // req.user is set by the authenticateToken middleware
-    if (!req.user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    // Return user data (password is already excluded by the middleware)
-    res.json(req.user);
-  } catch (error) {
-    console.error('Error fetching current user:', error);
-    res.status(500).json({ message: 'Error fetching user data' });
-  }
-});
-
+  
 module.exports = router;
