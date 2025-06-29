@@ -42,11 +42,6 @@ const SOSRequest = sequelize.define('SOSRequest', {
     type: DataTypes.ENUM('pending', 'in_progress', 'resolved', 'cancelled'),
     defaultValue: 'pending',
     allowNull: false
-  },
-  timestamp: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-    allowNull: false
   }
 }, {
   tableName: 'sos_requests',  // Explicitly set the table name

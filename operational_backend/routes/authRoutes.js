@@ -4,12 +4,7 @@ import jwt from 'jsonwebtoken';
 const router = express.Router();
 
 // Mock user for testing
-const mockUser = {
-  id: 1,
-  email: 'test@example.com',
-  password: 'password123', // In a real app, this would be hashed
-  role: 'admin',
-};
+
 
 // Login route
 router.post('/login', async (req, res) => {

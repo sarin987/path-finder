@@ -1,9 +1,5 @@
 const express = require('express');
-const dashboardController = require('../controllers/dashboardController');
-
+// Remove broken/legacy dashboardController import and route
 const router = express.Router();
-
-// Single route to handle all role-based dashboards
-router.get('/dashboard', dashboardController.getDashboard);
-
+// This file is deprecated. All dashboard logic is now in /routes/roleDashboards.js
 module.exports = router;

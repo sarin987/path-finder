@@ -18,6 +18,16 @@ import axios from "axios";
 import { BASE_URL, API_VERSION } from "../config";
 import { ENDPOINTS } from "../config/apiEndpoints";
 import { useAuth } from "../contexts/AuthContext";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const DEFAULT_REGION = {
+  latitude: 28.6139, // Example: New Delhi
+  longitude: 77.2090,
+  latitudeDelta: 0.01,
+  longitudeDelta: 0.01,
+};
+
+const LAST_LOCATION_KEY = 'last_known_location';
 
 const HomeScreen = () => {
   const [location, setLocation] = useState(null);
@@ -27,8 +37,21 @@ const HomeScreen = () => {
   const [modalText, setModalText] = useState("");
   const navigation = useNavigation();
   const trackingInterval = useRef(null);
+  const [region, setRegion] = useState(DEFAULT_REGION);
 
   useEffect(() => {
+    // Try to load last known location from AsyncStorage for instant map display
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(LAST_LOCATION_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.latitude && parsed.longitude) {
+            setRegion({ ...parsed, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+          }
+        }
+      } catch (e) { /* ignore */ }
+    })();
     requestLocationPermission();
     return () => {
       if (trackingInterval.current) clearInterval(trackingInterval.current);
@@ -66,13 +89,16 @@ const HomeScreen = () => {
           longitudeDelta: 0.01,
         };
         setLocation(newLocation);
+        setRegion(newLocation);
         setLoading(false);
+        // Save to AsyncStorage for next app launch
+        AsyncStorage.setItem(LAST_LOCATION_KEY, JSON.stringify(newLocation)).catch(() => {});
       },
       (error) => {
         Alert.alert("Location Error", "Unable to fetch location.");
         setLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      { enableHighAccuracy: true, timeout: 7000, maximumAge: 10000 }
     );
   };
 
@@ -125,16 +151,22 @@ const HomeScreen = () => {
         <Image source={require("../assets/hamburger.png")} style={styles.sidebarIcon} />
       </TouchableOpacity>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#0000ff" style={styles.loader} />
-      ) : location ? (
-        <MapView provider={PROVIDER_GOOGLE} style={styles.map} region={location} showsUserLocation={true}>
-          <Marker coordinate={location}>
+      {/* Always show the map instantly with region (default/cached/real) */}
+      <MapView
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        initialRegion={region}
+        region={region}
+        showsUserLocation={true}
+      >
+        {region && (
+          <Marker coordinate={region}>
             <Image source={require("../assets/location_pin.png")} style={styles.icon} />
           </Marker>
-        </MapView>
-      ) : (
-        <Text style={styles.fetchingText}>Fetching location...</Text>
+        )}
+      </MapView>
+      {loading && (
+        <ActivityIndicator size="large" color="#0000ff" style={styles.loader} />
       )}
 
       <View style={styles.buttonContainer}>

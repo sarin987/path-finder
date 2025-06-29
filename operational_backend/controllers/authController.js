@@ -1,21 +1,11 @@
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import models from '../models/index.js';
-import { Op } from 'sequelize';
-import { io } from '../server.js';
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { Op } = require('sequelize');
+const Admin = require('../models/Admin');
+const Responder = require('../models/Responder');
 
-// Role to model mapping
-const roleToModel = {
-  police: models.PoliceUser,
-  ambulance: models.AmbulanceUser,
-  fire: models.FireUser,
-  parent: models.ParentUser
-};
+const validRoles = ['admin', 'police', 'ambulance', 'fire'];
 
-// List of valid roles
-const validRoles = Object.keys(roleToModel);
-
-// Generate JWT Token
 const generateToken = (id, role) => {
   return jwt.sign(
     { id, role },
@@ -24,18 +14,19 @@ const generateToken = (id, role) => {
   );
 };
 
+const formatPhone = (phone) => {
+  // Always store/check as +91XXXXXXXXXX
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('91') && cleaned.length === 12) return `+${cleaned}`;
+  if (cleaned.length === 10) return `+91${cleaned}`;
+  if (cleaned.startsWith('+91') && cleaned.length === 13) return cleaned;
+  return `+91${cleaned}`;
+};
+
 // @desc    Register a new user with role
 // @route   POST /api/auth/register/:role
 // @access  Public
-// Helper function to clean phone number
-const cleanPhoneNumber = (phone) => {
-  if (!phone) return '';
-  // Remove all non-digit characters and ensure it starts with country code
-  const cleaned = phone.replace(/\D/g, '');
-  return cleaned.startsWith('91') && cleaned.length === 12 ? cleaned : `91${cleaned}`;
-};
-
-export const register = async (req, res) => {
+const register = async (req, res) => {
   try {
     const { role } = req.params;
     const { name, phone, password, gender, email } = req.body;
@@ -49,9 +40,9 @@ export const register = async (req, res) => {
       });
     }
 
-    // Clean and validate phone number
-    const cleanPhone = cleanPhoneNumber(phone);
-    if (cleanPhone.length < 10) {
+    // Format and validate phone number
+    const formattedPhone = formatPhone(phone);
+    if (formattedPhone.length < 10) {
       return res.status(400).json({
         success: false,
         message: 'Invalid phone number format',
@@ -60,46 +51,83 @@ export const register = async (req, res) => {
       });
     }
 
-    // Check if phone or email already exists in any role table
-    const userExists = await Promise.any(
-      Object.values(roleToModel).map(Model => 
-        Model.findOne({ where: { [Op.or]: [{ phone: cleanPhone }, { email }] } })
-      )
-    );
-
-    if (userExists) {
+    // Check if phone or email already exists in Admin or Responder
+    let adminExists = null;
+    let responderExists = null;
+    if (email) {
+      adminExists = await Admin.findOne({ where: { [Op.or]: [{ phone: formattedPhone }, { email }] } });
+      responderExists = await Responder.findOne({ where: { [Op.or]: [{ phone: formattedPhone }, { email }] } });
+    } else {
+      adminExists = await Admin.findOne({ where: { phone: formattedPhone } });
+      responderExists = await Responder.findOne({ where: { phone: formattedPhone } });
+    }
+    // Enforce: phone cannot exist in both tables
+    if (adminExists && responderExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number already registered as both admin and responder. Please contact support.',
+        code: 'PHONE_IN_BOTH_TABLES'
+      });
+    }
+    if (adminExists || responderExists) {
+      const userExists = adminExists || responderExists;
       return res.status(400).json({ 
         success: false,
         message: 'Phone number or email already registered',
-        field: userExists.phone === cleanPhone ? 'phone' : 'email',
-        code: userExists.phone === cleanPhone ? 'PHONE_ALREADY_REGISTERED' : 'EMAIL_ALREADY_REGISTERED'
+        field: userExists.phone === formattedPhone ? 'phone' : 'email',
+        code: userExists.phone === formattedPhone ? 'PHONE_ALREADY_REGISTERED' : 'EMAIL_ALREADY_REGISTERED'
       });
     }
 
-    // Get the appropriate model based on role
-    const UserModel = roleToModel[role];
-    
-    // Create user in the specific role table
-    const user = await UserModel.create({
-      name: name.trim(),
-      phone: cleanPhone,
-      password,
-      email,
-      gender
-    });
-
-    // Generate token
-    const token = generateToken(user.id, role);
-
-    // Remove password from response
-    const userResponse = user.get({ plain: true });
-    delete userResponse.password;
-
-    res.status(201).json({
-      ...userResponse,
-      role,
-      token
-    });
+    let user;
+    // Handle registration for Admin and Responder roles
+    if (role === 'admin') {
+      // Check if admin exists
+      const adminExists = await Admin.findOne({ where: { phone: formattedPhone } });
+      if (adminExists) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Admin already exists',
+          code: 'ADMIN_ALREADY_EXISTS'
+        });
+      }
+      // Create new admin
+      user = await Admin.create({ name, phone: formattedPhone, password });
+      const token = generateToken(user.id, 'admin');
+      return res.status(201).json({
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          phone: user.phone,
+          role: 'admin'
+        }
+      });
+    } else if (['police', 'ambulance', 'fire'].includes(role)) {
+      // Check if responder exists
+      const responderExists = await Responder.findOne({ where: { phone: formattedPhone } });
+      if (responderExists) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Responder already exists',
+          code: 'RESPONDER_ALREADY_EXISTS'
+        });
+      }
+      // Create new responder
+      user = await Responder.create({ name, phone: formattedPhone, password, role });
+      const token = generateToken(user.id, role);
+      return res.status(201).json({
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          phone: user.phone,
+          role: user.role
+        }
+      });
+    } else {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ message: 'Server error during registration' });
@@ -109,93 +137,113 @@ export const register = async (req, res) => {
 // @desc    Auth user & get token
 // @route   POST /api/auth/login
 // @access  Public
-export const login = async (req, res) => {
+const login = async (req, res) => {
   try {
-    const { phone, password } = req.body;
+    const { phone, password, role } = req.body;
+    const formattedPhone = formatPhone(phone);
 
-    if (!phone || !password) {
+    // Enforce: phone cannot exist in both tables
+    const adminExists = await Admin.findOne({ where: { phone: formattedPhone } });
+    const responderExists = await Responder.findOne({ where: { phone: formattedPhone } });
+    if (adminExists && responderExists) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide phone and password',
-        code: 'MISSING_CREDENTIALS'
+        message: 'Phone number registered as both admin and responder. Please contact support.',
+        code: 'PHONE_IN_BOTH_TABLES'
       });
     }
 
-    // Clean phone number
-    const cleanPhone = cleanPhoneNumber(phone);
-    if (cleanPhone.length < 10) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid phone number format',
-        field: 'phone',
-        code: 'INVALID_PHONE_FORMAT'
-      });
+    // If role is specified, use it to determine which table to check first
+    let user = null;
+    if (role === 'admin') {
+      user = adminExists;
+      if (user && await bcrypt.compare(password, user.password)) {
+        console.log(`[LOGIN] User found in Admin table:`, user.id, user.name, user.phone);
+        const token = generateToken(user.id, 'admin');
+        return res.json({
+          token,
+          user: {
+            id: user.id,
+            name: user.name,
+            phone: user.phone,
+            role: 'admin'
+          }
+        });
+      }
+    } else if (['police', 'ambulance', 'fire'].includes(role)) {
+      user = responderExists;
+      if (user && await bcrypt.compare(password, user.password)) {
+        console.log(`[LOGIN] User found in Responder table:`, user.id, user.name, user.phone, user.role);
+        const token = generateToken(user.id, user.role);
+        return res.json({
+          token,
+          user: {
+            id: user.id,
+            name: user.name,
+            phone: user.phone,
+            role: user.role
+          }
+        });
+      }
+    } else {
+      // No role specified: try admin first, then responder
+      if (adminExists && await bcrypt.compare(password, adminExists.password)) {
+        console.log(`[LOGIN] User found in Admin table:`, adminExists.id, adminExists.name, adminExists.phone);
+        const token = generateToken(adminExists.id, 'admin');
+        return res.json({
+          token,
+          user: {
+            id: adminExists.id,
+            name: adminExists.name,
+            phone: adminExists.phone,
+            role: 'admin'
+          }
+        });
+      }
+      if (responderExists && await bcrypt.compare(password, responderExists.password)) {
+        console.log(`[LOGIN] User found in Responder table:`, responderExists.id, responderExists.name, responderExists.phone, responderExists.role);
+        const token = generateToken(responderExists.id, responderExists.role);
+        return res.json({
+          token,
+          user: {
+            id: responderExists.id,
+            name: responderExists.name,
+            phone: responderExists.phone,
+            role: responderExists.role
+          }
+        });
+      }
     }
-
-    // Search for user in all role tables by phone
-    const userResults = await Promise.all(
-      Object.entries(roleToModel).map(async ([role, Model]) => {
-        const user = await Model.scope('withPassword').findOne({ where: { phone: cleanPhone } });
-        return user ? { ...user.toJSON(), role } : null;
-      })
-    );
-
-    // Find the first non-null user (if any)
-    const userWithRole = userResults.find(user => user !== null);
-
-    if (!userWithRole) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Invalid phone number or password',
-        code: 'INVALID_CREDENTIALS'
-      });
-    }
-
-    // Verify password
-    const isMatch = await bcrypt.compare(password, userWithRole.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    // Generate token
-    const token = generateToken(userWithRole.id, userWithRole.role);
-
-    // Remove password from response
-    const { password: _, ...userWithoutPassword } = userWithRole;
-    if (userWithoutPassword.password) delete userWithoutPassword.password;
-
-    res.json({
-      ...userWithoutPassword,
-      token
+    console.log(`[LOGIN] No user found for phone:`, formattedPhone);
+    return res.status(401).json({ 
+      success: false,
+      message: 'Invalid phone number or password',
+      code: 'INVALID_CREDENTIALS'
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error during login' });
   }
 };
 
 // @desc    Get current user profile
 // @route   GET /api/auth/me
 // @access  Private
-export const getMe = async (req, res) => {
+const getMe = async (req, res) => {
   try {
     const { role, id } = req.user;
-    
-    // Get the appropriate model based on role
-    const UserModel = roleToModel[role];
-    
-    if (!UserModel) {
-      return res.status(400).json({ message: 'Invalid user role' });
+    let user;
+    if (role === 'admin') {
+      user = await Admin.findByPk(id);
+      console.log(`[GET_ME] Fetching admin:`, id, user ? user.name : null);
+    } else if (['police', 'ambulance', 'fire'].includes(role)) {
+      user = await Responder.findByPk(id);
+      console.log(`[GET_ME] Fetching responder:`, id, user ? user.name : null, user ? user.role : null);
     }
-
-    const user = await UserModel.findByPk(id);
-
     if (user) {
-      res.json({
-        ...user.toJSON(),
-        role
-      });
+      res.json({ ...user.toJSON(), role });
     } else {
+      console.log(`[GET_ME] User not found for id:`, id, 'role:', role);
       res.status(404).json({ message: 'User not found' });
     }
   } catch (error) {
@@ -207,19 +255,19 @@ export const getMe = async (req, res) => {
 // @desc    Update user profile
 // @route   PUT /api/auth/me
 // @access  Private
-export const updateProfile = async (req, res) => {
+const updateProfile = async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id);
-    
+    const { role, id } = req.user;
+    let user;
+    if (role === 'admin') {
+      user = await Admin.findByPk(id);
+    } else if (['police', 'ambulance', 'fire'].includes(role)) {
+      user = await Responder.findByPk(id);
+    }
     if (user) {
-      const { name, email, phone, location } = req.body;
-      
-      // Update fields if they exist in the request
+      const { name, phone } = req.body;
       if (name) user.name = name;
-      if (email) user.email = email;
       if (phone) user.phone = phone;
-      if (location) user.location = location;
-      
       await user.save();
       res.json(user);
     } else {
@@ -229,4 +277,11 @@ export const updateProfile = async (req, res) => {
     console.error('Update profile error:', error);
     res.status(500).json({ message: 'Server error' });
   }
+};
+
+module.exports = {
+  register,
+  login,
+  getMe,
+  updateProfile
 };

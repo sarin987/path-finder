@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const auth = require('../middleware/auth');
+const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 const db = require('../config/db');
 const bcrypt = require('bcrypt');
 
@@ -36,7 +36,7 @@ router.get('/profile/:userId', async (req, res) => {
     const { userId } = req.params;
     
     const [rows] = await db.query(
-      'SELECT id, name, phone, role, email, profile_photo, gender, user_verified FROM users WHERE id = ?',
+      'SELECT id, name, phone, role, email, avatar FROM users WHERE id = ?',
       [userId]
     );
 
@@ -48,9 +48,13 @@ router.get('/profile/:userId', async (req, res) => {
       });
     }
 
+    // Always return avatar for compatibility
+    const user = rows[0];
+    if (!user.avatar) user.avatar = null;
+
     res.json({
       success: true,
-      profile: rows[0]
+      profile: user
     });
 
   } catch (error) {
@@ -63,7 +67,7 @@ router.get('/profile/:userId', async (req, res) => {
 });
 
 // Update profile photo
-router.post('/profile-photo', auth, upload.single('profile_photo'), async (req, res) => {
+router.post('/profile-photo', authenticateToken, upload.single('profile_photo'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -91,16 +95,27 @@ router.post('/profile-photo', auth, upload.single('profile_photo'), async (req, 
 });
 
 // Update profile photo by URL (Firebase)
-router.post('/profile-photo-url', auth, async (req, res) => {
+// Debug log to verify route is hit
+router.post('/profile-photo-url', (req, res, next) => {
+  console.log('HIT /profile-photo-url', req.method, req.originalUrl);
+  console.log('Headers:', req.headers);
+  next();
+}, authenticateToken, async (req, res) => {
   try {
+    console.log('Decoded req.user:', req.user);
     const { avatarUrl } = req.body;
     if (!avatarUrl) {
       return res.status(400).json({ success: false, message: 'No avatar URL provided' });
     }
-    await db.query(
-      'UPDATE users SET avatar = ? WHERE id = ?',
-      [avatarUrl, req.user.userId]
-    );
+    // Use Sequelize User model to update avatar column for the authenticated user
+    const userId = req.user.id; // Always use req.user.id for Sequelize users
+    const { User } = require('../models');
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    user.avatar = avatarUrl;
+    await user.save();
     res.json({ success: true, avatar: avatarUrl });
   } catch (error) {
     console.error('Profile photo URL update error:', error);
@@ -109,7 +124,7 @@ router.post('/profile-photo-url', auth, async (req, res) => {
 });
 
 // Update password
-router.put('/update-password', auth, async (req, res) => {
+router.put('/update-password', authenticateToken, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
@@ -153,7 +168,7 @@ router.put('/update-password', auth, async (req, res) => {
 });
 
 // Update phone number
-router.put('/update-phone', auth, async (req, res) => {
+router.put('/update-phone', authenticateToken, async (req, res) => {
   try {
     const { phone } = req.body;
 
@@ -212,7 +227,7 @@ router.put('/update-phone', auth, async (req, res) => {
 });
 
 // Update email
-router.put('/update-email', auth, async (req, res) => {
+router.put('/update-email', authenticateToken, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
@@ -255,7 +270,7 @@ router.put('/update-email', auth, async (req, res) => {
 });
 
 // Update settings (email, phone, password)
-router.put('/settings', auth, async (req, res) => {
+router.put('/settings', authenticateToken, async (req, res) => {
   try {
     const { email, phone, password } = req.body;
     const updates = [];

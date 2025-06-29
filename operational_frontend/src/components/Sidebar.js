@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { 
   View, 
   Text, 
@@ -41,56 +41,27 @@ const sidebarMenuItems = [
   { key: 'reportIncident', icon: 'alert-circle', label: 'Report Incident' },
   { key: 'trustedContacts', icon: 'account-group', label: 'Trusted Contacts' },
   { key: 'healthMonitor', icon: 'heart-pulse', label: 'Health Monitor' },
-  { key: 'emergencyAlert', icon: 'bell-alert', label: 'Emergency Alert' },
   { key: 'nearbyIncidents', icon: 'map-marker', label: 'Nearby Incidents' },
   { key: 'safeRoute', icon: 'navigation', label: 'Safe Route' },
 ];
 
 const Sidebar = ({ sidebarAnimation, toggleSidebar, user, navigation, logout, onMenuSelect, selectedMenu }) => {
-  const { profile, loading } = useUserProfile();
   const sidebarWidth = 280;
-
-  if (loading) {
-    return (
-      <View style={[styles.loadingContainer, { width: sidebarWidth }]}>
-        <ActivityIndicator size="large" color="#1d4ed8" />
-      </View>
-    );
-  }
+  const animationValue = sidebarAnimation ?? new Animated.Value(0);
 
   return (
     <Animated.View 
       style={[
         styles.sidebar,
         { 
-          transform: [{ translateX: sidebarAnimation }],
+          transform: [{ translateX: animationValue }],
           width: sidebarWidth,
         }
       ]}
     >
       <View style={styles.header}>
-        <Logo size={40} />
-        <Text style={styles.appName}>Emergency Response</Text>
-      </View>
-      
-      <View style={styles.userInfoContainer}>
-        <View style={styles.avatarContainer}>
-          {profile?.profile_photo ? (
-            <Image 
-              source={{ uri: profile.profile_photo }} 
-              style={styles.avatar}
-            />
-          ) : (
-            <MaterialCommunityIcons 
-              name="account-circle" 
-              size={60} 
-              color="#4b5563" 
-            />
-          )}
-        </View>
-        <Text style={styles.userName} numberOfLines={1}>
-          {profile?.name || user?.name || 'User'}
-        </Text>
+        <Image source={require('../../assets/core_safety_logo.png')} style={styles.logo} />
+        <Text style={styles.appName}>Core Safety</Text>
       </View>
 
       <View style={styles.menuContainer}>
@@ -106,11 +77,6 @@ const Sidebar = ({ sidebarAnimation, toggleSidebar, user, navigation, logout, on
       </View>
 
       <View style={styles.footer}>
-        <MenuItem
-          icon="cog"
-          label="Settings"
-          onPress={() => navigation.navigate('Settings')}
-        />
         <MenuItem
           icon="logout"
           label="Logout"
@@ -128,83 +94,78 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: '#fff',
-    elevation: 5,
+    backgroundColor: '#f8fafc',
+    elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
     zIndex: 1000,
   },
   header: {
-    padding: 20,
+    padding: 28,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  logo: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#e0e7ef',
   },
   appName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginLeft: 10,
+    marginLeft: 14,
     color: '#1e293b',
-  },
-  userInfoContainer: {
-    padding: 20,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  avatarContainer: {
-    marginBottom: 10,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
+    letterSpacing: 0.5,
   },
   menuContainer: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 18,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 8,
+    marginVertical: 2,
   },
   selectedMenuItem: {
-    backgroundColor: '#f1f5f9',
-    borderRightWidth: 3,
+    backgroundColor: '#e0e7ef',
+    borderRightWidth: 4,
     borderRightColor: '#1d4ed8',
   },
   menuText: {
-    fontSize: 15,
-    marginLeft: 12,
-    color: '#4b5563',
+    fontSize: 16,
+    marginLeft: 16,
+    color: '#334155',
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   selectedMenuText: {
     color: '#1d4ed8',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   footer: {
-    padding: 20,
+    padding: 24,
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
+    backgroundColor: '#fff',
   },
   logoutItem: {
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
     marginTop: 10,
-    paddingTop: 15,
+    paddingTop: 18,
   },
   logoutText: {
     color: '#dc2626',
+    fontWeight: 'bold',
   },
   loadingContainer: {
     flex: 1,

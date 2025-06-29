@@ -1,11 +1,11 @@
-import Emergency from '../models/Emergency.js';
-import User from '../models/User.js';
-import { io } from '../server.js';
+const Emergency = require('../models/Emergency.js');
+const User = require('../models/User.js');
+const { io } = require('../server.js');
 
 // @desc    Create a new emergency alert
 // @route   POST /api/emergency
 // @access  Private
-export const createEmergency = async (req, res) => {
+const createEmergency = async (req, res) => {
   try {
     const { type, location, address, description, severity } = req.body;
     
@@ -33,7 +33,7 @@ export const createEmergency = async (req, res) => {
 // @desc    Get all emergencies (with filters)
 // @route   GET /api/emergency
 // @access  Private
-export const getEmergencies = async (req, res) => {
+const getEmergencies = async (req, res) => {
   try {
     const { status, type, severity, limit = 50, page = 1 } = req.query;
     const offset = (page - 1) * limit;
@@ -88,7 +88,7 @@ export const getEmergencies = async (req, res) => {
 // @desc    Get emergency by ID
 // @route   GET /api/emergency/:id
 // @access  Private
-export const getEmergencyById = async (req, res) => {
+const getEmergencyById = async (req, res) => {
   try {
     const emergency = await Emergency.findByPk(req.params.id, {
       include: [
@@ -130,7 +130,7 @@ export const getEmergencyById = async (req, res) => {
 // @desc    Update emergency status
 // @route   PUT /api/emergency/:id/status
 // @access  Private
-export const updateEmergencyStatus = async (req, res) => {
+const updateEmergencyStatus = async (req, res) => {
   try {
     const { status } = req.body;
     const { id } = req.params;
@@ -181,7 +181,7 @@ export const updateEmergencyStatus = async (req, res) => {
 // @desc    Assign emergency to a responder
 // @route   PUT /api/emergency/:id/assign
 // @access  Private (Admin/Responder)
-export const assignEmergency = async (req, res) => {
+const assignEmergency = async (req, res) => {
   try {
     const { responderId } = req.body;
     const { id } = req.params;
@@ -229,4 +229,12 @@ export const assignEmergency = async (req, res) => {
     console.error('Assign emergency error:', error);
     res.status(500).json({ message: 'Server error while assigning emergency' });
   }
+};
+
+module.exports = {
+  createEmergency,
+  getEmergencies,
+  getEmergencyById,
+  updateEmergencyStatus,
+  assignEmergency
 };

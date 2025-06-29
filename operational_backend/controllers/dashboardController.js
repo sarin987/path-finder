@@ -1,56 +1,50 @@
 const { sequelize } = require('../config/database');
 
 const dashboardController = {
-  getDashboard: async (req, res) => {
+  // New: Unified role-based dashboard endpoint for police, ambulance, fire, admin
+  getDashboardForRole: async (req, res, forcedRole) => {
     try {
-      // Get user role from request (assuming it's set by auth middleware)
-      const userRole = req.user?.role || 'user';
-      
-      // Initialize response data
-      const responseData = {
-        status: 'success',
-        message: `Dashboard data for ${userRole}`,
-        data: {
-          role: userRole,
-          stats: {},
-          recentActivities: [],
-          notifications: []
-        }
-      };
-
-      // Add role-specific data
+      const userRole = forcedRole || req.user?.role || 'user';
+      const userId = req.user?.id || 0;
+      // Prepare stats for new UI
+      let stats = {};
+      let activeRequests = [];
+      let avgResponseTime = '0m';
+      let todayIncidents = 0;
+      // Example: Fetch real data from DB here
       switch (userRole) {
         case 'admin':
-          // Admin-specific data
-          responseData.data.stats = {
+          stats = {
             totalUsers: await getUserCount(),
             activeSessions: await getActiveSessionsCount(),
             pendingApprovals: await getPendingApprovalsCount()
           };
-          responseData.data.recentActivities = await getRecentActivities(10);
           break;
-          
-        case 'responder':
-          // Responder-specific data
-          responseData.data.stats = {
-            assignedCases: await getAssignedCasesCount(req.user.id),
-            resolvedCases: await getResolvedCasesCount(req.user.id),
-            averageResponseTime: await getAverageResponseTime(req.user.id)
+        case 'police':
+        case 'ambulance':
+        case 'fire':
+          stats = {
+            accepted: await getAcceptedRequestsCount(userId),
+            pending: await getPendingRequestsCount(userId),
+            resolved: await getResolvedRequestsCount(userId),
           };
-          responseData.data.recentAlerts = await getRecentAlerts(10);
+          avgResponseTime = await getAverageResponseTime(userId);
+          todayIncidents = await getTodayIncidentsCount();
+          activeRequests = await getActiveRequests(userId);
           break;
-          
         default:
-          // User-specific data
-          responseData.data.stats = {
-            activeRequests: await getActiveRequestsCount(req.user?.id || 0),
-            completedRequests: await getCompletedRequestsCount(req.user?.id || 0),
-            responseTime: await getAverageResponseTimeForUser(req.user?.id || 0)
-          };
-          responseData.data.recentRequests = await getRecentRequests(req.user?.id || 0, 5);
+          stats = {};
       }
-
-      res.json(responseData);
+      res.json({
+        status: 'success',
+        data: {
+          role: userRole,
+          stats,
+          avgResponseTime,
+          todayIncidents,
+          activeRequests
+        }
+      });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       res.status(500).json({
@@ -62,65 +56,36 @@ const dashboardController = {
   }
 };
 
-// Mock data functions - replace with actual database queries
-async function getUserCount() {
-  const [results] = await sequelize.query('SELECT COUNT(*) as count FROM users');
-  return results[0].count;
-}
-
-async function getActiveSessionsCount() {
-  // Implement actual logic to get active sessions
-  return Math.floor(Math.random() * 100);
-}
-
-async function getPendingApprovalsCount() {
-  // Implement actual logic to get pending approvals
-  return Math.floor(Math.random() * 10);
-}
-
-async function getRecentActivities(limit = 10) {
-  // Implement actual logic to get recent activities
-  return [];
-}
-
-async function getAssignedCasesCount(responderId) {
-  // Implement actual logic to get assigned cases count
-  return Math.floor(Math.random() * 10);
-}
-
-async function getResolvedCasesCount(responderId) {
-  // Implement actual logic to get resolved cases count
-  return Math.floor(Math.random() * 50);
-}
-
-async function getAverageResponseTime(responderId) {
-  // Implement actual logic to calculate average response time
-  return (Math.random() * 60).toFixed(2);
-}
-
-async function getRecentAlerts(limit = 10) {
-  // Implement actual logic to get recent alerts
-  return [];
-}
-
-async function getActiveRequestsCount(userId) {
-  // Implement actual logic to get active requests count
-  return Math.floor(Math.random() * 5);
-}
-
-async function getCompletedRequestsCount(userId) {
-  // Implement actual logic to get completed requests count
+// --- New helper functions for new dashboard ---
+async function getAcceptedRequestsCount(userId) {
+  // TODO: Replace with real DB query
   return Math.floor(Math.random() * 20);
 }
-
-async function getAverageResponseTimeForUser(userId) {
-  // Implement actual logic to calculate average response time for user
-  return (Math.random() * 30).toFixed(2);
+async function getPendingRequestsCount(userId) {
+  // TODO: Replace with real DB query
+  return Math.floor(Math.random() * 10);
 }
-
-async function getRecentRequests(userId, limit = 5) {
-  // Implement actual logic to get recent requests
-  return [];
+async function getResolvedRequestsCount(userId) {
+  // TODO: Replace with real DB query
+  return Math.floor(Math.random() * 15);
 }
+async function getAverageResponseTime(userId) {
+  // TODO: Replace with real DB query
+  return `${Math.floor(Math.random() * 10) + 1} m ${Math.floor(Math.random() * 60)} s`;
+}
+async function getTodayIncidentsCount() {
+  // TODO: Replace with real DB query
+  return Math.floor(Math.random() * 10) + 1;
+}
+async function getActiveRequests(userId) {
+  // TODO: Replace with real DB query
+  // Example: [{ id, userName, type, timeAgo, status }]
+  return [
+    { id: 1, userName: 'Emily Davis', type: 'Harassment', timeAgo: '7 min', status: 'pending' },
+    { id: 2, userName: 'Michael Brown', type: 'Fire', timeAgo: '12 min', status: 'accepted' },
+    { id: 3, userName: 'Sarah Johnson', type: 'Accident', timeAgo: '30 min', status: 'pending' }
+  ];
+}
+// --- End new helpers ---
 
 module.exports = dashboardController;

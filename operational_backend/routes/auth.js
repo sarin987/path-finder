@@ -1,11 +1,11 @@
-import express from 'express';
-import { 
+const express = require('express');
+const { 
   register, 
   login, 
   getMe, 
   updateProfile 
-} from '../controllers/authController.js';
-import { authenticateToken, authorizeRoles } from '../middleware/auth.js';
+} = require('../controllers/authController');
+const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -27,4 +27,4 @@ router.put('/me', updateProfile);
 //   res.json({ message: 'Admin access granted' });
 // });
 
-export default router;
+module.exports = router;

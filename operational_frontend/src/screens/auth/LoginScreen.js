@@ -206,6 +206,8 @@ const LoginScreen = ({ navigation }) => {
         
         // Store the token if it exists in the response
         if (token) {
+          // Store the auth token for API usage
+          await AsyncStorage.setItem('token', token);
           // Prepare user data for AuthContext
           const authData = {
             token,
@@ -214,9 +216,16 @@ const LoginScreen = ({ navigation }) => {
             id: userData.id || responseData.id, // Ensure user ID is included
             role: userData.role || 'user' // Default role if not provided
           };
-          
           console.log('Auth data prepared:', authData);
-          
+          // Fetch latest user profile (with avatar) after login
+          try {
+            const profileRes = await api.get(`/users/profile/${authData.id}`);
+            if (profileRes.data && profileRes.data.success && profileRes.data.profile) {
+              authData.avatar = profileRes.data.profile.avatar || profileRes.data.profile.profile_photo || authData.avatar;
+            }
+          } catch (e) {
+            console.warn('Could not fetch user profile after login:', e.message);
+          }
           // Call the login function from AuthContext with the token and user data
           if (login) {
             await login(authData);

@@ -3,6 +3,7 @@ const User = require('./User');
 const SOSRequest = require('./SOSRequest');
 const ChatMessage = require('./ChatMessage');
 const RoleLocation = require('./RoleLocation');
+const Incident = require('./Incident');
 
 const db = {
   sequelize,
@@ -10,7 +11,8 @@ const db = {
   User,
   SOSRequest,
   ChatMessage,
-  RoleLocation
+  RoleLocation,
+  Incident
 };
 
 // Set up model associations
@@ -30,6 +32,10 @@ function setupAssociations() {
   // RoleLocation belongs to a user
   RoleLocation.belongsTo(db.User, { foreignKey: 'user_id' });
   User.hasOne(RoleLocation, { foreignKey: 'user_id' });
+
+  // Incident belongs to a user
+  Incident.belongsTo(db.User, { foreignKey: 'user_id' });
+  User.hasMany(Incident, { foreignKey: 'user_id' });
 
   console.log('✅ Model associations set up successfully');
 }

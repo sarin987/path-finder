@@ -59,6 +59,7 @@ const User = sequelize.define('user', {
     comment: "URL or path to the user's profile picture/avatar"
   },
 }, {
+  tableName: 'users', // Ensure correct table name
   // Model options
   timestamps: true, // Enable timestamps
   underscored: false, // Disable snake_case for this model

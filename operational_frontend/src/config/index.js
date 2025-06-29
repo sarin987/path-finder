@@ -6,28 +6,8 @@ const isDevelopment = __DEV__;
 
 // Base URL configuration
 const getBaseUrl = () => {
-  // Check for environment variable first
-  if (process.env.REACT_APP_API_URL) {
-    console.log('Using API URL from environment:', process.env.REACT_APP_API_URL);
-    return process.env.REACT_APP_API_URL;
-  }
-  
-  // Development environment
-  if (isDevelopment) {
-    const devUrl = Platform.select({
-      ios: 'http://192.168.14.111:5000',
-      android: DeviceInfo.isEmulatorSync() 
-        ? 'http://10.0.2.2:5000' 
-        : 'http://192.168.14.111:5000'  // Replace with your computer's local IP
-    });
-    console.log('Development API URL:', devUrl);
-    return devUrl;
-  }
-  
-  // Production URL - replace with your actual production URL
-  const prodUrl = 'https://your-production-api.com';
-  console.log('Production API URL:', prodUrl);
-  return prodUrl;
+  // Always use the specified IP for all environments
+  return 'http://192.168.14.111:5000';
 };
 
 export const BASE_URL = getBaseUrl();

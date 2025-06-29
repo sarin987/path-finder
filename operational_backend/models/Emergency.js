@@ -1,7 +1,7 @@
-import { DataTypes } from 'sequelize';
-import db from '../config/database.js';
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const Emergency = db.define('Emergency', {
+const Emergency = sequelize.define('Emergency', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -58,19 +58,11 @@ const Emergency = db.define('Emergency', {
 }, {
   timestamps: true,
   indexes: [
-    {
-      fields: ['status']
-    },
-    {
-      fields: ['type']
-    },
-    {
-      fields: ['latitude']
-    },
-    {
-      fields: ['longitude']
-    }
+    { fields: ['status'] },
+    { fields: ['type'] },
+    { fields: ['latitude'] },
+    { fields: ['longitude'] }
   ]
 });
 
-export default Emergency;
+module.exports = Emergency;

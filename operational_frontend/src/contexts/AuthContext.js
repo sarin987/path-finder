@@ -159,6 +159,17 @@ export const AuthProvider = ({ children }) => {
         if (token && userData) {
           // Set axios default auth header
           axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          // Fetch latest user profile (with avatar)
+          try {
+            const api = require('../services/api').default;
+            const profileRes = await api.get(`/users/profile/${userData.id}`);
+            if (profileRes.data && profileRes.data.success && profileRes.data.profile) {
+              userData.avatar = profileRes.data.profile.avatar || profileRes.data.profile.profile_photo || userData.avatar;
+              await secureStorage.setItem('userData', userData);
+            }
+          } catch (e) {
+            console.warn('Could not fetch user profile on app startup:', e.message);
+          }
           setUser(userData);
           resetSessionTimer();
         }
@@ -171,7 +182,6 @@ export const AuthProvider = ({ children }) => {
     };
     
     initAuth();
-    
     // Cleanup on unmount
     return () => {
       clearTimers();

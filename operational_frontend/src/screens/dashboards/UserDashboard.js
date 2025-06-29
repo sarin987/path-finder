@@ -214,7 +214,9 @@ const UserDashboard = () => {
         <TouchableOpacity onPress={openSidebar} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 6, elevation: 2, marginRight: 10 }}>
           <MaterialIcons name="menu" size={26} color="#fff" />
         </TouchableOpacity>
-        <Text style={{ flex: 1, fontSize: 22, fontWeight: 'bold', color: '#fff', letterSpacing: 0.5, textAlign: 'center' }}>{user?.name || 'User'}</Text>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, color: '#e0f7fa', fontWeight: 'bold', textAlign: 'center' }}>Welcome, {user?.name || 'User'}!</Text>
+        </View>
         <UserAvatar avatarUrl={user?.avatar} onPress={() => navigation.navigate('ChangeProfilePic')} />
       </View>
       {/* Full-screen Map with top margin to avoid header overlap */}

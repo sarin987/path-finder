@@ -17,8 +17,11 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const locationRoutes = require('./src/routes/locationRoutes');
-const authRoutes = require('./src/routes/auth');
+const authRoutes = require('./routes/auth'); // <-- FIXED: use correct auth route
 const chatRoutes = require('./src/routes/chat.routes');
+const usersRoutes = require('./routes/users');
+const emergencyRoutes = require('./routes/emergency');
+const requestsRoutes = require('./routes/requests');
 
 // Import socket services
 const LocationSocketService = require('./src/services/locationSocketService');
@@ -38,6 +41,9 @@ const corsOptions = {
     'http://localhost:2222', // Frontend on port 2222
     'http://localhost:8080', // Dashboard
     'http://localhost:3000', // Original frontend port
+    'http://192.168.14.111:5000', // Backend (should not be here for frontend)
+    'http://192.168.14.111:3000', // <-- Add your frontend LAN URL
+    'http://localhost:8082', // <-- Added for Expo web frontend
     ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [])
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -49,6 +55,13 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Log all incoming requests and headers for debugging
+app.use((req, res, next) => {
+  console.log(`[REQ] ${req.method} ${req.originalUrl}`);
+  console.log('Headers:', req.headers);
+  next();
+});
 
 // Socket.IO will be initialized by the SocketService
 
@@ -75,8 +88,13 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/locations', locationRoutes);
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRoutes); // <-- FIXED: use correct auth route
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/users', usersRoutes);
+app.use('/api/incidents', require('./routes/incidents').default || require('./routes/incidents'));
+app.use('/api/emergencies', require('./routes/emergency'));
+app.use('/api/requests', require('./routes/requests'));
+app.use('/api/role', require('./routes/roleDashboards')); // <-- New role-based dashboard routes
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -96,6 +114,9 @@ app.use((err, req, res, next) => {
     error: process.env.NODE_ENV === 'development' ? err.message : {}
   });
 });
+
+// Handle all OPTIONS preflight requests for CORS
+app.options('*', cors(corsOptions));
 
 // Initialize socket.io services
 const socketService = new SocketService(httpServer);
@@ -138,9 +159,9 @@ async function startServer() {
     await init();
     
     const PORT = process.env.PORT || 5000;
-    
-    httpServer.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+    const HOST = process.env.HOST || '0.0.0.0';
+    httpServer.listen(PORT, HOST, () => {
+      console.log(`🚀 Server running on port ${PORT} (host: ${HOST})`);
       console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🔄 CORS allowed origins: ${corsOptions.origin}`);
       console.log('📊 Database models initialized successfully');

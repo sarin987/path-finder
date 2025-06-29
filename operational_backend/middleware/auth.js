@@ -6,7 +6,8 @@ const roleToModel = {
   police: models.PoliceUser,
   ambulance: models.AmbulanceUser,
   fire: models.FireUser,
-  parent: models.ParentUser
+  parent: models.ParentUser,
+  user: models.User // Added support for 'user' role
 };
 
 const authenticateToken = (req, res, next) => {

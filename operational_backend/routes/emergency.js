@@ -1,12 +1,12 @@
-import express from 'express';
-import { 
+const express = require('express');
+const { 
   createEmergency, 
   getEmergencies, 
   getEmergencyById, 
   updateEmergencyStatus,
   assignEmergency
-} from '../controllers/emergencyController.js';
-import { authenticateToken, authorizeRoles } from '../middleware/auth.js';
+} = require('../controllers/emergencyController.js');
+const { authenticateToken, authorizeRoles } = require('../middleware/auth.js');
 
 const router = express.Router();
 
@@ -32,4 +32,4 @@ router.put(
   assignEmergency
 );
 
-export default router;
+module.exports = router;

@@ -3,8 +3,10 @@ import { View, Text, Button, Image, StyleSheet, Alert, ActivityIndicator, Toucha
 import { launchImageLibrary } from 'react-native-image-picker';
 import { uploadImageAsync } from '../services/firebaseUpload';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const ChangeProfilePic = ({ navigation }) => {
+  const { user, updateUser } = useAuth();
   const [image, setImage] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,17 +37,28 @@ const ChangeProfilePic = ({ navigation }) => {
   };
 
   const uploadAndSave = async () => {
-    if (!image) return;
+    if (!image || !user) return;
     setUploading(true);
     setError('');
     setSuccess(false);
     try {
-      // Upload to Firebase
-      const url = await uploadImageAsync(image, 'profile_avatars');
+      console.log('[ChangeProfilePic] Starting upload for user:', user);
+      // Upload to Firebase in user folder
+      const userFolder = user.username || user.email || user.id || 'unknown_user';
+      const firebasePath = `users/${userFolder}/profile.jpg`;
+      console.log('[ChangeProfilePic] Uploading to Firebase path:', firebasePath);
+      const url = await uploadImageAsync(image, firebasePath);
+      console.log('[ChangeProfilePic] Firebase upload complete. URL:', url);
       setUploading(false);
       setSaving(true);
       // Save to backend
+      console.log('[ChangeProfilePic] Sending avatar URL to backend:', url, 'Base URL:', api.defaults.baseURL);
       await api.post('/users/profile-photo-url', { avatarUrl: url });
+      console.log('[ChangeProfilePic] Backend update complete.');
+      // Update user context with new avatar
+      if (typeof updateUser === 'function') {
+        await updateUser({ avatar: url });
+      }
       setSaving(false);
       setSuccess(true);
       Alert.alert('Success', 'Profile picture updated!', [
@@ -54,6 +67,7 @@ const ChangeProfilePic = ({ navigation }) => {
     } catch (err) {
       setUploading(false);
       setSaving(false);
+      console.log('[ChangeProfilePic] Error:', err);
       setError(err.message || 'Failed to upload or save profile picture');
     }
   };
@@ -63,6 +77,8 @@ const ChangeProfilePic = ({ navigation }) => {
       <Text style={styles.title}>Change Profile Picture</Text>
       {image ? (
         <Image source={{ uri: image }} style={styles.avatar} />
+      ) : user?.avatar ? (
+        <Image source={{ uri: user.avatar }} style={styles.avatar} />
       ) : (
         <View style={[styles.avatar, { backgroundColor: '#eee', alignItems: 'center', justifyContent: 'center' }]}> 
           <Text style={{ color: '#888' }}>No Image</Text>
