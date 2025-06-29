@@ -47,7 +47,33 @@ export default function DashboardScreen() {
       {/* Sidebar */}
       <Sidebar
         items={sidebarItems}
-        onNavigate={screen => navigation.navigate(screen.charAt(0).toUpperCase() + screen.slice(1))}
+        onNavigate={screen => {
+          switch (screen) {
+            case 'dashboard':
+              navigation.navigate('Dashboard');
+              break;
+            case 'incident':
+              navigation.navigate('Incident');
+              break;
+            case 'map':
+              navigation.navigate('Map');
+              break;
+            case 'chat':
+              navigation.navigate('Chat');
+              break;
+            case 'media':
+              navigation.navigate('MediaCenter');
+              break;
+            case 'history':
+              navigation.navigate('History');
+              break;
+            case 'settings':
+              navigation.navigate('Settings');
+              break;
+            default:
+              navigation.navigate(screen.charAt(0).toUpperCase() + screen.slice(1));
+          }
+        }}
         isMobile={isMobile}
         sidebarWidth={SIDEBAR_WIDTH}
         onLogout={logout}

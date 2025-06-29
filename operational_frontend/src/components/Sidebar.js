@@ -37,17 +37,28 @@ const MenuItem = ({ icon, label, onPress, isLogout, selected }) => (
 );
 
 const sidebarMenuItems = [
-  { key: 'dashboard', icon: 'home', label: 'Dashboard' },
-  { key: 'reportIncident', icon: 'alert-circle', label: 'Report Incident' },
-  { key: 'trustedContacts', icon: 'account-group', label: 'Trusted Contacts' },
-  { key: 'healthMonitor', icon: 'heart-pulse', label: 'Health Monitor' },
-  { key: 'nearbyIncidents', icon: 'map-marker', label: 'Nearby Incidents' },
-  { key: 'safeRoute', icon: 'navigation', label: 'Safe Route' },
+  { key: 'dashboard', icon: 'home', label: 'Dashboard', screen: 'UserDashboard' },
+  { key: 'reportIncident', icon: 'alert-circle', label: 'Report Incident', screen: 'ReportIncident' },
+  { key: 'trustedContacts', icon: 'account-group', label: 'Trusted Contacts', screen: 'TrustedContacts' },
+  { key: 'nearbyIncidents', icon: 'map-marker', label: 'Nearby Incidents', screen: 'NearbyIncidents' },
+  { key: 'safeRoute', icon: 'navigation', label: 'Safe Route', screen: 'SafeRoute' },
 ];
 
 const Sidebar = ({ sidebarAnimation, toggleSidebar, user, navigation, logout, onMenuSelect, selectedMenu }) => {
   const sidebarWidth = 280;
   const animationValue = sidebarAnimation ?? new Animated.Value(0);
+
+  // Determine the current route name from navigation state if available
+  let currentRoute = selectedMenu;
+  if (navigation && navigation.getState) {
+    const navState = navigation.getState();
+    if (navState && navState.routes && navState.index != null) {
+      const route = navState.routes[navState.index];
+      // Find the menu key that matches the current route name
+      const found = sidebarMenuItems.find(item => item.screen === route.name);
+      if (found) currentRoute = found.key;
+    }
+  }
 
   return (
     <Animated.View 
@@ -71,7 +82,7 @@ const Sidebar = ({ sidebarAnimation, toggleSidebar, user, navigation, logout, on
             icon={item.icon}
             label={item.label}
             onPress={() => onMenuSelect(item.key)}
-            selected={selectedMenu === item.key}
+            selected={currentRoute === item.key}
           />
         ))}
       </View>

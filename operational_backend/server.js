@@ -22,6 +22,7 @@ const chatRoutes = require('./src/routes/chat.routes');
 const usersRoutes = require('./routes/users');
 const emergencyRoutes = require('./routes/emergency');
 const requestsRoutes = require('./routes/requests');
+const contactsRoutes = require('./routes/contacts');
 
 // Import socket services
 const LocationSocketService = require('./src/services/locationSocketService');
@@ -95,6 +96,7 @@ app.use('/api/incidents', require('./routes/incidents').default || require('./ro
 app.use('/api/emergencies', require('./routes/emergency'));
 app.use('/api/requests', require('./routes/requests'));
 app.use('/api/role', require('./routes/roleDashboards')); // <-- New role-based dashboard routes
+app.use('/api/contacts', contactsRoutes); // <-- Added contacts routes
 
 // Health check endpoint
 app.get('/health', (req, res) => {

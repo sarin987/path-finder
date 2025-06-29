@@ -10,6 +10,7 @@ import ReportsScreen from '../screens/ReportsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import RegistrationScreen from '../screens/RegistrationScreen';
 import IncidentScreen from '../screens/IncidentScreen';
+import HistoryScreen from '../screens/HistoryScreen';
 import { useAuth } from '../context/AuthContext';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -40,6 +41,7 @@ export default function AppNavigator() {
             <Stack.Screen name="Map" component={MapScreen} />
             <Stack.Screen name="Chat" component={ChatScreen} />
             <Stack.Screen name="MediaCenter" component={MediaCenterScreen} />
+            <Stack.Screen name="History" component={HistoryScreen} />
             <Stack.Screen name="Reports" component={ReportsScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
           </>

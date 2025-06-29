@@ -3,6 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, SafeAreaView } from 'r
 import IncidentReportForm from '../components/IncidentReportForm';
 import ResponderMap from '../components/ResponderMap';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import UserAvatar from '../components/dashboard/UserAvatar';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigation } from '@react-navigation/native';
 
 const RECIPIENTS = [
   { key: 'police', label: 'Police', icon: 'police-badge', color: '#1976D2' },
@@ -11,7 +15,10 @@ const RECIPIENTS = [
   { key: 'custom', label: 'Select on Map', icon: 'map-marker', color: '#FBC02D' },
 ];
 
-const ReportIncident = ({ navigation }) => {
+const ReportIncident = (props) => {
+  const { navigation } = props;
+  const { user } = useAuth();
+  const nav = useNavigation();
   const [recipient, setRecipient] = useState(null);
   const [showMap, setShowMap] = useState(false);
   const [selectedResponder, setSelectedResponder] = useState(null);
@@ -41,49 +48,58 @@ const ReportIncident = ({ navigation }) => {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-      <View style={styles.header}>
-        <MaterialCommunityIcons name="alert-circle" size={32} color="#1d4ed8" style={{ marginRight: 10 }} />
-        <Text style={styles.headerText}>Report Incident</Text>
+      {/* Consistent header with hamburger and avatar */}
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#128090', paddingTop: 18, paddingBottom: 12, paddingHorizontal: 18, borderBottomLeftRadius: 18, borderBottomRightRadius: 18, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }}>
+        <TouchableOpacity onPress={() => nav.openDrawer && nav.openDrawer()} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 6, elevation: 2, marginRight: 10 }}>
+          <MaterialIcons name="menu" size={26} color="#fff" />
+        </TouchableOpacity>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, color: '#e0f7fa', fontWeight: 'bold', textAlign: 'center' }}>Report Incident</Text>
+        </View>
+        <UserAvatar avatarUrl={user?.avatar} onPress={() => nav.navigate('ChangeProfilePic')} />
       </View>
-      {!recipient && (
-        <View style={styles.recipientContainer}>
-          <Text style={styles.label}>Who do you want to notify?</Text>
-          <View style={styles.recipientList}>
-            {RECIPIENTS.map((r) => (
-              <TouchableOpacity
-                key={r.key}
-                style={[styles.recipientButton, { backgroundColor: r.color, shadowColor: r.color, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4 }]}
-                onPress={() => handleRecipientSelect(r.key)}
-                activeOpacity={0.85}
-              >
-                <MaterialCommunityIcons name={r.icon} size={32} color="#fff" />
-                <Text style={styles.recipientLabel}>{r.label}</Text>
-              </TouchableOpacity>
-            ))}
+      {/* Content with top margin to avoid header overlap */}
+      <View style={{ flex: 1, marginTop: 70 }}>
+        {!recipient && (
+          <View style={styles.recipientContainer}>
+            <Text style={styles.label}>Who do you want to notify?</Text>
+            <View style={styles.recipientList}>
+              {RECIPIENTS.map((r) => (
+                <TouchableOpacity
+                  key={r.key}
+                  style={[styles.recipientButton, { backgroundColor: r.color, shadowColor: r.color, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4 }]}
+                  onPress={() => handleRecipientSelect(r.key)}
+                  activeOpacity={0.85}
+                >
+                  <MaterialCommunityIcons name={r.icon} size={32} color="#fff" />
+                  <Text style={styles.recipientLabel}>{r.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
-      )}
-      {showMap && (
-        <Modal visible={showMap} animationType="slide">
-          <ResponderMap onSelectResponder={handleResponderSelect} onClose={() => setShowMap(false)} />
-        </Modal>
-      )}
-      {recipient && !showMap && (
-        <View style={styles.formContainer}>
-          <IncidentReportForm
-            recipient={recipient}
-            responder={selectedResponder}
-            onReportSuccess={handleReportSuccess}
-            onCancel={() => setRecipient(null)}
-          />
-        </View>
-      )}
-      {success && (
-        <View style={styles.successOverlay}>
-          <MaterialCommunityIcons name="check-circle" size={72} color="#43A047" />
-          <Text style={styles.successText}>Incident Reported!</Text>
-        </View>
-      )}
+        )}
+        {showMap && (
+          <Modal visible={showMap} animationType="slide">
+            <ResponderMap onSelectResponder={handleResponderSelect} onClose={() => setShowMap(false)} />
+          </Modal>
+        )}
+        {recipient && !showMap && (
+          <View style={styles.formContainer}>
+            <IncidentReportForm
+              recipient={recipient}
+              responder={selectedResponder}
+              onReportSuccess={handleReportSuccess}
+              onCancel={() => setRecipient(null)}
+            />
+          </View>
+        )}
+        {success && (
+          <View style={styles.successOverlay}>
+            <MaterialCommunityIcons name="check-circle" size={72} color="#43A047" />
+            <Text style={styles.successText}>Incident Reported!</Text>
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   );
 };

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 
 export default function ChatScreen() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigation = useNavigation();
   const { width } = Dimensions.get('window');
   const isMobile = width < 600;
@@ -60,7 +60,9 @@ export default function ChatScreen() {
       />
       <View style={styles.main}>
         <Text style={styles.title}>Chat System</Text>
-        {/* Chat UI will go here */}
+        {/* If you want to use a ChatScreen component from operational_responder_dashboard, import it like this:
+            import ChatScreen from './ChatScreen';
+        */}
       </View>
     </View>
   );

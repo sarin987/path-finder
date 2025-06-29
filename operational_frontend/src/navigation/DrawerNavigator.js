@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import UserDashboard from '../screens/dashboards/UserDashboard';
 import SettingsScreen from '../screens/SettingsScreen';
 import ChatScreen from '../screens/ChatScreen';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/Sidebar';
+import TrustedContactsScreen from '../screens/TrustedContactsScreen';
+import NearbyIncidentsScreen from '../screens/NearbyIncidentsScreen';
+import SafeRouteScreen from '../screens/SafeRouteScreen';
+import { useNavigationState } from '@react-navigation/native';
 
 const Drawer = createDrawerNavigator();
 
@@ -42,6 +46,38 @@ export default function DrawerNavigator() {
     }
   };
 
+  // Sync selectedMenu with current route
+  const navigationState = useNavigationState(state => state);
+  useEffect(() => {
+    if (!navigationState) return;
+    const route = navigationState.routes[navigationState.index];
+    switch (route.name) {
+      case 'UserDashboard':
+        setSelectedMenu('dashboard');
+        break;
+      case 'ReportIncident':
+        setSelectedMenu('reportIncident');
+        break;
+      case 'TrustedContacts':
+        setSelectedMenu('trustedContacts');
+        break;
+      case 'HealthMonitor':
+        setSelectedMenu('healthMonitor');
+        break;
+      case 'EmergencyAlert':
+        setSelectedMenu('emergencyAlert');
+        break;
+      case 'NearbyIncidents':
+        setSelectedMenu('nearbyIncidents');
+        break;
+      case 'SafeRoute':
+        setSelectedMenu('safeRoute');
+        break;
+      default:
+        setSelectedMenu('dashboard');
+    }
+  }, [navigationState]);
+
   return (
     <Drawer.Navigator
       drawerContent={props => (
@@ -60,6 +96,9 @@ export default function DrawerNavigator() {
       <Drawer.Screen name="ReportIncident" component={require('../screens/ReportIncident').default} />
       <Drawer.Screen name="Settings" component={SettingsScreen} />
       <Drawer.Screen name="Chat" component={ChatScreen} />
+      <Drawer.Screen name="TrustedContacts" component={TrustedContactsScreen} />
+      <Drawer.Screen name="NearbyIncidents" component={NearbyIncidentsScreen} />
+      <Drawer.Screen name="SafeRoute" component={SafeRouteScreen} />
       {/* Add other screens as needed */}
     </Drawer.Navigator>
   );
