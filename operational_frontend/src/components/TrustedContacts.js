@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, Button, FlatList, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ToastAndroid, Platform } from 'react-native';
+import { View, Text, TextInput, Button, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { alert, toast } from '../utils/alert';
 import axios from 'axios';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { getToastAndroid } from '../utils/platform';
 
 const TrustedContacts = ({ userId }) => {
   const [contacts, setContacts] = useState([]);
@@ -11,6 +13,8 @@ const TrustedContacts = ({ userId }) => {
   const [fetching, setFetching] = useState(true);
   const [sendingAlert, setSendingAlert] = useState(false);
   const [importing, setImporting] = useState(false);
+  
+  const ToastAndroid = getToastAndroid();
 
   const fetchContacts = async () => {
     setFetching(true);
@@ -47,7 +51,7 @@ const TrustedContacts = ({ userId }) => {
   };
 
   const confirmDelete = (id) => {
-    Alert.alert('Remove Contact', 'Are you sure you want to remove this contact?', [
+    alert('Remove Contact', 'Are you sure you want to remove this contact?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: () => deleteContact(id) },
     ]);

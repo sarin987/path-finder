@@ -2,7 +2,10 @@
 // Centralized API service for backend REST endpoints
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:3000'; // Update to your backend URL
+// Use ngrok URL for development, fallback to localhost
+const API_BASE_URL = process.env.NODE_ENV === 'development'
+  ? 'https://3bf6-2401-4900-881e-1353-d678-d6fc-de47-c356.ngrok-free.app/api'
+  : 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

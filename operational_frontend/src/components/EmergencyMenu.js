@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, TextInput } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { alert } from '../utils/alert';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { API_ROUTES } from '../../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -41,11 +42,11 @@ const EmergencyMenu = ({
   const saveEmergencyProfile = async () => {
     try {
       await AsyncStorage.setItem('emergencyProfile', JSON.stringify(emergencyProfile));
-      Alert.alert('Success', 'Emergency profile saved successfully');
+      alert('Success', 'Emergency profile saved successfully');
       setShowProfileEditor(false);
     } catch (error) {
       console.error('Error saving emergency profile:', error);
-      Alert.alert('Error', 'Failed to save emergency profile');
+      alert('Error', 'Failed to save emergency profile');
     }
   };
 
@@ -56,12 +57,12 @@ const EmergencyMenu = ({
   const handleOptionPress = async (option) => {
     try {
       if (!user?.id) {
-        Alert.alert('Login Required', 'Please login to use this service.');
+        alert('Login Required', 'Please login to use this service.');
         return;
       }
 
       if (!location) {
-        Alert.alert('Location Required', 'Please enable location services.');
+        alert('Location Required', 'Please enable location services.');
         return;
       }
 
@@ -108,7 +109,7 @@ const EmergencyMenu = ({
       }
     } catch (error) {
       console.error(`${serviceType} option error:`, error);
-      Alert.alert('Error', `Failed to ${option.action}. Please try again.`);
+      alert('Error', `Failed to ${option.action}. Please try again.`);
     } finally {
       if (option.type !== 'chat') {
         onClose();

@@ -5,7 +5,6 @@ import {
   TextInput, 
   TouchableOpacity, 
   ActivityIndicator, 
-  Alert, 
   ScrollView, 
   KeyboardAvoidingView, 
   Platform, 
@@ -77,7 +76,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
         });
   
         if (response.data.success) {
-          Alert.alert("Success", "OTP verified successfully. Registration completed.");
+          alert("Success", "OTP verified successfully. Registration completed.");
           navigation.navigate("Login"); // Redirect to login page after successful verification
         } else {
           alert("Error: " + response.data.error);
@@ -120,7 +119,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
       }
       
       // Show error alert
-      Alert.alert('Verification Failed', errorMessage);
+      alert('Verification Failed', errorMessage);
     } finally {
       console.log('[OTP Verification] Verification process completed');
       setLoading(false);

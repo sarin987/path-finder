@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, ScrollView, Platform } from 'react-native';
+import { alert } from '../../utils/alert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Geolocation from '@react-native-community/geolocation';
@@ -34,19 +27,19 @@ const EmergencyRequest = ({ route, navigation }) => {
         },
         error => {
           console.error(error);
-          Alert.alert('Error', 'Failed to get location. Please enable location services.');
+          alert('Error', 'Failed to get location. Please enable location services.');
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
       );
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Failed to get location');
+      alert('Error', 'Failed to get location');
     }
   };
 
   const handleEmergencyRequest = async () => {
     if (!location) {
-      Alert.alert('Error', 'Location is required. Please enable location services.');
+      alert('Error', 'Location is required. Please enable location services.');
       return;
     }
 
@@ -80,7 +73,7 @@ const EmergencyRequest = ({ route, navigation }) => {
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to send emergency request. Please try again.');
+      alert('Error', 'Failed to send emergency request. Please try again.');
     } finally {
       setLoading(false);
     }

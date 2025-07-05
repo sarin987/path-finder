@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Responder Monitor</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { height: 100vh; width: 100%; }
+    .info-panel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      z-index: 1000;
+      max-width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="info-panel">
+    <h3>Responder Monitor</h3>
+    <div id="status">Connecting to Firestore...</div>
+    <div id="responder-info"></div>
+  </div>
+
+  <script>
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // Initialize Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    
+    // Connect to Firestore emulator
+    db.settings({
+      host: "localhost:8080",
+      ssl: false
+    });
+
+    // Initialize map
+    const map = L.map('map').setView([18.5739, 73.7593], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Create a marker for the responder
+    let marker = null;
+    const responderId = 'test-responder-1';
+    const responderRef = db.collection('responders').doc(responderId);
+
+    // Listen for changes to the responder's location
+    const unsubscribe = responderRef.onSnapshot(doc => {
+      const data = doc.data();
+      if (data) {
+        document.getElementById('status').textContent = 'Responder connected';
+        document.getElementById('responder-info').innerHTML = `
+          <p><strong>Name:</strong> ${data.name || 'N/A'}</p>
+          <p><strong>Role:</strong> ${data.role || 'N/A'}</p>
+          <p><strong>Status:</strong> ${data.status || 'N/A'}</p>
+          <p><strong>Last Seen:</strong> ${new Date().toLocaleTimeString()}</p>
+          <p><strong>Location:</strong> ${data.latitude?.toFixed(6)}, ${data.longitude?.toFixed(6)}</p>
+        `;
+
+        // Update or create marker
+        const latLng = [data.latitude, data.longitude];
+        if (marker) {
+          marker.setLatLng(latLng);
+        } else {
+          marker = L.marker(latLng, {
+            icon: L.divIcon({
+              html: '🚓',
+              className: 'responder-marker',
+              iconSize: [30, 30]
+            })
+          }).addTo(map);
+          
+          // Add popup
+          marker.bindPopup(`
+            <b>${data.name || 'Responder'}</b><br>
+            ${data.role || 'Role not specified'}<br>
+            Status: ${data.status || 'Unknown'}
+          `);
+        }
+
+        // Center map on responder
+        map.setView(latLng);
+      } else {
+        document.getElementById('status').textContent = 'No responder data found';
+        document.getElementById('responder-info').innerHTML = '';
+      }
+    }, error => {
+      console.error('Error getting document:', error);
+      document.getElementById('status').textContent = 'Error connecting to Firestore';
+    });
+
+    // Clean up on page unload
+    window.addEventListener('beforeunload', () => {
+      unsubscribe();
+    });
+  </script>
+</body>
+</html>

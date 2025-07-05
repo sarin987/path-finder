@@ -6,7 +6,6 @@ import ChatScreen from '../screens/ChatScreen';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/Sidebar';
 import TrustedContactsScreen from '../screens/TrustedContactsScreen';
-import NearbyIncidentsScreen from '../screens/NearbyIncidentsScreen';
 import SafeRouteScreen from '../screens/SafeRouteScreen';
 import { useNavigationState } from '@react-navigation/native';
 
@@ -97,7 +96,6 @@ export default function DrawerNavigator() {
       <Drawer.Screen name="Settings" component={SettingsScreen} />
       <Drawer.Screen name="Chat" component={ChatScreen} />
       <Drawer.Screen name="TrustedContacts" component={TrustedContactsScreen} />
-      <Drawer.Screen name="NearbyIncidents" component={NearbyIncidentsScreen} />
       <Drawer.Screen name="SafeRoute" component={SafeRouteScreen} />
       {/* Add other screens as needed */}
     </Drawer.Navigator>

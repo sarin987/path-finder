@@ -1,21 +1,32 @@
-# Base image
-FROM node:18-alpine
+# Stage 1: Build the application
+FROM node:18-alpine AS builder
 
-# Create app directory
-WORKDIR /usr/src/app
+# Set working directory
+WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-
-# Install dependencies with legacy peer deps
-RUN npm install --legacy-peer-deps
+# Install dependencies
+RUN npm ci --only=production --legacy-peer-deps
 
 # Copy source code
 COPY . .
 
-# Expose the app port
-EXPOSE 3000
+# Build the application
+RUN npm run build
 
-# Command to run the application directly
-CMD ["npm", "start"]
+# Stage 2: Serve the application using Nginx
+FROM nginx:alpine
+
+# Copy the build output to replace the default nginx contents
+COPY --from=builder /app/build /usr/share/nginx/html
+
+# Copy custom nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port 80
+EXPOSE 80
+
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]

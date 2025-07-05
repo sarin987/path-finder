@@ -5,9 +5,36 @@ class SocketService {
   constructor(server) {
     this.io = socketIO(server, {
       cors: {
-        origin: '*', // In production, replace with specific origins
-        methods: ['GET', 'POST']
-      }
+        origin: (origin, callback) => {
+          // Allow WebSocket connections from ngrok in development
+          if (process.env.NODE_ENV === 'development' && 
+              (origin === 'https://3bf6-2401-4900-881e-1353-d678-d6fc-de47-c356.ngrok-free.app' || 
+               origin.endsWith('.ngrok-free.app'))) {
+            return callback(null, true);
+          }
+          
+          // Allow localhost and other development origins
+          const allowedOrigins = [
+            'http://localhost:3000',
+            'http://localhost:8080',
+            'http://localhost:2222',
+            'http://localhost:8082',
+            'http://192.168.1.18:5000',
+            'http://192.168.14.111:3000',
+            ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [])
+          ];
+          
+          if (allowedOrigins.includes(origin) || !origin) {
+            callback(null, true);
+          } else {
+            console.log('WebSocket CORS blocked for origin:', origin);
+            callback(new Error('Not allowed by CORS'));
+          }
+        },
+        methods: ['GET', 'POST'],
+        credentials: true
+      },
+      allowEIO3: true // For Socket.IO v2 compatibility if needed
     });
     this.users = new Map(); // userId -> socketId
     this.initializeEvents();

@@ -1,25 +1,17 @@
-import { initializeApp } from 'firebase/app';  // Import the initializeApp function
-import { getAuth, PhoneAuthProvider, signInWithCredential } from "firebase/auth";// Import auth methods
-import { getStorage} from 'firebase/storage'; // Import storage methods
+import { initializeApp } from 'firebase/app'; 
+import { 
+  getAuthInstance,
+  getStorageInstance,
+  PhoneAuthProvider,
+  signInWithCredential
+} from '../config/firebase';
 
+// Re-export auth and storage instances from the centralized config
+export const auth = getAuthInstance();
+export const storage = getStorageInstance();
 
-// Firebase Configuration (Replace with your actual Firebase credentials)
+// Export auth methods
+export { PhoneAuthProvider, signInWithCredential };
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBD8FY3LgRnaDTzgE5EYuvqzMk_sInyC5g",
-  authDomain: "corosole-core21.firebaseapp.com",
-  projectId: "corosole-core21",
-  storageBucket: "corosole-core21.firebasestorage.app",
-  messagingSenderId: "132352997002",
-  appId: "1:132352997002:web:50c2a69bda07a31219df73",
-  measurementId: "G-MEASUREMENT_ID"
-};
-
-
-// Initialize Firebase if not already initialized
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);  // Initialize Firebase app
-const auth = getAuth(app);  // Get Firebase Auth instance
-const storage = getStorage(app);  // Get Firebase Storage instance
-
-export { auth, storage,  PhoneAuthProvider, signInWithCredential};
+// This file is now a thin wrapper around the main Firebase configuration
+// All Firebase initialization should be done in src/config/firebase.js

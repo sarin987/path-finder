@@ -175,9 +175,9 @@ const logApiCall = (method, url, data = {}) => {
 
 export const AuthAPI = {
   register: async (userData) => {
-    const url = '/auth/register';
+    // Use the correct user registration endpoint
+    const url = `/role-register/register/user`;
     logApiCall('post', url, { phone: userData.phone });
-    
     try {
       const response = await api.post(url, userData);
       console.log('Register API Response:', response.data);

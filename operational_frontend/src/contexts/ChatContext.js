@@ -21,7 +21,12 @@ export const ChatProvider = ({ children }) => {
   // Initialize socket connection
   useEffect(() => {
     if (user?.id) {
-      const newSocket = io(API_URL, {
+      // Use ngrok URL for WebSocket in development
+      const wsUrl = __DEV__ 
+        ? 'wss://3bf6-2401-4900-881e-1353-d678-d6fc-de47-c356.ngrok-free.app' 
+        : API_URL;
+      
+      const newSocket = io(wsUrl, {
         query: { userId: user.id, role: user.role },
         transports: ['websocket'],
       });

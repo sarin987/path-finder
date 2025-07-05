@@ -1,4 +1,9 @@
-import { auth, PhoneAuthProvider } from './firebaseConfig';
+import { 
+  getAuthInstance, 
+  PhoneAuthProvider, 
+  signInWithCredential 
+} from '../config/firebase';
+import { auth } from './firebaseConfig';
 
 // Initialize reCAPTCHA verifier
 let recaptchaVerifier = null;
@@ -19,8 +24,14 @@ export const initializeRecaptcha = () => {
 // Function to send OTP
 export const sendOTP = async (phoneNumber) => {
   try {
+    const auth = getAuthInstance();
     const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
     const appVerifier = initializeRecaptcha();
+    
+    if (!auth) {
+      throw new Error('Authentication service is not available');
+    }
+    
     const confirmationResult = await auth.signInWithPhoneNumber(formattedPhone, appVerifier);
     return confirmationResult;
   } catch (error) {
@@ -32,8 +43,14 @@ export const sendOTP = async (phoneNumber) => {
 // Function to verify OTP
 export const verifyOTP = async (confirmationResult, otp) => {
   try {
+    const auth = getAuthInstance();
     const credential = PhoneAuthProvider.credential(confirmationResult.verificationId, otp);
-    const userCredential = await auth.signInWithCredential(credential);
+    
+    if (!auth) {
+      throw new Error('Authentication service is not available');
+    }
+    
+    const userCredential = await signInWithCredential(auth, credential);
     return userCredential.user;
   } catch (error) {
     console.error('Error verifying OTP:', error);
@@ -44,6 +61,12 @@ export const verifyOTP = async (confirmationResult, otp) => {
 // Function to get current user
 export const getCurrentUser = () => {
   return new Promise((resolve, reject) => {
+    const auth = getAuthInstance();
+    
+    if (!auth) {
+      return reject(new Error('Authentication service is not available'));
+    }
+    
     const unsubscribe = auth.onAuthStateChanged(user => {
       unsubscribe();
       resolve(user);
@@ -54,9 +77,16 @@ export const getCurrentUser = () => {
 // Function to sign out
 export const signOut = async () => {
   try {
+    const auth = getAuthInstance();
+    
+    if (!auth) {
+      throw new Error('Authentication service is not available');
+    }
+    
     await auth.signOut();
+    return true;
   } catch (error) {
     console.error('Error signing out:', error);
-    throw error;
+    throw new Error(error.message || 'Failed to sign out');
   }
-}; 
+};

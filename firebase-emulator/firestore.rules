@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to all users under the following conditions:
+    // 1. For development only - in production, you should implement proper authentication
+    // 2. This is a temporary rule to allow the setup script to work
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

@@ -1,21 +1,23 @@
-import models from '../models/index.js';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import dotenv from 'dotenv';
+const { init, sequelize } = require('../models');
+const { exec } = require('child_process');
+const { promisify } = require('util');
+require('dotenv').config();
 
 const execAsync = promisify(exec);
 
-dotenv.config();
-
 const syncDatabase = async () => {
   try {
+    // Initialize database and models
+    console.log('🔄 Initializing database models...');
+    await init();
+    
     // Test the connection
-    await models.db.authenticate();
+    await sequelize.authenticate();
     console.log('✅ Database connection has been established successfully.');
     
     // Sync all models
     console.log('🔄 Syncing database models...');
-    await models.db.sync({ force: true }); // WARNING: This will drop all tables and recreate them
+    await sequelize.sync({ force: true }); // WARNING: This will drop all tables and recreate them
     console.log('✅ Database synchronized successfully.');
     
     // Run seeders

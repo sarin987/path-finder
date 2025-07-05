@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../utils/database');
+const db = require('../config/db'); // updated from '../utils/database'
 const admin = require('firebase-admin');
 
 // Add a trusted contact

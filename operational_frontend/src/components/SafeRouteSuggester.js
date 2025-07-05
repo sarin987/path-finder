@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, Button, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import MapView, { Polyline, Marker } from 'react-native-maps';
-import axios from 'axios';
+import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const SafeRouteSuggester = ({ userLocation }) => {
+  const { user } = useAuth();
   const [destination, setDestination] = useState('');
   const [route, setRoute] = useState(null);
   const [risks, setRisks] = useState([]);
@@ -11,20 +13,51 @@ const SafeRouteSuggester = ({ userLocation }) => {
 
   const handleSuggestRoute = async () => {
     if (!userLocation || !destination) return;
-    setLoading(true);
-    try {
-      // For demo: destination as "lat,lng"
-      const [destLat, destLng] = destination.split(',').map(Number);
-      const res = await axios.post('http://localhost:5000/api/routes/safe', {
-        start: { lat: userLocation.latitude, lng: userLocation.longitude },
-        end: { lat: destLat, lng: destLng },
-      });
-      setRoute(res.data.route);
-      setRisks(res.data.risks);
-    } catch (e) {
-      alert('Failed to get safe route');
+    
+    // Validate destination format
+    const destParts = destination.split(',').map(coord => coord.trim());
+    if (destParts.length !== 2) {
+      Alert.alert('Invalid Format', 'Please enter destination as "latitude,longitude"');
+      return;
     }
-    setLoading(false);
+    
+    const [destLat, destLng] = destParts.map(Number);
+    if (isNaN(destLat) || isNaN(destLng)) {
+      Alert.alert('Invalid Coordinates', 'Please enter valid numeric coordinates');
+      return;
+    }
+    
+    setLoading(true);
+    setRoute(null);
+    setRisks([]);
+    
+    try {
+      const response = await api.post('/routes/suggest', {
+        start: { 
+          lat: userLocation.latitude, 
+          lng: userLocation.longitude 
+        },
+        end: { 
+          lat: destLat, 
+          lng: destLng 
+        }
+      });
+      
+      if (response.data?.route) {
+        setRoute(response.data.route);
+        setRisks(response.data.risks || []);
+      } else {
+        throw new Error('Invalid response format from server');
+      }
+    } catch (error) {
+      console.error('Route suggestion error:', error);
+      const errorMessage = error.response?.data?.message || 
+                         error.message || 
+                         'Failed to get safe route. Please try again.';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Extract polyline points from Google Directions API response
@@ -42,14 +75,26 @@ const SafeRouteSuggester = ({ userLocation }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Safe Route Suggester</Text>
-      <Text>Enter destination as "lat,lng" (e.g. 12.9716,77.5946):</Text>
+      <Text style={styles.label}>Enter destination coordinates:</Text>
+      <Text style={styles.hint}>Format: latitude,longitude (e.g. 12.9716,77.5946)</Text>
       <TextInput
         style={styles.input}
         value={destination}
         onChangeText={setDestination}
-        placeholder="Destination lat,lng"
+        placeholder="e.g. 12.9716,77.5946"
+        keyboardType="numbers-and-punctuation"
+        autoCapitalize="none"
+        autoCorrect={false}
+        placeholderTextColor="#999"
       />
-      <Button title={loading ? 'Checking...' : 'Suggest Safe Route'} onPress={handleSuggestRoute} disabled={loading} />
+      <View style={styles.buttonContainer}>
+        <Button 
+          title={loading ? 'Finding Safe Route...' : 'Suggest Safe Route'} 
+          onPress={handleSuggestRoute} 
+          disabled={loading || !destination.trim()}
+          color="#128090"
+        />
+      </View>
       {route && (
         <MapView
           style={styles.map}
@@ -82,10 +127,57 @@ const SafeRouteSuggester = ({ userLocation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
-  header: { fontWeight: 'bold', fontSize: 16, marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 4, padding: 8, marginVertical: 8 },
-  map: { width: '100%', height: 250, marginTop: 8 },
+  container: { 
+    flex: 1, 
+    padding: 16,
+    backgroundColor: '#f8fafd',
+  },
+  header: { 
+    fontWeight: 'bold', 
+    fontSize: 18, 
+    marginBottom: 16,
+    color: '#1976D2',
+    textAlign: 'center',
+  },
+  label: {
+    fontSize: 16,
+    marginBottom: 4,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  hint: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
+  input: { 
+    borderWidth: 1, 
+    borderColor: '#d1d5db', 
+    borderRadius: 8, 
+    padding: 12, 
+    marginBottom: 16,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  buttonContainer: {
+    marginBottom: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  map: { 
+    width: '100%', 
+    height: 300, 
+    marginTop: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  errorText: {
+    color: '#dc2626',
+    marginTop: 8,
+    textAlign: 'center',
+  },
 });
 
 export default SafeRouteSuggester;

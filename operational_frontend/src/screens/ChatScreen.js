@@ -10,9 +10,9 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
-  Animated,
-  Alert
+  Animated
 } from 'react-native';
+import { alert } from '../utils/alert';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { useChat } from '../contexts/ChatContext';
@@ -21,15 +21,19 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 const ChatScreen = ({ route, navigation }) => {
   console.log('ChatScreen mounted with route params:', route.params);
   
-  if (!route.params?.responder) {
-    console.error('No responder data provided to ChatScreen');
-    
-    // Show error message and navigate back if no responder data
-    useEffect(() => {
-      Alert.alert('Error', 'No responder information available. Please try again.');
-      navigation.goBack();
-    }, []);
-    
+  const [showError, setShowError] = useState(false);
+  
+  useEffect(() => {
+    if (!route.params?.responder) {
+      console.error('No responder data provided to ChatScreen');
+      setShowError(true);
+      alert('Error', 'No responder information available. Please try again.', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    }
+  }, [route.params]);
+  
+  if (showError || !route.params?.responder) {
     return (
       <View style={styles.loadingContainer}>
         <Text>Error: No responder information available</Text>

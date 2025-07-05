@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const Admin = require('../models/Admin');
 const Responder = require('../models/Responder');
+const User = require('../models/User');
 
 const validRoles = ['admin', 'police', 'ambulance', 'fire'];
 
@@ -226,6 +227,146 @@ const login = async (req, res) => {
   }
 };
 
+// @desc    User login
+// @route   POST /api/auth/login/user
+// @access  Public
+const userLogin = async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+    const formattedPhone = formatPhone(phone);
+
+    console.log('User login attempt:', { phone: formattedPhone });
+    
+    // Find user by phone
+    const user = await User.findOne({ 
+      where: { 
+        phone: formattedPhone,
+        role: 'user' // Ensure we're only logging in users with role 'user'
+      } 
+    });
+    
+    console.log('User found:', user ? 'Yes' : 'No');
+    
+    if (user) {
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      console.log('Password valid:', isPasswordValid);
+      
+      if (isPasswordValid) {
+        const token = generateToken(user.id, 'user');
+        return res.json({
+          success: true,
+          token,
+          user: {
+            id: user.id,
+            name: user.name,
+            phone: user.phone,
+            role: 'user'
+          }
+        });
+      }
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid phone number or password',
+      code: 'INVALID_CREDENTIALS'
+    });
+
+  } catch (error) {
+    console.error('User login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Admin login
+// @route   POST /api/auth/login/admin
+// @access  Public
+const adminLogin = async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+    const formattedPhone = formatPhone(phone);
+
+    const admin = await Admin.findOne({ where: { phone: formattedPhone } });
+    
+    if (admin && await bcrypt.compare(password, admin.password)) {
+      const token = generateToken(admin.id, 'admin');
+      return res.json({
+        success: true,
+        token,
+        user: {
+          id: admin.id,
+          name: admin.name,
+          phone: admin.phone,
+          role: 'admin'
+        }
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid admin credentials',
+      code: 'INVALID_CREDENTIALS'
+    });
+
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Responder login (police, ambulance, fire)
+// @route   POST /api/auth/login/responder
+// @access  Public
+const responderLogin = async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+    const formattedPhone = formatPhone(phone);
+
+    const responder = await Responder.findOne({ 
+      where: { 
+        phone: formattedPhone,
+        role: ['police', 'ambulance', 'fire'] 
+      } 
+    });
+    
+    if (responder && await bcrypt.compare(password, responder.password)) {
+      const token = generateToken(responder.id, responder.role);
+      return res.json({
+        success: true,
+        token,
+        user: {
+          id: responder.id,
+          name: responder.name,
+          phone: responder.phone,
+          role: responder.role
+        }
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid responder credentials',
+      code: 'INVALID_CREDENTIALS'
+    });
+
+  } catch (error) {
+    console.error('Responder login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
 // @desc    Get current user profile
 // @route   GET /api/auth/me
 // @access  Private
@@ -282,6 +423,9 @@ const updateProfile = async (req, res) => {
 module.exports = {
   register,
   login,
+  userLogin,
+  adminLogin,
+  responderLogin,
   getMe,
   updateProfile
 };

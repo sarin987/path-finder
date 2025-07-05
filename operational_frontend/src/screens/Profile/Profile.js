@@ -6,10 +6,10 @@ import {
   Image,
   TextInput,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Pressable,
 } from 'react-native';
+import { alert } from '../../utils/alert';
 import * as ImagePicker from 'react-native-image-picker';
 import { useAuth } from '../../contexts/AuthContext';
 import { API_ROUTES } from '../../config/constants';
@@ -117,9 +117,9 @@ const Profile = () => {
       if (!response.ok) throw new Error(data.message);
 
       await updateUser({ ...user, profile_photo: data.profile_photo });
-      Alert.alert('Success', 'Profile photo updated');
+      alert('Success', 'Profile photo updated');
     } catch (error) {
-      Alert.alert('Error', error.message);
+      alert('Error', error.message);
     } finally {
       setLoading(false);
     }
@@ -128,7 +128,7 @@ const Profile = () => {
   const handleUpdateEmail = async () => {
     const emailError = validateEmail(formData.email);
     if (emailError) {
-      Alert.alert('Validation Error', emailError);
+      alert('Validation Error', emailError);
       return;
     }
 
@@ -147,9 +147,9 @@ const Profile = () => {
       if (!response.ok) throw new Error(data.message);
 
       await updateUser({ ...user, email: formData.email });
-      Alert.alert('Success', 'Email updated successfully');
+      alert('Success', 'Email updated successfully');
     } catch (error) {
-      Alert.alert('Error', error.message);
+      alert('Error', error.message);
     } finally {
       setLoading(false);
     }
@@ -163,7 +163,7 @@ const Profile = () => {
     };
 
     if (Object.values(passwordErrors).some(error => error)) {
-      Alert.alert('Validation Error', 'Please fix the errors in the form');
+      alert('Validation Error', 'Please fix the errors in the form');
       setErrors(prev => ({ ...prev, ...passwordErrors }));
       return;
     }
@@ -191,9 +191,9 @@ const Profile = () => {
         newPassword: '',
         confirmPassword: ''
       });
-      Alert.alert('Success', 'Password updated successfully');
+      alert('Success', 'Password updated successfully');
     } catch (error) {
-      Alert.alert('Error', error.message);
+      alert('Error', error.message);
     } finally {
       setLoading(false);
     }

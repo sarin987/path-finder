@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StatusBar,
-  Alert,
   ActivityIndicator,
   Keyboard,
   Dimensions,
@@ -59,7 +58,7 @@ const LoginScreen = ({ navigation }) => {
     // Check if phone number is provided and has at least 10 digits
     const phoneDigits = phone.replace(/\D/g, '');
     if (!phoneDigits || phoneDigits.length < 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      alert('Error', 'Please enter a valid 10-digit phone number');
       return false;
     }
 
@@ -74,7 +73,7 @@ const LoginScreen = ({ navigation }) => {
 
     // Check if password is provided and meets minimum length requirement
     if (!password || password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      alert('Error', 'Password must be at least 6 characters');
       return false;
     }
 
@@ -103,7 +102,7 @@ const LoginScreen = ({ navigation }) => {
     if (!phone) {
       const errorMsg = 'Please enter your phone number';
       console.warn('[OTP] Validation failed:', errorMsg);
-      Alert.alert('Error', errorMsg);
+      alert('Error', errorMsg);
       return;
     }
 
@@ -128,19 +127,19 @@ const LoginScreen = ({ navigation }) => {
         console.log('OTP sent successfully to:', formattedPhone);
         
         // Show success message
-        Alert.alert(
+        alert(
         'OTP Sent', 
         'A 6-digit OTP has been sent to your phone number.'
       );
       
       setIsOtpSent(true);
-      Alert.alert('Success', 'OTP sent successfully');
+      alert('Success', 'OTP sent successfully');
     } else {
         logError('OTP send failed', { 
           phone, 
           error: response.data.message || 'No error message'
         });
-        Alert.alert('Error', response.data.message || 'Failed to send OTP');
+        alert('Error', response.data.message || 'Failed to send OTP');
       }
     } catch (error) {
       logError('Error sending OTP', {
@@ -157,7 +156,7 @@ const LoginScreen = ({ navigation }) => {
         errorMessage = 'Too many attempts. Please try again later.';
       }
       
-      Alert.alert('Error', errorMessage);
+      alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -165,7 +164,7 @@ const LoginScreen = ({ navigation }) => {
 
   const handleLogin = async () => {
     if (!phone || !password) {
-      Alert.alert('Error', 'Please enter both phone number and password');
+      alert('Error', 'Please enter both phone number and password');
       return;
     }
 
@@ -176,9 +175,10 @@ const LoginScreen = ({ navigation }) => {
         password 
       };
 
-      logInfo('Attempting login', { phone: credentials.phone, method: 'Password' });
+      logInfo('Attempting user login', { phone: credentials.phone, method: 'Password' });
       
-      const url = buildApiUrl(ENDPOINTS.LOGIN);
+      // Use the new user-specific login endpoint
+      const url = buildApiUrl('user/auth/login');
       console.log('Sending login request to:', url);
       console.log('Request payload:', credentials);
       
@@ -186,49 +186,76 @@ const LoginScreen = ({ navigation }) => {
         url,
         credentials,
         {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
           timeout: 15000,
+          withCredentials: true // Important for CORS with credentials
         }
       );
       
       console.log('Login response status:', response.status);
       console.log('Login response data:', response.data);
       
-      if (response.data && response.data.success) {
+      if (response.data && response.data.token) {
         logInfo('Login successful', { 
           phone: credentials.phone,
-          responseData: response.data // Log the full response for debugging
+          userId: response.data.user?.id
         });
         
         // Extract token and user data from the response
-        const responseData = response.data.data || {};
-        const { token, ...userData } = responseData;
+        const { token, user: userData } = response.data;
         
         // Store the token if it exists in the response
         if (token) {
           // Store the auth token for API usage
           await AsyncStorage.setItem('token', token);
+          
           // Prepare user data for AuthContext
           const authData = {
             token,
             ...userData,
-            phone: credentials.phone, // Ensure phone is included
-            id: userData.id || responseData.id, // Ensure user ID is included
-            role: userData.role || 'user' // Default role if not provided
+            phone: userData.phone || credentials.phone,
+            id: userData.id,
+            role: userData.role || 'user',
+            email: userData.email || ''
           };
+          
           console.log('Auth data prepared:', authData);
-          // Fetch latest user profile (with avatar) after login
+          
+          // Store user data in AsyncStorage
           try {
-            const profileRes = await api.get(`/users/profile/${authData.id}`);
-            if (profileRes.data && profileRes.data.success && profileRes.data.profile) {
-              authData.avatar = profileRes.data.profile.avatar || profileRes.data.profile.profile_photo || authData.avatar;
-            }
+            await AsyncStorage.setItem('userData', JSON.stringify({
+              id: authData.id,
+              name: authData.name,
+              email: authData.email,
+              phone: authData.phone,
+              role: authData.role,
+              avatar: authData.avatar
+            }));
           } catch (e) {
-            console.warn('Could not fetch user profile after login:', e.message);
+            console.warn('Failed to store user data:', e);
           }
+          
           // Call the login function from AuthContext with the token and user data
           if (login) {
-            await login(authData);
+            // Format the data as expected by the AuthContext
+            const loginData = {
+              token,
+              ...userData,
+              // Ensure required fields are present
+              phone: userData.phone || credentials.phone,
+              id: userData.id,
+              role: userData.role || 'user',
+              email: userData.email || ''
+            };
+            
+            console.log('Calling AuthContext login with:', loginData);
+            await login(loginData);
+            
+            // Navigate to UserDashboard after successful login
+            navigation.navigate('Main', { screen: 'UserDashboard' });
           } else {
             console.error('Login function from AuthContext is not available');
             // Fallback navigation if AuthContext is not available
@@ -245,7 +272,7 @@ const LoginScreen = ({ navigation }) => {
           phone: credentials.phone,
           error: errorMessage,
         });
-        Alert.alert('Error', errorMessage);
+        alert('Error', errorMessage);
       }
     } catch (error) {
       // Log the error details
@@ -290,7 +317,7 @@ const LoginScreen = ({ navigation }) => {
       }
       
       // Show error to user
-      Alert.alert('Error', errorMessage);
+      alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -299,7 +326,7 @@ const LoginScreen = ({ navigation }) => {
   const handleGoogleSignIn = async () => {
     try {
       // Show a more informative message to the user
-      Alert.alert(
+      alert(
         'Google Sign-In Coming Soon',
         'We are working on bringing you Google Sign-In. Please use phone number and password login for now.',
         [
@@ -379,7 +406,7 @@ const LoginScreen = ({ navigation }) => {
           return false;
         } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
           // Play services not available or outdated
-          Alert.alert(
+          alert(
             'Google Play Services Required',
             'Google Play Services is not available or outdated. Please update Google Play Services and try again.'
           );
@@ -417,7 +444,7 @@ const LoginScreen = ({ navigation }) => {
         }
       }
       
-      Alert.alert('Error', errorMessage);
+      alert('Error', errorMessage);
       return false;
     }
   };
@@ -504,7 +531,7 @@ const LoginScreen = ({ navigation }) => {
       
       // Only show alert if there's a meaningful error message
       if (errorMessage) {
-        Alert.alert('Error', errorMessage);
+        alert('Error', errorMessage);
       }
       
       return false;

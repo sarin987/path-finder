@@ -40,7 +40,6 @@ const sidebarMenuItems = [
   { key: 'dashboard', icon: 'home', label: 'Dashboard', screen: 'UserDashboard' },
   { key: 'reportIncident', icon: 'alert-circle', label: 'Report Incident', screen: 'ReportIncident' },
   { key: 'trustedContacts', icon: 'account-group', label: 'Trusted Contacts', screen: 'TrustedContacts' },
-  { key: 'nearbyIncidents', icon: 'map-marker', label: 'Nearby Incidents', screen: 'NearbyIncidents' },
   { key: 'safeRoute', icon: 'navigation', label: 'Safe Route', screen: 'SafeRoute' },
 ];
 
@@ -71,7 +70,7 @@ const Sidebar = ({ sidebarAnimation, toggleSidebar, user, navigation, logout, on
       ]}
     >
       <View style={styles.header}>
-        <Image source={require('../../assets/core_safety_logo.png')} style={styles.logo} />
+        <Image source={require('../assets/core_safety_logo.png')} style={styles.logo} />
         <Text style={styles.appName}>Core Safety</Text>
       </View>
 

@@ -70,12 +70,23 @@ class LocationService {
         include: [{
           model: User,
           as: 'user',
-          attributes: ['id', 'name', 'email', 'phone']
+          attributes: ['id', 'name', 'email', 'phone', 'avatar']
         }],
         order: [['last_updated', 'DESC']]
       });
 
-      return locations;
+      // Format the response
+      return locations.map(loc => ({
+        userId: loc.user_id,
+        role: loc.role,
+        lat: loc.lat,
+        lng: loc.lng,
+        status: loc.status,
+        lastUpdated: loc.last_updated,
+        name: loc.user?.name || `Responder ${loc.role}`,
+        phone: loc.user?.phone,
+        avatar: loc.user?.avatar
+      }));
     } catch (error) {
       console.error('Error getting active responders:', error);
       throw error;

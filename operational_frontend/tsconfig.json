@@ -2,34 +2,45 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "commonjs",
-    "lib": ["es6"],
+    "lib": ["es2017"],
     "allowJs": true,
     "jsx": "react-native",
     "noEmit": true,
     "isolatedModules": true,
-    "strict": true,
+    "strict": false,
     "moduleResolution": "node",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "typeRoots": [
       "./node_modules/@types",
-      "./src/types",
-      "./src/assets"
+      "./src/@types"
     ],
     "types": [
+      "jest",
+      "node",
       "react",
-      "react-native",
-      "jest"
+      "react-native"
     ]
   },
   "exclude": [
-    "node_modules",
     "babel.config.js",
     "metro.config.js",
-    "jest.config.js"
+    "jest.config.js",
+    "**/__mocks__/**",
+    "node_modules/react-native-maps/**/*"
   ],
   "include": [
-    "src"
+    "src/**/*",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
   ]
 }

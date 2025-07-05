@@ -6,8 +6,12 @@ const isDevelopment = __DEV__;
 
 // Base URL configuration
 const getBaseUrl = () => {
-  // Always use the specified IP for all environments
-  return 'http://192.168.14.111:5000';
+  // Using ngrok URL for development
+  if (__DEV__) {
+    return 'https://3bf6-2401-4900-881e-1353-d678-d6fc-de47-c356.ngrok-free.app';
+  }
+  // Fallback to localhost for other environments
+  return 'http://localhost:5000';
 };
 
 export const BASE_URL = getBaseUrl();
@@ -32,7 +36,8 @@ export const API_ROUTES = {
   // Auth
   auth: {
     login: `${BASE_URL}${API_VERSION}/auth/login`,
-    register: `${BASE_URL}${API_VERSION}/auth/register`,
+    // Use the correct endpoint for normal user registration
+    register: `${BASE_URL}${API_VERSION}/role-register/register/user`,
     refreshToken: `${BASE_URL}${API_VERSION}/auth/refresh-token`,
     sendOtp: `${BASE_URL}${API_VERSION}/auth/send-otp`,
     verifyOtp: `${BASE_URL}${API_VERSION}/auth/verify-otp`,
@@ -84,7 +89,7 @@ export const API_ROUTES = {
 
 // WebSocket Configuration
 export const SOCKET_CONFIG = {
-  url: isDevelopment ? 'ws://192.168.14.111:5000' : 'wss://your-production-api.com',
+  url: isDevelopment ? 'ws://192.168.1.18:5000' : 'wss://your-production-api.com',
   options: {
     reconnection: true,
     reconnectionAttempts: 5,

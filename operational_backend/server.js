@@ -5,9 +5,12 @@ const { createServer } = require('http');
 const path = require('path');
 const fs = require('fs').promises;
 
-// Initialize Firebase Admin (optional)
+// Initialize Firebase Admin
 const firebase = require('./config/firebase-admin');
 const admin = firebase.admin;
+
+// Initialize Firebase Services
+const { FirebaseChatService, FirebaseStorageService } = require('./src/services/firebase');
 
 // Import database initialization
 const { init, sequelize } = require('./models');
@@ -17,12 +20,14 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const locationRoutes = require('./src/routes/locationRoutes');
-const authRoutes = require('./routes/auth'); // <-- FIXED: use correct auth route
-const chatRoutes = require('./src/routes/chat.routes');
+const authRoutes = require('./routes/auth');
+const chatRoutes = require('./src/routes/chatRoutes'); // Updated chat routes
 const usersRoutes = require('./routes/users');
 const emergencyRoutes = require('./routes/emergency');
 const requestsRoutes = require('./routes/requests');
 const contactsRoutes = require('./routes/contacts');
+const safetyRatingRoutes = require('./routes/safetyRating');
+const roleRegisterRoutes = require('./src/routes/roleRegister');
 
 // Import socket services
 const LocationSocketService = require('./src/services/locationSocketService');
@@ -33,23 +38,45 @@ const registerChatHandlers = require('./socket');
 const app = express();
 const httpServer = createServer(app);
 
+// Attach Firebase services to app for use in routes
+app.set('firebase', { FirebaseChatService, FirebaseStorageService });
+
 // Track connected users
 const connectedUsers = new Map();
 
 // CORS configuration
 const corsOptions = {
-  origin: [
-    'http://localhost:2222', // Frontend on port 2222
-    'http://localhost:8080', // Dashboard
-    'http://localhost:3000', // Original frontend port
-    'http://192.168.14.111:5000', // Backend (should not be here for frontend)
-    'http://192.168.14.111:3000', // <-- Add your frontend LAN URL
-    'http://localhost:8082', // <-- Added for Expo web frontend
-    ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [])
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:2222', // Frontend on port 2222
+      'http://localhost:8080', // Dashboard
+      'http://localhost:3000', // Original frontend port
+      'http://192.168.1.18:5000', // Backend (should not be here for frontend)
+      'http://192.168.14.111:3000', // Frontend LAN URL
+      'http://localhost:8082', // Expo web frontend
+      'https://3bf6-2401-4900-881e-1353-d678-d6fc-de47-c356.ngrok-free.app', // ngrok URL
+      ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : [])
+    ];
+
+    // Allow ngrok domains in development
+    if (process.env.NODE_ENV === 'development' && origin.endsWith('.ngrok-free.app')) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin) || !origin) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked for origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
 };
 
 // Middleware
@@ -89,14 +116,17 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/locations', locationRoutes);
-app.use('/api/auth', authRoutes); // <-- FIXED: use correct auth route
+app.use('/api/auth', authRoutes); // Original auth routes
+app.use('/api/user/auth', require('./routes/userAuth')); // New user-specific auth routes
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/users', usersRoutes);
 app.use('/api/incidents', require('./routes/incidents').default || require('./routes/incidents'));
 app.use('/api/emergencies', require('./routes/emergency'));
 app.use('/api/requests', require('./routes/requests'));
-app.use('/api/role', require('./routes/roleDashboards')); // <-- New role-based dashboard routes
-app.use('/api/contacts', contactsRoutes); // <-- Added contacts routes
+app.use('/api/role', require('./routes/roleDashboards'));
+app.use('/api/contacts', contactsRoutes);
+app.use('/api/ratings', safetyRatingRoutes);
+app.use('/api/role-register', roleRegisterRoutes)
 
 // Health check endpoint
 app.get('/health', (req, res) => {

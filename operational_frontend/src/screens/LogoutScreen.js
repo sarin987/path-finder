@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { View, Text, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ActivityIndicator } from "react-native";
+import { alert } from '../utils/alert';
 import auth from "@react-native-firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
@@ -13,7 +14,7 @@ const LogoutScreen = () => {
         await auth().signOut(); // ✅ Firebase sign-out
         await AsyncStorage.clear(); // ✅ Clear stored user data
 
-        Alert.alert("Logged Out", "You have been logged out successfully.");
+        alert("Logged Out", "You have been logged out successfully.");
 
         // ✅ Navigate to Login screen
         navigation.reset({
@@ -23,7 +24,7 @@ const LogoutScreen = () => {
 
       } catch (error) {
         console.error("Logout Error:", error);
-        Alert.alert("Error", "Logout failed. Please try again.");
+        alert("Error", "Logout failed. Please try again.");
       }
     };
 

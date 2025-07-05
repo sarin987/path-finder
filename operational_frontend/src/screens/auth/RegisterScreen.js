@@ -4,13 +4,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
   StatusBar,
   Image,
   ActivityIndicator,
-  AsyncStorage,
   Platform,
 } from 'react-native';
+import { alert } from '../../utils/alert';
 import auth from '@react-native-firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { Dropdown } from 'react-native-element-dropdown';
@@ -21,6 +20,7 @@ import { colors } from '../../styles/colors';
 import LottieView from 'lottie-react-native';
 import { logError, logInfo } from '../../utils/logger';
 import { AuthAPI } from '../../config/network';
+import { getAsyncStorage } from '../../utils/platform';
 
 // Configure Google Sign-In
 GoogleSignin.configure({
@@ -53,6 +53,8 @@ const RegisterScreen = ({ navigation }) => {
   const [showOtpField, setShowOtpField] = useState(false);
   const [formData, setFormData] = useState(null);
   const [email, setEmail] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   // Check if all required fields are filled
   const isFormValid = React.useMemo(() => {
@@ -87,33 +89,33 @@ const RegisterScreen = ({ navigation }) => {
     
     // Client-side validation
     if (!name || name.trim().length === 0) {
-      Alert.alert('Error', 'Please enter your name');
+      alert('Error', 'Please enter your name');
       return;
     }
     
     const phoneNumber = phone.replace(/\D/g, '');
     if (phoneNumber.length < 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      alert('Error', 'Please enter a valid 10-digit phone number');
       return;
     }
     
     if (!password || password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      alert('Error', 'Password must be at least 6 characters long');
       return;
     }
     
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      alert('Error', 'Passwords do not match');
       return;
     }
     
     if (!gender) {
-      Alert.alert('Error', 'Please select your gender');
+      alert('Error', 'Please select your gender');
       return;
     }
 
     if (!email || !validateEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      alert('Error', 'Please enter a valid email address');
       return;
     }
 
@@ -145,7 +147,7 @@ const RegisterScreen = ({ navigation }) => {
       const otpTimeout = setTimeout(() => {
         if (showOtpField) {
           setShowOtpField(false);
-          Alert.alert('Timeout', 'OTP has expired. Please try again.');
+          alert('Timeout', 'OTP has expired. Please try again.');
         }
       }, 120000);
       
@@ -153,7 +155,7 @@ const RegisterScreen = ({ navigation }) => {
       return () => clearTimeout(otpTimeout);
       
       logInfo('OTP sent successfully', { phone: formattedPhone });
-      Alert.alert('Success', 'OTP sent successfully!');
+      alert('Success', 'OTP sent successfully!');
     } catch (error) {
       logError('Error sending OTP', {
         phone,
@@ -171,7 +173,7 @@ const RegisterScreen = ({ navigation }) => {
         errorMessage = 'Quota exceeded. Please try again later.';
       }
       
-      Alert.alert('Error', errorMessage);
+      alert('Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -219,89 +221,72 @@ const RegisterScreen = ({ navigation }) => {
 
   const handleVerifyOtp = async () => {
     if (!otp || otp.length < 6) {
-      Alert.alert('Error', 'Please enter the 6-digit OTP');
+      alert('Error', 'Please enter the 6-digit OTP');
       return;
     }
 
     try {
       setIsLoading(true);
       logInfo('Verifying OTP', { hasVerificationId: !!verificationId, otpLength: otp.length });
-      
       if (!verificationId) {
         throw new Error('No verification ID found. Please request a new OTP.');
       }
-
       // Verify OTP with Firebase
       const { success, user, error: otpError } = await verifyOtp(verificationId, otp);
-      
       if (!success || !user) {
         throw new Error(otpError || 'OTP verification failed');
       }
-
       const firebaseUid = user.uid;
       logInfo('OTP verified successfully', { firebaseUid });
-
       // Now register with our backend
       const userData = {
         ...formData,
         firebase_uid: firebaseUid,
-        role: 'user',
-        email
+        email,
+        role: 'user'
       };
-
-      logInfo('Attempting registration with backend', { 
-        ...userData, 
-        password: '***' // Don't log password
+      // Extra logging for missing fields
+      const missingFields = [];
+      ['name','phone','password','gender','email','firebase_uid'].forEach(f => {
+        if (!userData[f]) missingFields.push(f);
       });
-      
+      if (missingFields.length > 0) {
+        logError('Registration attempt missing fields', { missingFields, userData });
+        alert('Error', `Registration failed. Missing fields: ${missingFields.join(', ')}`);
+        setIsLoading(false);
+        return;
+      }
+      logInfo('Attempting registration with backend', { ...userData, password: '***' });
+      // Use role-based registration endpoint
       const { success: registerSuccess, data, error: registerError } = await AuthAPI.register(userData);
-
       if (registerSuccess) {
-        logInfo('Registration successful', { 
-          userId: data.id,
-          phone: data.phone,
-          name: data.name 
-        });
-        
-        // Clear sensitive data
+        logInfo('Registration successful', { userId: data.id, phone: data.phone, name: data.name });
         setPassword('');
         setOtp('');
         setFormData(null);
-        
-        Alert.alert(
+        alert(
           'Success!',
           'Registration successful! You can now login.',
-          [{ 
-            text: 'OK', 
-            onPress: () => {
-              // Clear navigation stack and go to login
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Login' }],
-              });
-            }
-          }]
+          [{ text: 'OK', onPress: () => {
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          }}]
         );
       } else {
-        throw new Error(registerError || 'Registration failed');
+        logError('Registration failed at backend', { registerError, userData });
+        let errorMessage = registerError || 'Registration failed';
+        if (registerError && typeof registerError === 'object' && registerError.error) {
+          errorMessage = registerError.error;
+        }
+        alert('Error', errorMessage);
       }
     } catch (error) {
-      logError('Registration error', {
-        error: error.message,
-        code: error.code,
-        stack: error.stack
-      });
-      
+      logError('Registration error', { error: error.message, code: error.code, stack: error.stack });
       let errorMessage = 'Registration failed. Please try again.';
-      
-      // Handle specific error cases
-      if (error.code === 'auth/network-request-failed' || 
-          error.message.toLowerCase().includes('network')) {
+      if (error.code === 'auth/network-request-failed' || error.message.toLowerCase().includes('network')) {
         errorMessage = 'Network error. Please check your internet connection and try again.';
       } else if (error.code === 'auth/too-many-requests') {
         errorMessage = 'Too many attempts. Please try again later.';
-      } else if (error.code === 'auth/phone-number-already-exists' || 
-                error.message.toLowerCase().includes('taken')) {
+      } else if (error.code === 'auth/phone-number-already-exists' || error.message.toLowerCase().includes('taken')) {
         errorMessage = 'This phone number is already registered. Please login instead.';
       } else if (error.code === 'auth/invalid-verification-code') {
         errorMessage = 'Invalid OTP. Please try again.';
@@ -310,7 +295,6 @@ const RegisterScreen = ({ navigation }) => {
       } else if (error.message.includes('firebase_uid')) {
         errorMessage = 'Firebase authentication failed. Please try again.';
       }
-      
       Alert.alert('Error', errorMessage);
     } finally {
       setIsLoading(false);
@@ -369,6 +353,7 @@ const RegisterScreen = ({ navigation }) => {
         });
         
         // Store the auth token
+        const AsyncStorage = getAsyncStorage();
         await AsyncStorage.setItem('authToken', data.token);
         
         // Navigate to main app
@@ -514,7 +499,8 @@ const RegisterScreen = ({ navigation }) => {
                 />
                 <TextInput
                   style={authStyles.input}
-                  placeholder="Email"
+                  placeholder="Enter your email address"
+                  placeholderTextColor={colors.gray[200]}
                   value={email}
                   onChangeText={setEmail}
                   autoCapitalize="none"
@@ -529,34 +515,48 @@ const RegisterScreen = ({ navigation }) => {
                   color={colors.primary}
                   style={authStyles.inputIcon} 
                 />
-                <TextInput
-                  style={[
-                    authStyles.input,
-                    password && password.length > 0 && password.length < 6 && { borderColor: 'orange' },
-                    password && password.length >= 6 && { borderColor: 'green' }
-                  ]}
-                  placeholder="Password (min 6 characters)"
-                  placeholderTextColor={colors.gray[200]}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                />
-                {password && password.length > 0 && password.length < 6 && (
-                  <MaterialCommunityIcons 
-                    name="alert" 
-                    size={20} 
-                    color="orange"
-                    style={{ marginLeft: 5 }}
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                  <TextInput
+                    style={[
+                      authStyles.input,
+                      { flex: 1 },
+                      password && password.length > 0 && password.length < 6 && { borderColor: 'orange' },
+                      password && password.length >= 6 && { borderColor: 'green' }
+                    ]}
+                    placeholder="Password (min 6 characters)"
+                    placeholderTextColor={colors.gray[200]}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
                   />
-                )}
-                {password && password.length >= 6 && (
-                  <MaterialCommunityIcons 
-                    name="check-circle" 
-                    size={20} 
-                    color="green"
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
                     style={{ marginLeft: 5 }}
-                  />
-                )}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <MaterialCommunityIcons
+                      name={showPassword ? 'eye-off' : 'eye'}
+                      size={22}
+                      color={colors.gray[400]}
+                    />
+                  </TouchableOpacity>
+                  {password && password.length > 0 && password.length < 6 && (
+                    <MaterialCommunityIcons 
+                      name="alert" 
+                      size={20} 
+                      color="orange"
+                      style={{ marginLeft: 5 }}
+                    />
+                  )}
+                  {password && password.length >= 6 && (
+                    <MaterialCommunityIcons 
+                      name="check-circle" 
+                      size={20} 
+                      color="green"
+                      style={{ marginLeft: 5 }}
+                    />
+                  )}
+                </View>
               </View>
               
               <View style={authStyles.inputContainer}>
@@ -566,27 +566,41 @@ const RegisterScreen = ({ navigation }) => {
                   color={colors.primary}
                   style={authStyles.inputIcon} 
                 />
-                <TextInput
-                  style={[
-                    authStyles.input,
-                    confirmPassword && confirmPassword.length > 0 && {
-                      borderColor: password === confirmPassword ? 'green' : 'red'
-                    }
-                  ]}
-                  placeholder="Confirm Password"
-                  placeholderTextColor={colors.gray[200]}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry
-                />
-                {confirmPassword && confirmPassword.length > 0 && (
-                  <MaterialCommunityIcons 
-                    name={password === confirmPassword ? 'check-circle' : 'alert-circle'}
-                    size={20} 
-                    color={password === confirmPassword ? 'green' : 'red'}
-                    style={{ marginLeft: 5 }}
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                  <TextInput
+                    style={[
+                      authStyles.input,
+                      { flex: 1 },
+                      confirmPassword && confirmPassword.length > 0 && {
+                        borderColor: password === confirmPassword ? 'green' : 'red'
+                      }
+                    ]}
+                    placeholder="Confirm Password"
+                    placeholderTextColor={colors.gray[200]}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
                   />
-                )}
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={{ marginLeft: 5 }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <MaterialCommunityIcons
+                      name={showConfirmPassword ? 'eye-off' : 'eye'}
+                      size={22}
+                      color={colors.gray[400]}
+                    />
+                  </TouchableOpacity>
+                  {confirmPassword && confirmPassword.length > 0 && (
+                    <MaterialCommunityIcons 
+                      name={password === confirmPassword ? 'check-circle' : 'alert-circle'}
+                      size={20} 
+                      color={password === confirmPassword ? 'green' : 'red'}
+                      style={{ marginLeft: 5 }}
+                    />
+                  )}
+                </View>
               </View>
 
               <View style={authStyles.dropdownContainer}>

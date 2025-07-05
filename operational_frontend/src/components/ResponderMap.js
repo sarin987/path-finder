@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, PermissionsAndroid, Platform, Alert, ActivityIndicator } from 'react-native';
+import { View, Platform, ActivityIndicator } from 'react-native';
+import { alert } from '../utils/alert';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import Geolocation from '@react-native-community/geolocation';
 import axios from 'axios';
 import io from 'socket.io-client';
+import { getPermissionsAndroid, getGeolocation, isWeb } from '../utils/platform';
 
 const SOCKET_URL = process.env.REACT_NATIVE_SOCKET_URL || 'http://localhost:5000';
 const API_URL = process.env.REACT_NATIVE_API_URL || 'http://localhost:5000/api';
@@ -26,6 +27,7 @@ const ResponderMap = () => {
   const requestLocationPermission = async () => {
     if (Platform.OS === 'android') {
       try {
+        const PermissionsAndroid = getPermissionsAndroid();
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           {
@@ -38,7 +40,7 @@ const ResponderMap = () => {
         );
         return granted === PermissionsAndroid.RESULTS.GRANTED;
       } catch (err) {
-        Alert.alert('Permission error', err.message);
+        alert('Permission error', err.message);
         return false;
       }
     }
@@ -48,6 +50,7 @@ const ResponderMap = () => {
   // Get user location
   const getUserLocation = () => {
     return new Promise((resolve, reject) => {
+      const Geolocation = getGeolocation();
       Geolocation.getCurrentPosition(
         position => {
           const { latitude, longitude } = position.coords;
@@ -89,7 +92,7 @@ const ResponderMap = () => {
         }
       } catch (err) {
         setLoading(false);
-        Alert.alert('Location error', 'Could not get your location.');
+        alert('Location error', 'Could not get your location.');
       }
     })();
   }, []);

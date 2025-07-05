@@ -6,9 +6,59 @@ class LocationSocketService {
     this.initializeSocketHandlers();
   }
 
+  // Helper function to calculate distance between two coordinates in km
+  calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of the earth in km
+    const dLat = this.deg2rad(lat2 - lat1);
+    const dLon = this.deg2rad(lon2 - lon1);
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c; // Distance in km
+  }
+
+  deg2rad(deg) {
+    return deg * (Math.PI/180);
+  }
+
   initializeSocketHandlers() {
     this.io.on('connection', (socket) => {
       console.log('New client connected to location service:', socket.id);
+
+      // Handle get_responders event
+      socket.on('get_responders', async (data, callback) => {
+        try {
+          const { role, lat, lng } = data || {};
+          let responders = await LocationService.getActiveResponders(role);
+          
+          // If user location is provided, calculate distance for each responder
+          if (lat && lng) {
+            responders = responders.map(responder => ({
+              ...responder,
+              distance: this.calculateDistance(
+                parseFloat(lat),
+                parseFloat(lng),
+                parseFloat(responder.lat),
+                parseFloat(responder.lng)
+              )
+            }));
+            
+            // Sort by distance (closest first)
+            responders.sort((a, b) => a.distance - b.distance);
+          }
+          
+          if (typeof callback === 'function') {
+            callback(responders);
+          }
+        } catch (error) {
+          console.error('Error getting responders:', error);
+          if (typeof callback === 'function') {
+            callback({ error: 'Failed to get responders' });
+          }
+        }
+      });
 
       // Handle location update from responder
       socket.on('responder_location_update', async (data) => {

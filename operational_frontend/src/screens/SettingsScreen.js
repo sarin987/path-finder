@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
+import { alert } from '../utils/alert';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 
@@ -19,10 +20,10 @@ const SettingsScreen = () => {
         password: password || undefined,
       });
       setUser(res.data.user);
-      Alert.alert('Success', 'Settings updated successfully!');
+      alert('Success', 'Settings updated successfully!');
       setPassword('');
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.message || 'Failed to update settings.');
+      alert('Error', err.response?.data?.message || 'Failed to update settings.');
     } finally {
       setLoading(false);
     }

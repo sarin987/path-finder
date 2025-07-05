@@ -157,19 +157,54 @@ export const AuthProvider = ({ children }) => {
         ]);
 
         if (token && userData) {
+          console.log('User token found, initializing session...');
+          
           // Set axios default auth header
           axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          // Fetch latest user profile (with avatar)
+          
+          // Try to fetch the latest user profile
           try {
             const api = require('../services/api').default;
-            const profileRes = await api.get(`/users/profile/${userData.id}`);
-            if (profileRes.data && profileRes.data.success && profileRes.data.profile) {
-              userData.avatar = profileRes.data.profile.avatar || profileRes.data.profile.profile_photo || userData.avatar;
-              await secureStorage.setItem('userData', userData);
+            console.log('Fetching user profile...');
+            
+            // First try the user ID endpoint
+            try {
+              const profileRes = await api.get(`/users/${userData.id}`);
+              if (profileRes.data) {
+                console.log('User profile fetched successfully');
+                // Update user data with profile information
+                const updatedUser = { ...userData, ...profileRes.data };
+                await secureStorage.setItem('userData', updatedUser);
+                setUser(updatedUser);
+                resetSessionTimer();
+                return;
+              }
+            } catch (profileError) {
+              console.warn('Could not fetch user profile by ID, trying general endpoint...', profileError.message);
+              
+              // Fallback to general profile endpoint
+              try {
+                const profileRes = await api.get('/users/me');
+                if (profileRes.data) {
+                  console.log('User profile fetched from /me endpoint');
+                  const updatedUser = { ...userData, ...profileRes.data };
+                  await secureStorage.setItem('userData', updatedUser);
+                  setUser(updatedUser);
+                  resetSessionTimer();
+                  return;
+                }
+              } catch (meError) {
+                console.warn('Could not fetch user profile from /me endpoint:', meError.message);
+                // Continue with existing user data
+              }
             }
           } catch (e) {
-            console.warn('Could not fetch user profile on app startup:', e.message);
+            console.warn('Error fetching user profile:', e.message);
+            // Continue with existing user data
           }
+          
+          // If we get here, we'll use the existing user data
+          console.log('Using existing user data from storage');
           setUser(userData);
           resetSessionTimer();
         }

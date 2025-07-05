@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  Alert,
   Modal,
   PermissionsAndroid,
   Platform,
@@ -14,6 +13,7 @@ import {
 import Geolocation from "@react-native-community/geolocation";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { useNavigation } from "@react-navigation/native";
+import { alert, toast } from '../utils/alert';
 import axios from "axios";
 import { BASE_URL, API_VERSION } from "../config";
 import { ENDPOINTS } from "../config/apiEndpoints";
@@ -67,11 +67,11 @@ const HomeScreen = () => {
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
           getCurrentLocation();
         } else {
-          Alert.alert("Permission Denied", "Location permission is required.");
+          alert("Permission Denied", "Location permission is required.");
           setLoading(false);
         }
       } catch (err) {
-        Alert.alert("Error", "Failed to request location permission.");
+        alert("Error", "Failed to request location permission.");
         setLoading(false);
       }
     } else {
@@ -95,7 +95,7 @@ const HomeScreen = () => {
         AsyncStorage.setItem(LAST_LOCATION_KEY, JSON.stringify(newLocation)).catch(() => {});
       },
       (error) => {
-        Alert.alert("Location Error", "Unable to fetch location.");
+        alert("Location Error", "Unable to fetch location.");
         setLoading(false);
       },
       { enableHighAccuracy: true, timeout: 7000, maximumAge: 10000 }
@@ -104,7 +104,7 @@ const HomeScreen = () => {
 
   const toggleTracking = () => {
     if (!trackingEnabled) {
-      Alert.alert("Tracking Enabled", "Your location is now visible to nearby policemen.");
+      toast("Your location is now visible to nearby policemen.");
       trackingInterval.current = setInterval(() => {
         Geolocation.getCurrentPosition(
           async (position) => {
@@ -131,7 +131,7 @@ const HomeScreen = () => {
       }, 5000);
     } else {
       clearInterval(trackingInterval.current);
-      Alert.alert("Tracking Disabled", "Live tracking has been stopped.");
+      toast("Live tracking has been stopped.");
     }
     setTrackingEnabled(!trackingEnabled);
   };

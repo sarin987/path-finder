@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Button, Image, StyleSheet, Alert, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { alert } from '../utils/alert';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { uploadImageAsync } from '../services/firebaseUpload';
 import api from '../services/api';
@@ -61,7 +62,7 @@ const ChangeProfilePic = ({ navigation }) => {
       }
       setSaving(false);
       setSuccess(true);
-      Alert.alert('Success', 'Profile picture updated!', [
+      alert('Success', 'Profile picture updated!', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
     } catch (err) {
@@ -99,7 +100,12 @@ const ChangeProfilePic = ({ navigation }) => {
           <Text style={styles.buttonText}>Save as Profile Picture</Text>
         )}
       </TouchableOpacity>
-      <Button title="Go Back" onPress={() => navigation.goBack()} color="#888" />
+      <TouchableOpacity 
+        style={[styles.button, { backgroundColor: '#888' }]} 
+        onPress={() => navigation.goBack()}
+      >
+        <Text style={styles.buttonText}>Go Back</Text>
+      </TouchableOpacity>
     </View>
   );
 };

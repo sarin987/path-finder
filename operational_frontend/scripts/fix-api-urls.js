@@ -5,12 +5,12 @@ const path = require('path');
 const filesToUpdate = [
   {
     path: 'src/screens/HomeScreen.js',
-    search: 'http://192.168.14.111:5000',
+    search: 'http://192.168.1.18:5000',
     replace: '${BASE_URL}${API_VERSION}'
   },
   {
     path: 'src/screens/OtpVerificationScreen.js',
-    search: 'http://192.168.14.111:5000',
+    search: 'http://192.168.1.18:5000',
     replace: '${BASE_URL}${API_VERSION}'
   },
   // Add more files here as needed
