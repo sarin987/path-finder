@@ -8,7 +8,7 @@ class LocationService {
   }
 
   async initialize() {
-    if (this.isInitialized) return;
+    if (this.isInitialized) {return;}
 
     try {
       // Configure Geolocation globally
@@ -27,10 +27,10 @@ class LocationService {
         Geolocation.getCurrentPosition(
           pos => resolve(pos),
           error => reject(error),
-          { 
+          {
             timeout: 5000,
             maximumAge: 0,
-            enableHighAccuracy: false 
+            enableHighAccuracy: false,
           }
         );
       });

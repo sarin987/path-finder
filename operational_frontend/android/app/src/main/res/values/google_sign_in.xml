@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="default_web_client_id" translatable="false">132352997002-191rb761r7moinacu45nn0iso7e7mf88.apps.googleusercontent.com</string>
+    <string name="server_client_id" translatable="false">132352997002-gpv0j05jq4d4m4qteg44tkqn1dv035di.apps.googleusercontent.com</string>
+</resources>

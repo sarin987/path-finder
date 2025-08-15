@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const ResponderBottomSheet = ({ responders, onChat, onCall, onClose, visible }) => {
-  if (!visible) return null;
+  if (!visible) {return null;}
   return (
     <View style={styles.sheet}>
       <View style={styles.header}>

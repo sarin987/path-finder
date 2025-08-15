@@ -13,7 +13,7 @@ const Services = () => {
 
   const fetchServices = async () => {
     try {
-      if (!location) return;
+      if (!location) {return;}
 
       const response = await fetch(
         `${API_ROUTES.base}/api/services/nearby?latitude=${location.latitude}&longitude=${location.longitude}`,
@@ -26,8 +26,8 @@ const Services = () => {
       );
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to fetch services');
-      
+      if (!response.ok) {throw new Error(data.message || 'Failed to fetch services');}
+
       setServices(data.services);
     } catch (err) {
       console.error('Fetch services error:', err);
@@ -43,8 +43,8 @@ const Services = () => {
     }
   }, [location]);
 
-  if (loading) return <ActivityIndicator size="large" color="#0000ff" />;
-  if (error) return <Text style={{ color: 'red' }}>{error}</Text>;
+  if (loading) {return <ActivityIndicator size="large" color="#0000ff" />;}
+  if (error) {return <Text style={{ color: 'red' }}>{error}</Text>;}
 
   return (
     <FlatList

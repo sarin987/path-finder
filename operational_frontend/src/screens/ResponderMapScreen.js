@@ -22,7 +22,7 @@ const ResponderMapScreen = () => {
       try {
         setLoading(true);
         const hasPermission = await requestLocationPermission();
-        
+
         if (!hasPermission) {
           setError('Location permission denied');
           setLoading(false);
@@ -60,7 +60,7 @@ const ResponderMapScreen = () => {
     try {
       const location = await getCurrentLocation();
       setUserLocation(location);
-      
+
       if (mapRef.current) {
         mapRef.current.animateToRegion({
           ...location,
@@ -114,7 +114,7 @@ const ResponderMapScreen = () => {
       />
 
       {/* Search radius control */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.radiusButton}
         onPress={toggleSearchRadius}
       >
@@ -125,7 +125,7 @@ const ResponderMapScreen = () => {
       </TouchableOpacity>
 
       {/* Center on user button */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.centerButton}
         onPress={centerOnUser}
       >
@@ -136,42 +136,42 @@ const ResponderMapScreen = () => {
       {selectedResponder && (
         <View style={styles.infoPanel}>
           <View style={styles.infoHeader}>
-            <MaterialIcons 
-              name={getResponderIcon(selectedResponder.role).name} 
-              size={24} 
-              color={getResponderIcon(selectedResponder.role).color} 
+            <MaterialIcons
+              name={getResponderIcon(selectedResponder.role).name}
+              size={24}
+              color={getResponderIcon(selectedResponder.role).color}
             />
             <Text style={styles.responderName}>
               {selectedResponder.role?.toUpperCase() || 'RESPONDER'}
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setSelectedResponder(null)}
             >
               <MaterialIcons name="close" size={20} color="#666" />
             </TouchableOpacity>
           </View>
-          
+
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Distance:</Text>
             <Text style={styles.infoValue}>
               {formatDistance(selectedResponder.distance || 0)} away
             </Text>
           </View>
-          
+
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Status:</Text>
             <View style={[
-              styles.statusBadge, 
-              { backgroundColor: selectedResponder.online ? '#4CAF50' : '#9E9E9E' }
+              styles.statusBadge,
+              { backgroundColor: selectedResponder.online ? '#4CAF50' : '#9E9E9E' },
             ]}>
               <Text style={styles.statusText}>
                 {selectedResponder.online ? 'ONLINE' : 'OFFLINE'}
               </Text>
             </View>
           </View>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.actionButton}
             onPress={() => {
               // Handle action (e.g., call, message, navigate)

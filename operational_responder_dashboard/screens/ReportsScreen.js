@@ -13,7 +13,6 @@ export default function ReportsScreen() {
   const sidebarItems = [
     { label: 'Dashboard', icon: 'Dashboard', screen: 'dashboard' },
     { label: 'Live Map', icon: 'Map', screen: 'map' },
-    { label: 'Chat', icon: 'Chat', screen: 'chat' },
     { label: 'Media', icon: 'PhotoCamera', screen: 'media' },
     { label: 'Reports', icon: 'Assessment', screen: 'reports' },
     { label: 'Settings', icon: 'Settings', screen: 'settings' },
@@ -32,9 +31,7 @@ export default function ReportsScreen() {
             case 'map':
               navigation.navigate('Map');
               break;
-            case 'chat':
-              navigation.navigate('Chat');
-              break;
+
             case 'media':
               navigation.navigate('MediaCenter');
               break;

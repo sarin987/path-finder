@@ -38,10 +38,10 @@ const Logo = ({ size = 'medium', animated = false }) => {
   const sizeStyle = getSize();
 
   return (
-    <Animated.View 
+    <Animated.View
       style={[
         styles.container,
-        { transform: [{ scale: pulseAnim }] }
+        { transform: [{ scale: pulseAnim }] },
       ]}
     >
       <View style={styles.logoContainer}>
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontWeight: '500',
     letterSpacing: 0.5,
-  }
+  },
 });
 
 export default Logo;

@@ -12,7 +12,7 @@ const LocationPermission = ({ onRequestPermission, onDismiss }) => {
   };
 
   const handleDismiss = () => {
-    if (onDismiss) onDismiss();
+    if (onDismiss) {onDismiss();}
   };
 
   return (
@@ -23,16 +23,16 @@ const LocationPermission = ({ onRequestPermission, onDismiss }) => {
         <Text style={styles.message}>
           To see nearby responders and get accurate assistance, please enable location access in your device settings.
         </Text>
-        
+
         <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={[styles.button, styles.cancelButton]} 
+          <TouchableOpacity
+            style={[styles.button, styles.cancelButton]}
             onPress={handleDismiss}
           >
             <Text style={[styles.buttonText, styles.cancelButtonText]}>Not Now</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.button, styles.settingsButton]}
             onPress={handleOpenSettings}
           >

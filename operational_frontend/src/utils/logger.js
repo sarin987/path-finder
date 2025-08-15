@@ -23,7 +23,7 @@ const formatMessage = (level, message, data) => {
     message: String(message),
     ...(data && { data }),
   };
-  
+
   // Stringify for console logging
   return JSON.stringify(logEntry, null, __DEV__ ? 2 : 0);
 };
@@ -60,15 +60,15 @@ export const logWarn = (message, data) => {
  */
 export const logError = (message, error) => {
   if (shouldLog(LOG_LEVELS.ERROR)) {
-    const errorData = error instanceof Error 
-      ? { 
-          message: error.message, 
+    const errorData = error instanceof Error
+      ? {
+          message: error.message,
           stack: error.stack,
           ...(error.response && { response: error.response }),
-          ...(error.config && { config: error.config })
+          ...(error.config && { config: error.config }),
         }
       : error;
-    
+
     console.error(formatMessage('ERROR', message, errorData));
   }
 };

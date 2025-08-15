@@ -1,6 +1,13 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView from 'react-native-maps';
+// Import Marker separately for web compatibility
+let Marker;
+if (Platform.OS === 'web') {
+  Marker = require('react-native-maps').Marker;
+} else {
+  Marker = require('react-native-maps').Marker;
+}
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 // Helper function to get role color
@@ -25,12 +32,12 @@ const getRoleIcon = (role) => {
   return icons[role] || 'person-pin';
 };
 
-const MapCard = ({ 
-  userLocation, 
-  responders = [], 
-  onRecenter, 
-  loading = false, 
-  error = null 
+const MapCard = ({
+  userLocation,
+  responders = [],
+  onRecenter,
+  loading = false,
+  error = null,
 }) => {
   // Show loading state only if userLocation is not available
   if (!userLocation) {
@@ -73,7 +80,7 @@ const MapCard = ({
             </View>
           </Marker>
         )}
-        
+
         {/* Responder markers */}
         {responders
           .filter(responder => responder.lat && responder.lng)
@@ -88,23 +95,23 @@ const MapCard = ({
               description={responder.role}
             >
               <View style={[
-                styles.responderMarker, 
-                { backgroundColor: getRoleColor(responder.role) }
+                styles.responderMarker,
+                { backgroundColor: getRoleColor(responder.role) },
               ]}>
-                <MaterialIcons 
-                  name={getRoleIcon(responder.role)} 
-                  size={20} 
-                  color="#fff" 
+                <MaterialIcons
+                  name={getRoleIcon(responder.role)}
+                  size={20}
+                  color="#fff"
                 />
               </View>
             </Marker>
           ))}
       </MapView>
-      
+
       <TouchableOpacity style={styles.recenterBtn} onPress={onRecenter}>
         <MaterialIcons name="my-location" size={28} color="#1976D2" />
       </TouchableOpacity>
-      
+
       {/* Small spinner in top-right if loading responders */}
       {loading && (
         <View style={styles.responderSpinner}>
@@ -122,40 +129,40 @@ const MapCard = ({
 };
 
 const styles = StyleSheet.create({
-  card: { 
-    elevation: 6, 
-    backgroundColor: '#fff', 
-    margin: 8, 
-    height: 440 
+  card: {
+    elevation: 6,
+    backgroundColor: '#fff',
+    margin: 8,
+    height: 440,
   },
-  map: { 
-    width: '100%', 
-    height: '100%' 
+  map: {
+    width: '100%',
+    height: '100%',
   },
-  recenterBtn: { 
-    position: 'absolute', 
-    bottom: 16, 
-    right: 16, 
-    backgroundColor: '#fff', 
-    borderRadius: 24, 
-    padding: 8, 
-    elevation: 4 
+  recenterBtn: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 8,
+    elevation: 4,
   },
-  userMarkerOuter: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 16, 
-    backgroundColor: 'rgba(25, 118, 210, 0.2)', 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+  userMarkerOuter: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(25, 118, 210, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  userMarkerInner: { 
-    width: 16, 
-    height: 16, 
-    borderRadius: 8, 
-    backgroundColor: '#1976D2', 
-    borderWidth: 2, 
-    borderColor: '#fff' 
+  userMarkerInner: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#1976D2',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   responderMarker: {
     width: 36,

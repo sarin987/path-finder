@@ -1,24 +1,29 @@
 import { Request, Response, NextFunction } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
+
+interface FileParams extends ParamsDictionary {
+  fileId: string;
+}
 import path from 'path';
 import fs from 'fs';
-import { File } from '../models/File';
-import { AuthRequest } from '../middleware/authMiddleware'; // Import AuthRequest type
+import File from '../models/File.js';
+import { AuthRequest } from '../middleware/auth.js'; // Import AuthRequest type
 
 // Helper function to handle responses
-const sendResponse = (res: Response, status: number, data: any) => {
-  return res.status(status).json(data);
+const sendResponse = (res: Response, status: number, data: any): void => {
+  res.status(status).json(data);
 };
 
 // Helper function to handle errors
-const handleError = (res: Response, status: number, message: string) => {
-  return res.status(status).json({ message });
+const handleError = (res: Response, status: number, message: string): void => {
+  res.status(status).json({ message });
 };
 
 class FileController {
   /**
    * Download a file
    */
-  static async downloadFile(req: AuthRequest, res: Response, next: NextFunction): Promise<Response | void> {
+  static async downloadFile(req: AuthRequest<FileParams>, res: Response, next: NextFunction): Promise<void> {
     if (!req.user) {
       handleError(res, 401, 'Unauthorized');
       return;
@@ -28,30 +33,21 @@ class FileController {
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        handleError(res, 401, 'Unauthorized');
+        return;
       }
 
       const file = await File.findByPk(fileId);
 
       if (!file) {
-        return res.status(404).json({ message: 'File not found' });
+        handleError(res, 404, 'File not found');
+        return;
       }
 
       // Check if user has access to this file
       if (file.created_by !== userId) {
-        // Check if user is a participant in the conversation
-        const message = await file.chatMessage;
-        if (!message) {
-          handleError(res, 403, 'Access denied - message not found');
-          return;
-        }
-        
-        // Load conversation with participants
-        const conversation = await (message as any).getConversation();
-        if (!conversation || !conversation.participant_ids.includes(userId)) {
-          handleError(res, 403, 'Access denied - not a participant');
-          return;
-        }
+        handleError(res, 403, 'Access denied');
+        return;
       }
 
       const filePath = path.join(__dirname, '../../uploads', file.storage_path);
@@ -61,21 +57,32 @@ class FileController {
         return;
       }
 
-      // Set appropriate headers
+      // Set appropriate headers before starting the stream
       res.setHeader('Content-Type', file.mime_type);
       res.setHeader('Content-Disposition', `attachment; filename="${file.original_name}"`);
       res.setHeader('Content-Length', file.size.toString());
 
       // Stream the file
       const fileStream = fs.createReadStream(filePath);
-      fileStream.pipe(res);
-
+      
+      // Handle stream errors
       fileStream.on('error', (error) => {
         console.error('Error streaming file:', error);
         if (!res.headersSent) {
           res.status(500).json({ message: 'Error streaming file' });
+        } else {
+          // If headers are already sent, we can't send JSON, so end the response
+          res.end();
         }
       });
+      
+      // Handle client disconnection
+      req.on('close', () => {
+        fileStream.destroy();
+      });
+      
+      // Pipe the file to the response
+      fileStream.pipe(res);
 
     } catch (error) {
       next(error);
@@ -85,7 +92,7 @@ class FileController {
   /**
    * Get file info
    */
-  static async getFileInfo(req: AuthRequest, res: Response, next: NextFunction): Promise<Response | void> {
+  static async getFileInfo(req: AuthRequest<FileParams>, res: Response, next: NextFunction): Promise<void> {
     if (!req.user) {
       handleError(res, 401, 'Unauthorized');
       return;
@@ -95,47 +102,34 @@ class FileController {
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({ message: 'Unauthorized' });
+        handleError(res, 401, 'Unauthorized');
+        return;
       }
 
-      const file = await File.findByPk(fileId, {
-        include: [
-          {
-            association: 'chatMessage',
-            attributes: ['conversation_id'],
-            include: [
-              {
-                association: 'conversation',
-                attributes: ['participant_ids'],
-              },
-            ],
-          },
-        ],
-      });
+      const file = await File.findByPk(fileId);
 
       if (!file) {
-        return res.status(404).json({ message: 'File not found' });
+        handleError(res, 404, 'File not found');
+        return;
       }
 
       // Check if user has access to this file
       if (file.created_by !== userId) {
-        // Check if user is a participant in the conversation
-        const conversation = file.chatMessage?.conversation;
-        if (!conversation || !conversation.participant_ids.includes(userId)) {
-          return res.status(403).json({ message: 'Access denied' });
-        }
+        handleError(res, 403, 'Access denied');
+        return;
       }
 
       const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${file.storage_path}`;
-
+      
+      // Return file info using sendResponse helper
       sendResponse(res, 200, {
         id: file.id,
-        originalName: file.original_name,
-        mimeType: file.mime_type,
+        original_name: file.original_name,
+        mime_type: file.mime_type,
         size: file.size,
-        type: file.type,
         url: fileUrl,
-        createdAt: file.created_at,
+        created_at: file.created_at,
+        updated_at: file.updated_at
       });
     } catch (error) {
       next(error);

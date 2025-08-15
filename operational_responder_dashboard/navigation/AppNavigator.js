@@ -4,7 +4,6 @@ import { createStackNavigator } from '@react-navigation/stack';
 import LoginScreen from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import MapScreen from '../screens/MapScreen';
-import ChatScreen from '../screens/ChatScreen';
 import MediaCenterScreen from '../screens/MediaCenterScreen';
 import ReportsScreen from '../screens/ReportsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -39,7 +38,6 @@ export default function AppNavigator() {
             <Stack.Screen name="Dashboard" component={DashboardScreen} />
             <Stack.Screen name="Incident" component={IncidentScreen} />
             <Stack.Screen name="Map" component={MapScreen} />
-            <Stack.Screen name="Chat" component={ChatScreen} />
             <Stack.Screen name="MediaCenter" component={MediaCenterScreen} />
             <Stack.Screen name="History" component={HistoryScreen} />
             <Stack.Screen name="Reports" component={ReportsScreen} />

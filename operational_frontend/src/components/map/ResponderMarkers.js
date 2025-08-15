@@ -7,14 +7,14 @@ const roleIcons = {
   police: 'security',
   ambulance: 'local-hospital',
   fire: 'local-fire-department',
-  default: 'location-on'
+  default: 'location-on',
 };
 
 const roleColors = {
   police: '#3F51B5', // Blue
   ambulance: '#E91E63', // Pink
   fire: '#F44336', // Red
-  default: '#4CAF50' // Green
+  default: '#4CAF50', // Green
 };
 
 const ResponderMarkers = ({ responders, onPress }) => {
@@ -22,7 +22,7 @@ const ResponderMarkers = ({ responders, onPress }) => {
     <>
       {responders.map((responder) => {
         // Skip if location data is missing
-        if (!responder.latitude || !responder.longitude) return null;
+        if (!responder.latitude || !responder.longitude) {return null;}
 
         return (
           <Marker
@@ -36,23 +36,23 @@ const ResponderMarkers = ({ responders, onPress }) => {
             description={`Last seen: ${responder.lastSeen?.toLocaleTimeString() || 'Unknown'}`}
           >
             <View style={styles.markerContainer}>
-              <View 
+              <View
                 style={[
                   styles.markerBackground,
-                  { backgroundColor: roleColors[responder.role] || roleColors.default }
+                  { backgroundColor: roleColors[responder.role] || roleColors.default },
                 ]}
               >
-                <MaterialIcons 
-                  name={roleIcons[responder.role] || roleIcons.default} 
-                  size={20} 
-                  color="white" 
+                <MaterialIcons
+                  name={roleIcons[responder.role] || roleIcons.default}
+                  size={20}
+                  color="white"
                 />
               </View>
               {responder.distance !== undefined && (
                 <View style={styles.distanceBadge}>
                   <Text style={styles.distanceText}>
-                    {responder.distance < 1 
-                      ? `${Math.round(responder.distance * 1000)}m` 
+                    {responder.distance < 1
+                      ? `${Math.round(responder.distance * 1000)}m`
                       : `${responder.distance.toFixed(1)}km`}
                   </Text>
                 </View>
@@ -102,8 +102,8 @@ const styles = StyleSheet.create({
 
 export default memo(ResponderMarkers, (prevProps, nextProps) => {
   // Only re-render if responders array changes
-  if (prevProps.responders.length !== nextProps.responders.length) return false;
-  
+  if (prevProps.responders.length !== nextProps.responders.length) {return false;}
+
   // Check if any responder's location has changed
   return !nextProps.responders.some((responder, index) => {
     const prevResponder = prevProps.responders[index];

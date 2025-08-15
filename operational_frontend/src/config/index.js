@@ -25,14 +25,14 @@ console.log('API Configuration:', {
   API_VERSION,
   isDevelopment,
   platform: Platform.OS,
-  isEmulator: DeviceInfo.isEmulatorSync()
+  isEmulator: DeviceInfo.isEmulatorSync(),
 });
 
 // API Endpoints
 export const API_ROUTES = {
   // Base
   base: BASE_URL,
-  
+
   // Auth
   auth: {
     login: `${BASE_URL}${API_VERSION}/auth/login`,
@@ -48,7 +48,7 @@ export const API_ROUTES = {
     apple: `${BASE_URL}${API_VERSION}/auth/apple`,
     logout: `${BASE_URL}${API_VERSION}/auth/logout`,
   },
-  
+
   // Users
   users: {
     profile: `${BASE_URL}${API_VERSION}/users/me`,
@@ -58,13 +58,13 @@ export const API_ROUTES = {
     emergencyContacts: `${BASE_URL}${API_VERSION}/users/emergency-contacts`,
     preferences: `${BASE_URL}${API_VERSION}/users/preferences`,
   },
-  
+
   // Services
   services: {
     list: `${BASE_URL}${API_VERSION}/services`,
     categories: `${BASE_URL}${API_VERSION}/services/categories`,
   },
-  
+
   // Emergency
   emergency: {
     report: `${BASE_URL}${API_VERSION}/emergency/report`,
@@ -72,13 +72,13 @@ export const API_ROUTES = {
     history: `${BASE_URL}${API_VERSION}/emergency/history`,
     cancel: (id) => `${BASE_URL}${API_VERSION}/emergency/${id}/cancel`,
   },
-  
+
   // Locations
   locations: {
     nearby: `${BASE_URL}${API_VERSION}/locations/nearby`,
     search: `${BASE_URL}${API_VERSION}/locations/search`,
   },
-  
+
   // Notifications
   notifications: {
     list: `${BASE_URL}${API_VERSION}/notifications`,

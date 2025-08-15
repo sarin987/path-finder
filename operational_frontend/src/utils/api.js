@@ -1,37 +1,12 @@
-import { Alert, Platform, NetInfo } from 'react-native';
-import { API_ROUTES, FEATURE_FLAGS, APP_CONFIG, BASE_URL } from '../config';
-import { useAuth } from '../contexts/AuthContext';
+// Import only what's needed
+import { NetInfo } from 'react-native';
+import { API_ROUTES, APP_CONFIG } from '../config';
+// secureStorage is used in the commented-out code, so we'll keep it
 import secureStorage from './secureStorage';
-import { logError, logInfo, logDebug } from './logger';
 
-// Request interceptor for logging
-const requestInterceptor = (url, options) => {
-  logDebug('API Request', {
-    url,
-    method: options?.method || 'GET',
-    headers: options?.headers || {},
-    body: options?.body ? JSON.parse(options.body) : undefined,
-  });
-  return { url, options };
-};
-
-// Response interceptor for handling errors
-const responseInterceptor = async (response) => {
-  if (!response.ok) {
-    let errorData;
-    try {
-      errorData = await response.clone().json();
-    } catch (e) {
-      errorData = await response.clone().text();
-    }
-    
-    const error = new Error(errorData?.message || `HTTP error! status: ${response.status}`);
-    error.status = response.status;
-    error.data = errorData;
-    throw error;
-  }
-  return response;
-};
+//   }
+//   return response;
+// };
 
 // Request queue for offline support
 let requestQueue = [];
@@ -45,7 +20,7 @@ const isOnline = async () => {
 
 // Process queued requests
 const processQueue = async () => {
-  if (isProcessingQueue || requestQueue.length === 0) return;
+  if (isProcessingQueue || requestQueue.length === 0) {return;}
   isProcessingQueue = true;
 
   try {
@@ -65,30 +40,28 @@ const processQueue = async () => {
   }
 };
 
-// Add request to queue
-const addToQueue = (request) => {
-  return new Promise((resolve, reject) => {
-    requestQueue.push({ request, resolve, reject });
-    secureStorage.setItem('offlineQueue', requestQueue);
-  });
-};
+// Add request to queue (commented out as it's not currently used)
+// const addToQueue = (request) => {
+//   return new Promise((resolve, reject) => {
+//     requestQueue.push({ request, resolve, reject });
+//     secureStorage.setItem('offlineQueue', requestQueue);
+//   });
+// };
 
 /**
  * Make an API request with enhanced error handling and logging
  */
-export const apiRequest = async (endpoint, options = {}, requiresAuth = true) => {
-  const { getAuthHeaders } = useAuth();
-  
-  // Normalize endpoint
-  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const url = `${BASE_URL}${normalizedEndpoint}`;
-  
+export const apiRequest = async (endpoint, options = {}, requiresAuth = true, authHeaders = {}) => {
+  // Normalize the endpoint if needed
+  if (!endpoint.startsWith('http')) {
+    endpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  }
+
   // Prepare headers
   const headers = {
     'Content-Type': 'application/json',
-    'X-Platform': Platform.OS,
     'X-App-Version': APP_CONFIG.version,
-    ...(requiresAuth ? await getAuthHeaders() : {}),
+    ...(requiresAuth ? authHeaders : {}),
     ...(options.headers || {}),
   };
 
@@ -117,8 +90,8 @@ export const apiRequest = async (endpoint, options = {}, requiresAuth = true) =>
 
     // Handle response
     const contentType = response.headers.get('content-type');
-    const data = contentType?.includes('application/json') 
-      ? await response.json() 
+    const data = contentType?.includes('application/json')
+      ? await response.json()
       : await response.text();
 
     if (!response.ok) {
@@ -137,7 +110,8 @@ export const apiRequest = async (endpoint, options = {}, requiresAuth = true) =>
       throw error;
     }
 
-    logInfo('API Success', { url: endpoint, data: data ? 'Received data' : 'No data' });
+    // Log success (commented out as logInfo is not available)
+    // console.log('API Success', { url: endpoint, data: data ? 'Received data' : 'No data' });
     return data;
   } catch (error) {
     console.error('API Request Error:', {
@@ -157,19 +131,19 @@ export const apiRequest = async (endpoint, options = {}, requiresAuth = true) =>
 // Token refresh helper
 const refreshToken = async () => {
   try {
-    const refreshToken = await secureStorage.getItem('refreshToken');
-    if (!refreshToken) return false;
+    const storedRefreshToken = await secureStorage.getItem('refreshToken');
+    if (!storedRefreshToken) {return false;}
 
     const response = await fetch(API_ROUTES.auth.refresh, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify({ refreshToken: storedRefreshToken }),
     });
 
-    if (!response.ok) return false;
+    if (!response.ok) {return false;}
 
     const { token, refreshToken: newRefreshToken } = await response.json();
-    
+
     await Promise.all([
       secureStorage.setItem('userToken', token),
       newRefreshToken && secureStorage.setItem('refreshToken', newRefreshToken),
@@ -182,104 +156,135 @@ const refreshToken = async () => {
   }
 };
 
-// Enhanced API methods
+// Enhanced API methods with authHeaders support
 export const api = {
-  get: (endpoint, params = {}, options = {}) =>
-    apiRequest(endpoint, {
-      ...options,
-      method: 'GET',
-      params,
-    }),
+  get: (endpoint, params = {}, options = {}, requiresAuth = true, authHeaders = {}) =>
+    apiRequest(
+      endpoint,
+      {
+        ...options,
+        method: 'GET',
+        params,
+      },
+      requiresAuth,
+      authHeaders
+    ),
 
-  post: (endpoint, body = {}, options = {}) =>
-    apiRequest(endpoint, {
-      ...options,
-      method: 'POST',
-      body,
-    }),
+  post: (endpoint, body = {}, options = {}, requiresAuth = true, authHeaders = {}) =>
+    apiRequest(
+      endpoint,
+      {
+        ...options,
+        method: 'POST',
+        body,
+      },
+      requiresAuth,
+      authHeaders
+    ),
 
-  put: (endpoint, body = {}, options = {}) =>
-    apiRequest(endpoint, {
-      ...options,
-      method: 'PUT',
-      body,
-    }),
+  put: (endpoint, body = {}, options = {}, requiresAuth = true, authHeaders = {}) =>
+    apiRequest(
+      endpoint,
+      {
+        ...options,
+        method: 'PUT',
+        body,
+      },
+      requiresAuth,
+      authHeaders
+    ),
 
-  delete: (endpoint, options = {}) =>
-    apiRequest(endpoint, {
-      ...options,
-      method: 'DELETE',
-    }),
+  delete: (endpoint, options = {}, requiresAuth = true, authHeaders = {}) =>
+    apiRequest(
+      endpoint,
+      {
+        ...options,
+        method: 'DELETE',
+      },
+      requiresAuth,
+      authHeaders
+    ),
 
-  patch: (endpoint, body = {}, options = {}) =>
-    apiRequest(endpoint, {
-      ...options,
-      method: 'PATCH',
-      body,
-    }),
+  patch: (endpoint, body = {}, options = {}, requiresAuth = true, authHeaders = {}) =>
+    apiRequest(
+      endpoint,
+      {
+        ...options,
+        method: 'PATCH',
+        body,
+      },
+      requiresAuth,
+      authHeaders
+    ),
 
-  upload: (endpoint, file, fieldName = 'file', additionalData = {}, onProgress) =>
-    uploadFile(endpoint, file, fieldName, additionalData, onProgress),
+  upload: (endpoint, file, fieldName = 'file', additionalData = {}, onProgress = null, requiresAuth = true, authHeaders = {}) =>
+    uploadFile(endpoint, file, fieldName, additionalData, onProgress, requiresAuth, authHeaders),
 };
 
 // Enhanced file upload with progress tracking
-export const uploadFile = async (endpoint, file, fieldName = 'file', additionalData = {}, onProgress = null) => {
-  const { getAuthHeaders } = useAuth();
+export const uploadFile = async (endpoint, file, fieldName = 'file', additionalData = {}, onProgress = null, requiresAuth = true, authHeaders = {}) => {
   const formData = new FormData();
-  
+
   // Append file
   formData.append(fieldName, {
     uri: file.uri,
     type: file.type || 'application/octet-stream',
     name: file.name || 'file',
   });
-  
+
   // Append additional data
   Object.entries(additionalData).forEach(([key, value]) => {
     formData.append(key, value);
   });
-  
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', endpoint.startsWith('http') ? endpoint : `${API_ROUTES.base}${endpoint}`);
-    
-    // Set auth headers
-    (async () => {
-      try {
-        const headers = await getAuthHeaders();
-        Object.entries(headers).forEach(([key, value]) => {
+    const url = endpoint.startsWith('http') ? endpoint : `${API_ROUTES.base}${endpoint}`;
+    xhr.open('POST', url);
+
+    try {
+      // Set auth headers if required
+      if (requiresAuth) {
+        Object.entries(authHeaders).forEach(([key, value]) => {
           xhr.setRequestHeader(key, value);
         });
-        
+      }
+
+      // Set other headers
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.setRequestHeader('X-App-Version', APP_CONFIG.version);
+
+      // Handle progress
+      if (onProgress) {
         xhr.upload.onprogress = (event) => {
-          if (onProgress && event.lengthComputable) {
+          if (event.lengthComputable) {
             const progress = Math.round((event.loaded / event.total) * 100);
             onProgress(progress);
           }
         };
-        
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const response = JSON.parse(xhr.responseText);
-              resolve(response);
-            } catch (e) {
-              resolve(xhr.responseText);
-            }
-          } else {
-            reject(new Error(`Upload failed with status ${xhr.status}`));
-          }
-        };
-        
-        xhr.onerror = () => {
-          reject(new Error('Network error during upload'));
-        };
-        
-        xhr.send(formData);
-      } catch (error) {
-        reject(error);
       }
-    })();
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch (e) {
+            resolve(xhr.responseText);
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => {
+        reject(new Error('Network error during upload'));
+      };
+
+      xhr.send(formData);
+    } catch (error) {
+      reject(error);
+    }
   });
 };
 

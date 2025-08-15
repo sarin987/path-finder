@@ -20,14 +20,14 @@ api.interceptors.request.use(
     try {
       const token = await AsyncStorage.getItem('token');
       console.log(`Making ${config.method.toUpperCase()} request to:`, config.url);
-      
+
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
         console.log('Added auth token to request headers');
       } else {
         console.warn('No auth token found in storage');
       }
-      
+
       return config;
     } catch (error) {
       console.error('Error in request interceptor:', error);
@@ -45,7 +45,7 @@ api.interceptors.response.use(
   (response) => {
     console.log(`Response from ${response.config.url}:`, {
       status: response.status,
-      data: response.data
+      data: response.data,
     });
     return response;
   },
@@ -58,20 +58,20 @@ api.interceptors.response.use(
         method: error.config.method,
         status: error.response.status,
         data: error.response.data,
-        headers: error.response.headers
+        headers: error.response.headers,
       });
     } else if (error.request) {
       // The request was made but no response was received
       console.error('API Error - No Response:', {
         url: error.config.url,
         method: error.config.method,
-        message: error.message
+        message: error.message,
       });
     } else {
       // Something happened in setting up the request that triggered an Error
       console.error('API Request Setup Error:', error.message);
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -81,7 +81,7 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
+
     // Handle 401 Unauthorized errors
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
@@ -97,7 +97,7 @@ api.interceptors.response.use(
         // Redirect to login or handle token refresh failure
       }
     }
-    
+
     return Promise.reject(error);
   }
 );

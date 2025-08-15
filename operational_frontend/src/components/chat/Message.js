@@ -7,31 +7,31 @@ const Message = ({ message, isOwnMessage }) => {
   return (
     <View style={[
       styles.messageContainer,
-      isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer
+      isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer,
     ]}>
       <View style={[
         styles.messageContent,
-        isOwnMessage ? styles.ownMessageBubble : styles.otherMessageBubble
+        isOwnMessage ? styles.ownMessageBubble : styles.otherMessageBubble,
       ]}>
         {message.imageUrl ? (
           <ImageMessage uri={message.imageUrl} caption={message.message} />
         ) : (
           <Text style={[
             styles.messageText,
-            isOwnMessage ? styles.ownText : styles.otherText
+            isOwnMessage ? styles.ownText : styles.otherText,
           ]}>{message.message}</Text>
         )}
         <Text style={[
           styles.timestamp,
-          isOwnMessage ? styles.ownTimestamp : styles.otherTimestamp
+          isOwnMessage ? styles.ownTimestamp : styles.otherTimestamp,
         ]}>
           {message.timestamp ? `${new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • ${new Date(message.timestamp).toLocaleDateString([], { day: '2-digit', month: 'short', year: '2-digit' })}` : ''}
         </Text>
       </View>
       {!isOwnMessage && (
-        <MaterialCommunityIcons 
-          name="account-circle" 
-          size={24} 
+        <MaterialCommunityIcons
+          name="account-circle"
+          size={24}
           color="#666"
           style={styles.avatar}
         />

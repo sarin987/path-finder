@@ -3,12 +3,12 @@ const { getFirestore, doc, setDoc, serverTimestamp, connectFirestoreEmulator } =
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCVDR5UaInNVOeouKckseXRITwFup351wA",
-  authDomain: "corosole-core21.firebaseapp.com",
-  projectId: "corosole-core21",
-  storageBucket: "corosole-core21.appspot.com",
-  messagingSenderId: "132352997002",
-  appId: "1:132352997002:web:50c2a69bda07a31219df73"
+  apiKey: 'AIzaSyCVDR5UaInNVOeouKckseXRITwFup351wA',
+  authDomain: 'corosole-core21.firebaseapp.com',
+  projectId: 'corosole-core21',
+  storageBucket: 'corosole-core21.appspot.com',
+  messagingSenderId: '132352997002',
+  appId: '1:132352997002:web:50c2a69bda07a31219df73',
 };
 
 // Initialize Firebase
@@ -34,7 +34,7 @@ const interval = setInterval(async () => {
   // Add some random movement (small changes to simulate movement)
   lat += (Math.random() * 0.001 - 0.0005);
   lng += (Math.random() * 0.001 - 0.0005);
-  
+
   const responderData = {
     id: responderId,
     role: 'police',
@@ -48,7 +48,7 @@ const interval = setInterval(async () => {
     vehicleNumber: 'MH12AB1234',
     batteryLevel: Math.floor(Math.random() * 30) + 70, // 70-100%
     speed: Math.floor(Math.random() * 60), // 0-60 km/h
-    heading: Math.floor(Math.random() * 360) // 0-359 degrees
+    heading: Math.floor(Math.random() * 360), // 0-359 degrees
   };
 
   try {

@@ -2,7 +2,7 @@
 const ToastAndroid = {
   SHORT: 2000,
   LONG: 4000,
-  
+
   show: (message, duration) => {
     // Create a simple toast notification for web
     if (typeof window !== 'undefined') {
@@ -22,9 +22,9 @@ const ToastAndroid = {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
         transition: opacity 0.3s ease;
       `;
-      
+
       document.body.appendChild(toast);
-      
+
       const displayTime = duration || ToastAndroid.SHORT;
       setTimeout(() => {
         toast.style.opacity = '0';
@@ -39,12 +39,12 @@ const ToastAndroid = {
       console.log('Toast:', message);
     }
   },
-  
+
   showWithGravity: (message, duration, gravity) => {
     // For web, we'll ignore gravity and just show the toast
     ToastAndroid.show(message, duration);
   },
-  
+
   showWithGravityAndOffset: (message, duration, gravity, xOffset, yOffset) => {
     // For web, we'll ignore gravity and offsets and just show the toast
     ToastAndroid.show(message, duration);

@@ -15,7 +15,7 @@ export const initializeBackgroundLocation = (userId) => {
     interval: 10000,
     fastestInterval: 5000,
     activitiesInterval: 10000,
-    stopOnStillActivity: false
+    stopOnStillActivity: false,
   });
 
   BackgroundGeolocation.on('location', async (location) => {
@@ -25,8 +25,8 @@ export const initializeBackgroundLocation = (userId) => {
         userId,
         latitude: location.latitude,
         longitude: location.longitude,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     };
 
     try {

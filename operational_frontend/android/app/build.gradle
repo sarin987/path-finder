@@ -139,6 +139,10 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    
+    // Google Sign-In (autolinked)
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+
     implementation platform('com.google.firebase:firebase-bom:32.7.2')
     implementation('com.google.firebase:firebase-analytics')
     implementation(platform("com.google.firebase:firebase-bom:33.9.0"))

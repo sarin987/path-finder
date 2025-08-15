@@ -1,18 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
-  Platform,
 } from 'react-native';
 import {
   RTCPeerConnection,
   RTCView,
   mediaDevices,
-  RTCIceCandidate,
-  RTCSessionDescription,
 } from 'react-native-webrtc';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAuth } from '../../contexts/AuthContext';
@@ -33,22 +29,37 @@ const VideoCall = ({ route, navigation }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  
+
   const peerConnection = useRef(null);
+  const socket = useRef(null); // Reference to socket connection
 
-  useEffect(() => {
-    startCall();
-    return () => {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-      if (peerConnection.current) {
-        peerConnection.current.close();
-      }
-    };
-  }, []);
+  // Mock implementation of sendIceCandidate
+  const sendIceCandidate = useCallback((candidate) => {
+    // TODO: Implement sending ICE candidate through your signaling server
+    console.log('Sending ICE candidate:', candidate);
+    if (socket.current) {
+      socket.current.emit('ice-candidate', {
+        candidate,
+        to: contact.id,
+        from: user.id,
+      });
+    }
+  }, [contact.id, user.id]);
 
-  const startCall = async () => {
+  // Mock implementation of sendOffer
+  const sendOffer = useCallback((offer) => {
+    // TODO: Implement sending offer through your signaling server
+    console.log('Sending offer:', offer);
+    if (socket.current) {
+      socket.current.emit('offer', {
+        offer,
+        to: contact.id,
+        from: user.id,
+      });
+    }
+  }, [contact.id, user.id]);
+
+  const startCall = useCallback(async () => {
     try {
       const stream = await mediaDevices.getUserMedia({
         audio: true,
@@ -86,32 +97,26 @@ const VideoCall = ({ route, navigation }) => {
       // Create and send offer
       const offer = await peerConnection.current.createOffer();
       await peerConnection.current.setLocalDescription(offer);
-      
+
       // Send offer to signaling server
       sendOffer(offer);
 
     } catch (err) {
       console.error('Error starting call:', err);
     }
-  };
+  }, [sendOffer, sendIceCandidate]);
 
-  const sendOffer = (offer) => {
-    // TODO: Implement sending offer through your signaling server
-    socket.emit('offer', {
-      offer,
-      to: contact.id,
-      from: user.id,
-    });
-  };
-
-  const sendIceCandidate = (candidate) => {
-    // TODO: Implement sending ICE candidate through your signaling server
-    socket.emit('ice-candidate', {
-      candidate,
-      to: contact.id,
-      from: user.id,
-    });
-  };
+  useEffect(() => {
+    startCall();
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      if (peerConnection.current) {
+        peerConnection.current.close();
+      }
+    };
+  }, [startCall, localStream]);
 
   const toggleMute = () => {
     if (localStream) {

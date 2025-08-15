@@ -1,8 +1,8 @@
 import { Request } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { File } from '../models/File';
-import { getFileType, generateFileUrl } from '../utils/fileUpload';
+import FileModel, { FileCreationAttributes } from '../models/File.js';
+import { getFileType, generateFileUrl } from '../utils/fileUpload.js';
 
 export interface IFileData {
   original_name: string;
@@ -10,7 +10,6 @@ export interface IFileData {
   mime_type: string;
   size: number;
   type: 'image' | 'audio' | 'video' | 'file';
-  chat_message_id: number;
   created_by: number;
 }
 
@@ -18,19 +17,19 @@ class FileService {
   /**
    * Save file information to database
    */
-  static async saveFile(fileData: Omit<IFileData, 'type'>): Promise<File> {
+  static async saveFile(fileData: Omit<IFileData, 'type'>): Promise<InstanceType<typeof FileModel>> {
     const fileType = getFileType(fileData.mime_type);
-    return await File.create({
+    return await FileModel.create({
       ...fileData,
       type: fileType,
-    });
+    } as FileCreationAttributes);
   }
 
   /**
    * Get file by ID with access control
    */
-  static async getFile(fileId: number, userId: number): Promise<File | null> {
-    return await File.findOne({
+  static async getFile(fileId: number, userId: number): Promise<InstanceType<typeof FileModel> | null> {
+    return await FileModel.findOne({
       where: { id: fileId, created_by: userId },
     });
   }
@@ -43,14 +42,19 @@ class FileService {
     if (!file) return false;
 
     // Delete physical file
-    const filePath = path.join(__dirname, '../../uploads', file.storage_path);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (file) {
+      const filePath = path.join(__dirname, '../../uploads', file.getDataValue('storage_path'));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     }
 
     // Delete database record
-    await file.destroy();
-    return true;
+    if (file) {
+      await file.destroy();
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -59,7 +63,6 @@ class FileService {
   static processUploadedFile(
     req: Request,
     file: Express.Multer.File,
-    chatMessageId: number,
     userId: number
   ) {
     const fileData: Omit<IFileData, 'type'> = {
@@ -67,7 +70,6 @@ class FileService {
       storage_path: file.filename,
       mime_type: file.mimetype,
       size: file.size,
-      chat_message_id: chatMessageId,
       created_by: userId,
     };
 
@@ -81,14 +83,7 @@ class FileService {
     };
   }
 
-  /**
-   * Get files by message ID
-   */
-  static async getFilesByMessageId(messageId: number): Promise<File[]> {
-    return await File.findAll({
-      where: { chat_message_id: messageId },
-    });
-  }
+
 }
 
 export default FileService;

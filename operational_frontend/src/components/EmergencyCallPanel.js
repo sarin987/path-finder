@@ -30,7 +30,7 @@ const EmergencyCallPanel = ({ userId }) => {
 
   const sendCallRequest = async (type, location) => {
     try {
-     
+
       const response = await api.post('/emergency/initiate', {
         user_id: userId,
         call_type: type,

@@ -18,7 +18,6 @@ const defaultItems = [
   { label: 'Dashboard', icon: 'Dashboard', screen: 'dashboard' },
   { label: 'Incident', icon: 'ReportProblem', screen: 'incident' },
   { label: 'Live Map', icon: 'Map', screen: 'map' },
-  { label: 'Chat', icon: 'ChatBubble', screen: 'chat' },
   { label: 'Media', icon: 'PhotoCamera', screen: 'media' },
   { label: 'History', icon: 'History', screen: 'history' },
   { label: 'Settings', icon: 'Settings', screen: 'settings' },
@@ -29,8 +28,6 @@ const iconMapWeb = {
   Dashboard: 'MdDashboard',
   Incident: 'MdReportProblem',
   'Live Map': 'MdMap',
-  Chat: 'MdChat', // Use MdChat (exists) instead of MdChatBubble
-  ChatBubble: 'MdChat', // fallback to MdChat
   Media: 'MdPhotoCamera',
   PhotoCamera: 'MdPhotoCamera',
   History: 'MdHistory',
@@ -40,8 +37,6 @@ const iconMapNative = {
   Dashboard: 'dashboard',
   Incident: 'report-problem',
   'Live Map': 'map',
-  Chat: 'chat-bubble',
-  ChatBubble: 'chat-bubble',
   Media: 'photo-camera',
   PhotoCamera: 'photo-camera',
   History: 'history',

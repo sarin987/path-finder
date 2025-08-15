@@ -12,13 +12,13 @@ export const useSocket = (url = WEBSOCKET_URL, handlers = {}) => {
     const setupSocket = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
-        
+
         // Initialize socket connection
         socketRef.current = io(url, {
           transports: ['websocket'],
           reconnection: true,
           reconnectionAttempts: 5,
-          auth: { token }
+          auth: { token },
         });
 
         // Add event handlers
@@ -51,6 +51,6 @@ export const useSocket = (url = WEBSOCKET_URL, handlers = {}) => {
 
   return {
     socket: socketRef.current,
-    isReady
+    isReady,
   };
 };

@@ -23,12 +23,12 @@ export const useUserProfile = () => {
       }
 
       console.log('Fetching profile for user:', user.id);
-      
+
       const response = await fetch(`${API_ROUTES.users}/profile/${user.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
       });
 
       const data = await response.json();
@@ -45,7 +45,7 @@ export const useUserProfile = () => {
     } catch (error) {
       console.error('Profile fetch error:', error);
       setError(error.message);
-      
+
       // Try to load from cache
       const cached = await Storage.getItem(StorageKeys.USER_PROFILE);
       if (cached) {

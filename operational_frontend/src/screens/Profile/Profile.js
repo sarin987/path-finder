@@ -22,7 +22,7 @@ const FormInput = ({ label, error, touched, ...props }) => (
     <TextInput
       style={[
         styles.input,
-        error && touched && styles.inputError
+        error && touched && styles.inputError,
       ]}
       placeholderTextColor="#9ca3af"
       {...props}
@@ -41,14 +41,14 @@ const Profile = () => {
     email: user?.email || '',
     currentPassword: '',
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
   const [errors, setErrors] = useState({});
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email) return 'Email is required';
-    if (!emailRegex.test(email)) return 'Invalid email format';
+    if (!email) {return 'Email is required';}
+    if (!emailRegex.test(email)) {return 'Invalid email format';}
     return '';
   };
 
@@ -57,15 +57,15 @@ const Profile = () => {
       return 'Current password is required';
     }
     if (field === 'newPassword') {
-      if (!password) return 'New password is required';
-      if (password.length < 8) return 'Password must be at least 8 characters';
-      if (!/[A-Z]/.test(password)) return 'Password must contain an uppercase letter';
-      if (!/[a-z]/.test(password)) return 'Password must contain a lowercase letter';
-      if (!/[0-9]/.test(password)) return 'Password must contain a number';
+      if (!password) {return 'New password is required';}
+      if (password.length < 8) {return 'Password must be at least 8 characters';}
+      if (!/[A-Z]/.test(password)) {return 'Password must contain an uppercase letter';}
+      if (!/[a-z]/.test(password)) {return 'Password must contain a lowercase letter';}
+      if (!/[0-9]/.test(password)) {return 'Password must contain a number';}
     }
     if (field === 'confirmPassword') {
-      if (!password) return 'Please confirm your password';
-      if (password !== formData.newPassword) return 'Passwords do not match';
+      if (!password) {return 'Please confirm your password';}
+      if (password !== formData.newPassword) {return 'Passwords do not match';}
     }
     return '';
   };
@@ -73,14 +73,14 @@ const Profile = () => {
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setTouched(prev => ({ ...prev, [field]: true }));
-    
+
     let error = '';
     if (field === 'email') {
       error = validateEmail(value);
     } else {
       error = validatePassword(value, field);
     }
-    
+
     setErrors(prev => ({ ...prev, [field]: error }));
   };
 
@@ -94,7 +94,7 @@ const Profile = () => {
 
     try {
       const result = await ImagePicker.launchImageLibrary(options);
-      if (result.didCancel) return;
+      if (result.didCancel) {return;}
 
       setLoading(true);
       const formData = new FormData();
@@ -114,7 +114,7 @@ const Profile = () => {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
+      if (!response.ok) {throw new Error(data.message);}
 
       await updateUser({ ...user, profile_photo: data.profile_photo });
       alert('Success', 'Profile photo updated');
@@ -144,7 +144,7 @@ const Profile = () => {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
+      if (!response.ok) {throw new Error(data.message);}
 
       await updateUser({ ...user, email: formData.email });
       alert('Success', 'Email updated successfully');
@@ -159,7 +159,7 @@ const Profile = () => {
     const passwordErrors = {
       currentPassword: validatePassword(formData.currentPassword, 'currentPassword'),
       newPassword: validatePassword(formData.newPassword, 'newPassword'),
-      confirmPassword: validatePassword(formData.confirmPassword, 'confirmPassword')
+      confirmPassword: validatePassword(formData.confirmPassword, 'confirmPassword'),
     };
 
     if (Object.values(passwordErrors).some(error => error)) {
@@ -183,13 +183,13 @@ const Profile = () => {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
+      if (!response.ok) {throw new Error(data.message);}
 
       setFormData({
         ...formData,
         currentPassword: '',
         newPassword: '',
-        confirmPassword: ''
+        confirmPassword: '',
       });
       alert('Success', 'Password updated successfully');
     } catch (error) {
@@ -210,12 +210,12 @@ const Profile = () => {
       <View style={styles.header}>
         <View style={styles.profileImageContainer}>
           <Image
-            source={{ 
-              uri: user?.profile_photo || 'https://via.placeholder.com/150'
+            source={{
+              uri: user?.profile_photo || 'https://via.placeholder.com/150',
             }}
             style={styles.profileImage}
           />
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.changePhotoButton}
             onPress={handleImagePick}
           >
@@ -240,7 +240,7 @@ const Profile = () => {
         <Pressable
           style={({ pressed }) => [
             styles.button,
-            pressed && styles.buttonPressed
+            pressed && styles.buttonPressed,
           ]}
           onPress={handleUpdateEmail}
           disabled={loading}
@@ -281,7 +281,7 @@ const Profile = () => {
         <Pressable
           style={({ pressed }) => [
             styles.button,
-            pressed && styles.buttonPressed
+            pressed && styles.buttonPressed,
           ]}
           onPress={handleUpdatePassword}
           disabled={loading}

@@ -168,5 +168,5 @@ export const modernFormStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
-  }
+  },
 });

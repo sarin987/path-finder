@@ -43,7 +43,7 @@ const secureStorage = {
       console.error('SecureStorage clear error:', error);
       return false;
     }
-  }
+  },
 };
 
 export default secureStorage;

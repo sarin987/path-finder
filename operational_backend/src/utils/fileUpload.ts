@@ -1,8 +1,15 @@
-import multer, { FileFilterCallback } from 'multer';
-import { Request } from 'express';
+import multer from 'multer';
+import type { FileFilterCallback } from 'multer';
+import type { Request } from 'express';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 type DestinationCallback = (error: Error | null, destination: string) => void
 type FileNameCallback = (error: Error | null, filename: string) => void
@@ -59,10 +66,10 @@ const upload = multer({
 });
 
 // Middleware for handling file uploads
-export const uploadFile = upload.single('file');
+const uploadFile = upload.single('file');
 
 // Get file type from mime type
-export const getFileType = (mimeType: string): 'image' | 'audio' | 'video' | 'file' => {
+const getFileType = (mimeType: string): 'image' | 'audio' | 'video' | 'file' => {
   if (mimeType.startsWith('image/')) return 'image';
   if (mimeType.startsWith('audio/')) return 'audio';
   if (mimeType.startsWith('video/')) return 'video';
@@ -70,6 +77,13 @@ export const getFileType = (mimeType: string): 'image' | 'audio' | 'video' | 'fi
 };
 
 // Generate file URL
-export const generateFileUrl = (req: Request, filename: string): string => {
+const generateFileUrl = (req: Request, filename: string): string => {
   return `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+};
+
+export { 
+  upload, 
+  uploadFile, 
+  getFileType, 
+  generateFileUrl 
 };

@@ -7,7 +7,7 @@ const PermissionsAndroid = {
     READ_EXTERNAL_STORAGE: 'android.permission.READ_EXTERNAL_STORAGE',
     WRITE_EXTERNAL_STORAGE: 'android.permission.WRITE_EXTERNAL_STORAGE',
   },
-  
+
   RESULTS: {
     GRANTED: 'granted',
     DENIED: 'denied',
@@ -20,12 +20,12 @@ const PermissionsAndroid = {
       // Check if geolocation is available
       return navigator.geolocation ? true : false;
     }
-    
+
     if (permission.includes('CAMERA')) {
       // Check if mediaDevices is available
       return navigator.mediaDevices ? true : false;
     }
-    
+
     // Default to granted for web
     return true;
   },
@@ -44,7 +44,7 @@ const PermissionsAndroid = {
         }
       });
     }
-    
+
     if (permission.includes('CAMERA')) {
       try {
         await navigator.mediaDevices.getUserMedia({ video: true });
@@ -53,7 +53,7 @@ const PermissionsAndroid = {
         return PermissionsAndroid.RESULTS.DENIED;
       }
     }
-    
+
     // Default to granted for web
     return PermissionsAndroid.RESULTS.GRANTED;
   },

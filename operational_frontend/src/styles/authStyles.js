@@ -15,7 +15,7 @@ const normalize = (size) => {
   return Math.round(PixelRatio.roundToNearestPixel(newSize)) - 2;
 };
 
-export const authStyles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -312,3 +312,6 @@ export const authStyles = StyleSheet.create({
 Dimensions.addEventListener('change', () => {
   const { width, height } = Dimensions.get('window');
 });
+
+// Export the styles as default
+export default styles;

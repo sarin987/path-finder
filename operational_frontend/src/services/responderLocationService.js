@@ -1,6 +1,5 @@
-import { db } from '../config/firebase';
-import { collection, query, where, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth } from '../config/firebase';
+import { db, auth } from '../config/firebase';
+import { doc, setDoc, serverTimestamp, collection, query, where, onSnapshot } from 'firebase/firestore';
 
 // Track the current responder's location
 export const startLocationTracking = async (role) => {
@@ -10,23 +9,23 @@ export const startLocationTracking = async (role) => {
   }
 
   const responderId = user.uid;
-  
+
   // Set initial status
   await updateResponderStatus({
     role,
     status: 'available',
     online: true,
-    lastSeen: serverTimestamp()
+    lastSeen: serverTimestamp(),
   }, responderId);
 
   // Set up disconnect handler
   const responderRef = doc(db, 'responders', responderId);
-  
+
   // This will run when the client disconnects
   await setDoc(responderRef, {
     online: false,
     status: 'offline',
-    lastSeen: serverTimestamp()
+    lastSeen: serverTimestamp(),
   }, { merge: true });
 
   // Start watching position
@@ -43,7 +42,7 @@ export const startLocationTracking = async (role) => {
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 0
+        maximumAge: 0,
       }
     );
   });
@@ -52,33 +51,33 @@ export const startLocationTracking = async (role) => {
 // Stop tracking location
 export const stopLocationTracking = async () => {
   const user = auth.currentUser;
-  if (!user) return;
+  if (!user) {return;}
 
   const responderId = user.uid;
   const responderRef = doc(db, 'responders', responderId);
-  
+
   await setDoc(responderRef, {
     online: false,
     status: 'offline',
-    lastSeen: serverTimestamp()
+    lastSeen: serverTimestamp(),
   }, { merge: true });
 };
 
 // Update responder's status in Firestore
 const updateResponderStatus = async (data, responderId) => {
   const responderRef = doc(db, 'responders', responderId);
-  
+
   await setDoc(responderRef, {
     ...data,
     updatedAt: serverTimestamp(),
-    userId: responderId
+    userId: responderId,
   }, { merge: true });
 };
 
 // Handle position updates
 const handlePositionUpdate = async (position, role, responderId, resolve, reject) => {
   const { latitude, longitude, accuracy } = position.coords;
-  
+
   try {
     await updateResponderStatus({
       latitude,
@@ -86,9 +85,9 @@ const handlePositionUpdate = async (position, role, responderId, resolve, reject
       accuracy,
       role,
       online: true,
-      lastSeen: serverTimestamp()
+      lastSeen: serverTimestamp(),
     }, responderId);
-    
+
     // Start watching position after initial update
     const watchId = navigator.geolocation.watchPosition(
       async (pos) => {
@@ -98,17 +97,17 @@ const handlePositionUpdate = async (position, role, responderId, resolve, reject
           longitude: lng,
           accuracy: acc,
           online: true,
-          lastSeen: serverTimestamp()
+          lastSeen: serverTimestamp(),
         }, responderId);
       },
       handlePositionError,
       {
         enableHighAccuracy: true,
         distanceFilter: 10, // Update when moved at least 10 meters
-        maximumAge: 5000
+        maximumAge: 5000,
       }
     );
-    
+
     resolve(watchId);
   } catch (error) {
     console.error('Error updating location:', error);
@@ -119,7 +118,7 @@ const handlePositionUpdate = async (position, role, responderId, resolve, reject
 // Handle position errors
 const handlePositionError = (error, reject) => {
   console.error('Error getting location:', error);
-  if (reject) reject(error);
+  if (reject) {reject(error);}
 };
 
 // Subscribe to nearby responders
@@ -127,7 +126,7 @@ export const subscribeToNearbyResponders = (center, radiusInKm, onRespondersUpda
   // Convert km to degrees (approximate)
   const latDelta = radiusInKm / 111;
   const lngDelta = radiusInKm / (111 * Math.cos(center.latitude * (Math.PI / 180)));
-  
+
   const q = query(
     collection(db, 'responders'),
     where('latitude', '>=', center.latitude - latDelta),
@@ -145,7 +144,7 @@ export const subscribeToNearbyResponders = (center, radiusInKm, onRespondersUpda
           id: doc.id,
           ...data,
           // Convert Firestore timestamp to JS Date if needed
-          lastSeen: data.lastSeen?.toDate()
+          lastSeen: data.lastSeen?.toDate(),
         });
       }
     });

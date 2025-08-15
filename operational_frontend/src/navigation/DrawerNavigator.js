@@ -48,7 +48,7 @@ export default function DrawerNavigator() {
   // Sync selectedMenu with current route
   const navigationState = useNavigationState(state => state);
   useEffect(() => {
-    if (!navigationState) return;
+    if (!navigationState) {return;}
     const route = navigationState.routes[navigationState.index];
     switch (route.name) {
       case 'UserDashboard':

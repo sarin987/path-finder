@@ -10,16 +10,16 @@ const GoogleSignInButton = ({ userType, onSignInSuccess, onSignInError }) => {
       // Start Google Sign-In flow
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
-      
+
       // Get the ID token
       const { accessToken } = await GoogleSignin.getTokens();
-      
+
       // Send token to your backend
       const response = await axios.post(`${API_URL}/google`, {
         token: accessToken,
-        userType: userType // 'normal' or 'parent'
+        userType: userType, // 'normal' or 'parent'
       });
-      
+
       if (response.data.success) {
         // Store the JWT token
         // You might want to use AsyncStorage or your preferred storage method
@@ -29,7 +29,7 @@ const GoogleSignInButton = ({ userType, onSignInSuccess, onSignInError }) => {
       }
     } catch (error) {
       console.error('Google Sign-In Error:', error);
-      
+
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
         onSignInError('Sign in cancelled');
       } else if (error.code === statusCodes.IN_PROGRESS) {

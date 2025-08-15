@@ -75,6 +75,6 @@ export const usePermissions = () => {
     permissionStatus,
     checkPermissions,
     requestPermissions,
-    isRequesting
+    isRequesting,
   };
 };

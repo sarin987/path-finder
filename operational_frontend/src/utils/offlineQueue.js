@@ -16,12 +16,12 @@ class OfflineQueue {
         ...action,
         timestamp: Date.now(),
         retryCount: 0,
-        id: Math.random().toString(36).substr(2, 9)
+        id: Math.random().toString(36).substr(2, 9),
       };
-      
+
       queue.push(newItem);
       await AsyncStorage.setItem(this.key, JSON.stringify(queue));
-      
+
       // Try to process immediately if possible
       this.process();
     } catch (error) {
@@ -40,12 +40,12 @@ class OfflineQueue {
   }
 
   async process() {
-    if (this.processing) return;
+    if (this.processing) {return;}
     this.processing = true;
 
     try {
       const queue = await this.get();
-      if (queue.length === 0) return;
+      if (queue.length === 0) {return;}
 
       const processed = [];
       const failed = [];
@@ -69,11 +69,11 @@ class OfflineQueue {
       }
 
       // Keep failed items in queue
-      const remaining = queue.filter(item => 
-        !processed.find(p => p.id === item.id) && 
+      const remaining = queue.filter(item =>
+        !processed.find(p => p.id === item.id) &&
         item.retryCount < this.retryLimit
       );
-      
+
       await AsyncStorage.setItem(this.key, JSON.stringify(remaining));
     } catch (error) {
       console.error('Error processing queue:', error);
@@ -87,15 +87,15 @@ class OfflineQueue {
       case 'LOCATION_UPDATE':
         await axios.post(`${API_ROUTES.services}/location`, item.payload);
         break;
-      
+
       case 'EMERGENCY_REQUEST':
         await axios.post(`${API_ROUTES.emergency}/request`, item.payload);
         break;
-      
+
       case 'CANCEL_EMERGENCY':
         await axios.post(`${API_ROUTES.emergency}/cancel`, item.payload);
         break;
-      
+
       default:
         throw new Error(`Unknown action type: ${item.type}`);
     }

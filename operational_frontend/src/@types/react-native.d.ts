@@ -16,7 +16,7 @@ declare module 'react-native' {
 
   // More permissive type for NativeComponent to handle react-native-maps
   type NativeComponent<T> = React.ComponentType<T> & NativeMethods;
-  
+
   // More permissive type for HostComponent
   type HostComponent<P = {}, T = any> = React.ComponentType<P> & {
     new (props: P, context?: any): React.Component<P> & {
@@ -49,6 +49,6 @@ declare module 'react-native-maps' {
   export const Circle: ComponentType<any>;
   export const Callout: ComponentType<any>;
   export const Overlay: ComponentType<any>;
-  
+
   export default MapView;
 }

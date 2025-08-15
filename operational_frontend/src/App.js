@@ -3,8 +3,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import AppNavigator from './navigation/AppNavigator';
-import { initializeFirebase, setupMessageHandlers } from './config/firebase';
-import { Platform, LogBox } from 'react-native';
+import { Platform, LogBox, View, Text } from 'react-native';
+import { configureGoogleSignIn } from './utils/googleSignIn';
 
 // Ignore specific warnings
 LogBox.ignoreLogs([
@@ -14,35 +14,42 @@ LogBox.ignoreLogs([
 ]);
 
 const App = () => {
-  const [firebaseInitialized, setFirebaseInitialized] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    const initializeAppAsync = async () => {
+    const initializeApp = async () => {
       try {
-        console.log('Initializing Firebase...');
-        await initializeFirebase();
+        // Initialize Google Sign-In
+        console.log('Initializing Google Sign-In...');
+        configureGoogleSignIn();
         
-        // Set up message handlers
-        await setupMessageHandlers(remoteMessage => {
-          console.log('Received message:', remoteMessage);
-          // Handle your messages here
-        });
+        // Initialize any other required services here
+        console.log('Initializing app...');
+        // TODO: Initialize Firebase here if needed
+        // await initializeFirebase();
         
-        console.log('Firebase initialized successfully');
-        setFirebaseInitialized(true);
+        // Simulate initialization delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        console.log('App initialized successfully');
+        setIsInitialized(true);
       } catch (error) {
-        console.error('Error initializing Firebase:', error);
-        // You might want to show an error screen or retry logic here
-        setFirebaseInitialized(true); // Continue anyway for now
+        console.error('Error initializing app:', error);
+        // Continue anyway for now
+        setIsInitialized(true);
       }
     };
 
-    initializeAppAsync();
+    initializeApp();
   }, []);
 
-  // Show a loading screen until Firebase is initialized
-  if (!firebaseInitialized) {
-    return null; // Or a loading component
+  // Show a loading screen until the app is initialized
+  if (!isInitialized) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Loading...</Text>
+      </View>
+    );
   }
 
   return (

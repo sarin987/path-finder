@@ -1,5 +1,5 @@
 import { Server as SocketIOServer } from 'socket.io';
-import { User } from '../../models';
+import User from '../../models/User';
 import { Multer } from 'multer';
 
 declare global {

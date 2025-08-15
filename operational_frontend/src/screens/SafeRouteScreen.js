@@ -144,7 +144,7 @@ function SafeRouteScreen() {
           const timeoutId = setTimeout(() => {
             reject(new Error(`Location request timed out (attempt ${attempt})`));
           }, options.timeout || 10000);
-          
+
           Geolocation.getCurrentPosition(
             (pos) => {
               clearTimeout(timeoutId);
@@ -167,7 +167,7 @@ function SafeRouteScreen() {
         position = await tryGetLocation({
           enableHighAccuracy: true,
           timeout: 8000,
-          maximumAge: 5000
+          maximumAge: 5000,
         }, 1);
       } catch (error) {
         lastError = error;
@@ -179,7 +179,7 @@ function SafeRouteScreen() {
           position = await tryGetLocation({
             enableHighAccuracy: false,
             timeout: 15000,
-            maximumAge: 30000
+            maximumAge: 30000,
           }, 2);
         } catch (error) {
           lastError = error;
@@ -214,13 +214,13 @@ function SafeRouteScreen() {
 
       const lat = Number(position.coords.latitude);
       const lng = Number(position.coords.longitude);
-      
+
       if (typeof lat !== 'number' || !isFinite(lat) || typeof lng !== 'number' || !isFinite(lng)) {
         throw new Error('Invalid coordinates received from location service.');
       }
 
       setManualLocation(lat, lng);
-      
+
       try {
         // Use environment variable for API key
         const googleMapsApiKey = Config.GOOGLE_MAPS_API_KEY;
@@ -235,10 +235,10 @@ function SafeRouteScreen() {
           `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleMapsApiKey}`,
           { baseURL: '' } // Override baseURL to make a direct call to Google's API
         );
-        
+
         const data = response.data;
         let address = 'Unknown location';
-        
+
         if (data?.results?.[0]?.formatted_address) {
           address = data.results[0].formatted_address;
         } else if (data?.error_message) {
@@ -246,7 +246,7 @@ function SafeRouteScreen() {
         } else {
           console.warn('Google Maps Geocoding API unexpected response:', data);
         }
-        
+
         setPlaceName(address);
         return { coords: { latitude: lat, longitude: lng }, place: address };
       } catch (err) {
@@ -285,7 +285,7 @@ function SafeRouteScreen() {
       alert('Authentication Error', 'User not authenticated. Please log in again.');
       return;
     }
-    
+
     setSubmitting(true);
     try {
       await api.post('/ratings', {
@@ -295,9 +295,9 @@ function SafeRouteScreen() {
         placeName: placeName || 'Unknown location',
         rating,
         comment: comment || '',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-      
+
       if (userLocation) {
         setShowRating(false);
         setRating(0);
@@ -318,44 +318,44 @@ function SafeRouteScreen() {
 
   // Find route and fetch average rating
   const handleFindRoute = useCallback(async () => {
-    if (!destination?.trim() || !userLocation) return;
-    
+    if (!destination?.trim() || !userLocation) {return;}
+
     // Validate userLocation first
     if (!userLocation.latitude || !userLocation.longitude ||
         !isFinite(userLocation.latitude) || !isFinite(userLocation.longitude)) {
       alert('Location Error', 'Current location is not available. Please wait for location to load.');
       return;
     }
-    
+
     try {
       setLoading(true);
-      
+
       // Validate destination format
       const destParts = destination.split(',').map(coord => coord.trim());
       if (destParts.length !== 2) {
         alert('Invalid Format', 'Please enter destination as "latitude,longitude"');
         return;
       }
-      
+
       const [destLat, destLng] = destParts.map(Number);
-      if (isNaN(destLat) || isNaN(destLng) || 
+      if (isNaN(destLat) || isNaN(destLng) ||
           Math.abs(destLat) > 90 || Math.abs(destLng) > 180) {
         alert('Invalid Coordinates', 'Please enter valid coordinates within valid ranges');
         return;
       }
-      
+
       // Call backend to get safe route
       const response = await api.post('/routes/suggest', {
-        start: { 
-          lat: userLocation.latitude, 
-          lng: userLocation.longitude 
+        start: {
+          lat: userLocation.latitude,
+          lng: userLocation.longitude,
         },
-        end: { 
-          lat: destLat, 
-          lng: destLng 
-        }
+        end: {
+          lat: destLat,
+          lng: destLng,
+        },
       });
-      
+
       if (response.data?.route && userLocation) {
         setRoute(response.data.route);
         setRisks(response.data.risks || []);
@@ -405,7 +405,7 @@ function SafeRouteScreen() {
       {/* Content with top margin */}
       <View style={{ flex: 1, marginTop: 70, padding: 16 }}>
         <Text style={styles.header}>Find a Safe Route</Text>
-        
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#128090" />
@@ -429,9 +429,9 @@ function SafeRouteScreen() {
               onChangeText={setDestination}
               placeholderTextColor="#888"
             />
-            <Button 
-              title={loading ? "Finding Route..." : "Find Safe Route"} 
-              onPress={handleFindRoute} 
+            <Button
+              title={loading ? 'Finding Route...' : 'Find Safe Route'}
+              onPress={handleFindRoute}
               disabled={!destination.trim() || loading || !userLocation}
               color="#128090"
             />
@@ -520,45 +520,45 @@ function SafeRouteScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerBar: { 
-    position: 'absolute', 
-    top: 0, 
-    left: 0, 
-    right: 0, 
-    zIndex: 10, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    backgroundColor: '#128090', 
-    paddingTop: Platform.OS === 'android' ? 18 : 40, 
-    paddingBottom: 12, 
-    paddingHorizontal: 18, 
-    borderBottomLeftRadius: 18, 
-    borderBottomRightRadius: 18, 
-    shadowColor: '#000', 
-    shadowOpacity: 0.1, 
-    shadowRadius: 8, 
+  headerBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#128090',
+    paddingTop: Platform.OS === 'android' ? 18 : 40,
+    paddingBottom: 12,
+    paddingHorizontal: 18,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 4
+    elevation: 4,
   },
-  menuButton: { 
-    width: 38, 
-    height: 38, 
-    borderRadius: 19, 
-    backgroundColor: 'rgba(255,255,255,0.18)', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    shadowColor: '#000', 
-    shadowOpacity: 0.1, 
-    shadowRadius: 6, 
-    elevation: 2, 
-    marginRight: 10 
+  menuButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
+    marginRight: 10,
   },
-  headerTitle: { 
-    fontSize: 18, 
-    color: '#e0f7fa', 
-    fontWeight: 'bold', 
-    textAlign: 'center' 
+  headerTitle: {
+    fontSize: 18,
+    color: '#e0f7fa',
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   input: {
     backgroundColor: '#fff',
@@ -591,7 +591,6 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   header: { fontWeight: 'bold', fontSize: 20, marginBottom: 12, color: '#1976D2', alignSelf: 'center' },
-  input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, marginBottom: 12, backgroundColor: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#fff', borderRadius: 12, padding: 24, width: 320, alignItems: 'center', elevation: 4 },
   commentInput: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, minHeight: 60, width: 260, marginVertical: 12, backgroundColor: '#f8fafd' },
@@ -628,7 +627,7 @@ if (typeof global !== 'undefined') {
   const origHandler = global.ErrorUtils.getGlobalHandler && global.ErrorUtils.getGlobalHandler();
   global.ErrorUtils.setGlobalHandler((error, isFatal) => {
     console.log('GLOBAL JS ERROR:', error, isFatal);
-    if (origHandler) origHandler(error, isFatal);
+    if (origHandler) {origHandler(error, isFatal);}
   });
 }
 

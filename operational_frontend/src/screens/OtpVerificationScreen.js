@@ -1,67 +1,63 @@
-import React, { useState } from "react";
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  ScrollView, 
-  KeyboardAvoidingView, 
-  Platform, 
-  TouchableWithoutFeedback, 
-  Keyboard 
-} from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { auth } from "../config/firebase";
-import { signInWithCredential, PhoneAuthProvider } from "firebase/auth";
-import axios from "axios";
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import axios from 'axios';
 import { buildApiUrl } from '../utils/urlUtils';
 import { ENDPOINTS } from '../config/apiEndpoints';
-import { logError, logInfo } from '../utils/logger'; 
-import { styles } from "../styles/RegisterScreenStyles"; 
+import { logError, logInfo } from '../utils/logger';
+import { styles } from '../styles/RegisterScreenStyles';
 
 const OtpVerificationScreen = ({ route, navigation }) => {
   const { verificationId, name, phone, password, gender } = route.params;
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleVerifyOtp = async () => {
     console.log('[OTP Verification] Starting OTP verification process');
     console.log('[OTP Verification] Verification ID:', verificationId);
     console.log('[OTP Verification] OTP entered:', otp);
-    
+
     if (!otp) {
       console.error('[OTP Verification] Error: OTP is empty');
-      alert("Please enter the OTP.");
+      alert('Please enter the OTP.');
       return;
     }
-  
+
     setLoading(true);
-  
+
     try {
       console.log('[OTP Verification] Creating credential with verification ID and OTP');
       const credential = auth.PhoneAuthProvider.credential(verificationId, otp);
       console.log('[OTP Verification] Credential created, signing in...');
-      
+
       const userCredential = await auth().signInWithCredential(credential);
       console.log('[OTP Verification] Firebase sign-in successful, UID:', userCredential.user?.uid);
-  
+
       if (userCredential.user) {
         // Get the Firebase UID after successful OTP verification
-        const firebaseUid = userCredential.user.uid;
-  
+
         // Prepare API request data
         const requestData = {
-          firebase_uid: firebaseUid,
           otp,
           phone,
         };
-        
+
         logInfo('Sending OTP verification', {
           url: verificationUrl,
-          data: { ...requestData, otp: '***' } // Don't log actual OTP
+          data: { ...requestData, otp: '***' }, // Don't log actual OTP
         });
-        
+
         // Send verification request
         const response = await axios.post(verificationUrl, requestData, {
           headers: {
@@ -69,20 +65,20 @@ const OtpVerificationScreen = ({ route, navigation }) => {
           },
           timeout: 15000, // 15 second timeout
         });
-        
+
         console.log('[OTP Verification] Backend response:', {
           status: response.status,
           data: response.data,
         });
-  
+
         if (response.data.success) {
-          alert("Success", "OTP verified successfully. Registration completed.");
-          navigation.navigate("Login"); // Redirect to login page after successful verification
+          alert('Success', 'OTP verified successfully. Registration completed.');
+          navigation.navigate('Login'); // Redirect to login page after successful verification
         } else {
-          alert("Error: " + response.data.error);
+          alert('Error: ' + response.data.error);
         }
       } else {
-        alert("OTP verification failed.");
+        alert('OTP verification failed.');
       }
     } catch (error) {
       // Log the error with detailed information
@@ -94,16 +90,16 @@ const OtpVerificationScreen = ({ route, navigation }) => {
         requestMethod: error.config?.method,
         stack: error.stack,
       });
-      
+
       // Determine user-friendly error message
       let errorMessage = 'Failed to verify OTP. Please try again.';
-      
+
       if (error.code === 'ECONNABORTED') {
         errorMessage = 'Request timed out. Please check your internet connection and try again.';
       } else if (error.response) {
         // Server responded with an error status code
         const { status, data } = error.response;
-        
+
         if (status === 400) {
           errorMessage = data?.message || 'Invalid request. Please check your OTP and try again.';
         } else if (status === 401) {
@@ -117,7 +113,7 @@ const OtpVerificationScreen = ({ route, navigation }) => {
         // No response received
         errorMessage = 'Unable to connect to the server. Please check your internet connection.';
       }
-      
+
       // Show error alert
       alert('Verification Failed', errorMessage);
     } finally {
@@ -125,13 +121,13 @@ const OtpVerificationScreen = ({ route, navigation }) => {
       setLoading(false);
     }
   };
-  
-  
-  
+
+
+
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={{ flex: 1 }}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>

@@ -1,262 +1,334 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Alert } from 'react-native';
-import { API_ROUTES } from '../config/network';
-import { socketManager } from '../utils/socket';
+import { API_BASE_URL } from '../config';
+import { socketManager } from '../services/socket';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { 
+  calculateDistance, 
+  sortByDistance, 
+  filterByDistance,
+  formatDistance
+} from '../utils/geoUtils';
 
-const useResponderLocations = (authToken, enabled = true) => {
+// Cache key for responder data
+const RESPONDER_CACHE_KEY = 'responder_locations_cache';
+
+const useResponderLocations = (options = {}) => {
+  const {
+    center,
+    radius = 10, // in kilometers
+    enabled = true,
+    roles = ['police', 'ambulance', 'fire'],
+    sortByProximity = true,
+    filterByRole = true,
+    maxDistance = 50 // Maximum distance in km
+  } = options;
+
   const [responders, setResponders] = useState([]);
-  const [loading, setLoading] = useState(enabled); // Initialize based on enabled state
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState(enabled ? null : 'Hook is disabled');
   const [socketConnected, setSocketConnected] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const isMounted = useRef(true);
+  const socketRef = useRef(null);
   
-  // Reset state when hook is disabled
-  useEffect(() => {
-    if (!enabled) {
-      console.log('Hook is disabled, resetting state');
-      setResponders([]);
-      setLoading(false);
-      setError('Hook is disabled - no auth token available');
-      setSocketConnected(false);
-    } else if (!authToken) {
-      console.log('No auth token available, setting error');
-      setError('Authentication required');
-      setLoading(false);
-    }
-  }, [enabled, authToken]);
-
-  // Initialize socket connection
-  useEffect(() => {
-    if (!enabled || !authToken) return;
-
-    // Connect to socket
-    const socket = socketManager.connect(authToken);
+  // Fetch initial responder data from API
+  const fetchResponders = useCallback(async () => {
+    if (!enabled || !center) return;
     
-    // Handle connection status
-    const handleConnect = () => setSocketConnected(true);
-    const handleDisconnect = () => setSocketConnected(false);
-    
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    
-    // Cleanup function
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socket.disconnect();
-    };
-
-    // Initial load of responders
-    const loadResponders = async () => {
-      try {
-        if (!authToken) {
-          console.warn('No auth token available in loadResponders');
-          setError('Authentication required');
-          return;
-        }
-
-        setLoading(true);
-        const url = `${API_ROUTES.base}${API_ROUTES.locations.responders}`;
-        console.log('Fetching responders from:', url);
-        
-        const response = await axios.get(url, {
-          headers: { 
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          timeout: 10000 // 10 second timeout
-        });
-        
-        console.log('API Response Status:', response.status, response.statusText);
-        console.log('API Response Headers:', response.headers);
-        console.log('API Response Data:', response.data);
-        
-        // Handle different response formats
-        let respondersData = [];
-        const responseData = response.data;
-        
-        if (!responseData) {
-          console.warn('Empty response from server');
-          setError('No data received from server');
-          return;
-        }
-        
-        // Handle different possible response formats
-        if (Array.isArray(responseData)) {
-          respondersData = responseData;
-        } else if (responseData.data && Array.isArray(responseData.data)) {
-          respondersData = responseData.data;
-        } else if (responseData.responders && Array.isArray(responseData.responders)) {
-          respondersData = responseData.responders;
-        } else if (responseData.data?.responders && Array.isArray(responseData.data.responders)) {
-          respondersData = responseData.data.responders;
-        } else {
-          console.warn('Unexpected API response format:', responseData);
-          setError('Unexpected response format from server');
-          return;
-        }
-        
-        console.log('Processed responders data:', respondersData);
-        setResponders(respondersData);
-        setError(null);
-      } catch (err) {
-        const errorMessage = err.response 
-          ? `Server responded with ${err.response.status}: ${err.response.statusText}`
-          : err.message;
-          
-        console.error('Error loading responders:', {
-          message: errorMessage,
-          config: err.config,
-          response: err.response?.data
-        });
-        
-        setError(`Failed to load responders: ${errorMessage}`);
-        setResponders([]); // Reset to empty array on error
-      } finally {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.get(`${API_BASE_URL}/api/responders/nearby`, {
+        params: {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radius,
+          roles: roles.join(',')
+        },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        timeout: 10000 // 10 second timeout
+      });
+      
+      if (!isMounted.current) return;
+      
+      if (response.data && response.data.success) {
+        setResponders(response.data.data || []);
+        setLastUpdated(new Date());
+      } else {
+        throw new Error(response.data?.message || 'Invalid response format');
+      }
+    } catch (error) {
+      if (!isMounted.current) return;
+      
+      console.error('Error fetching responder data:', error);
+      const errorMessage = error.response?.data?.message || 
+                         error.message || 
+                         'Failed to load responder data';
+      setError(errorMessage);
+      
+      // If unauthorized, clear token and trigger re-authentication
+      if (error.response?.status === 401) {
+        await AsyncStorage.removeItem('userToken');
+      }
+    } finally {
+      if (isMounted.current) {
         setLoading(false);
       }
-    };
+    }
+  }, [center, radius, roles, enabled]);
 
-    loadResponders();
-
-    // Subscribe to real-time updates
-    const unsubscribe = socketManager.subscribeToResponderLocations((responder) => {
+  // Handle WebSocket updates
+  const handleLocationUpdate = useCallback((data) => {
+    if (!isMounted.current || !data || !data.userId || !data.location) return;
+    
+    try {
       setResponders(prevResponders => {
-        const existingIndex = prevResponders.findIndex(r => r.user_id === responder.userId);
-        
+        const existingIndex = prevResponders.findIndex(r => r.userId === data.userId);
+
         if (existingIndex >= 0) {
           // Update existing responder
           const updated = [...prevResponders];
           updated[existingIndex] = {
             ...updated[existingIndex],
-            lat: responder.lat,
-            lng: responder.lng,
-            status: responder.status,
-            last_updated: responder.lastUpdated,
+            ...data,
+            lastUpdated: new Date()
           };
           return updated;
-        } else {
-          // Add new responder
-          return [...prevResponders, {
-            user_id: responder.userId,
-            role: responder.role,
-            lat: responder.lat,
-            lng: responder.lng,
-            status: responder.status,
-            last_updated: responder.lastUpdated,
-            user: {
-              name: responder.name || `Responder ${responder.userId}`,
-            },
+        } else if (data.role && roles.includes(data.role)) {
+          // Add new responder if role matches
+          return [...prevResponders, { 
+            ...data, 
+            lastUpdated: new Date() 
           }];
         }
-      });
-    });
 
-    // Handle responder going offline
-    const handleOffline = (data) => {
-      setResponders(prevResponders => 
-        prevResponders.filter(r => r.user_id !== data.userId)
-      );
-    };
-
-    socketManager.on('responder_offline', handleOffline);
-
-    // Cleanup
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socketManager.off('responder_offline', handleOffline);
-      unsubscribe();
-    };
-  }, [authToken, enabled]);
-
-    // Function to refresh responders
-    const refreshResponders = useCallback(async () => {
-      if (!enabled) {
-        console.warn('Hook is disabled - cannot refresh');
-        setError('Hook is disabled - cannot refresh');
-        return [];
-      }
-      
-      if (!authToken) {
-        console.warn('No auth token available for refresh');
-        setError('Authentication required');
-        return [];
-      }
-      
-      try {
-        setLoading(true);
-        const url = `${API_ROUTES.base}${API_ROUTES.locations.responders}`;
-        console.log('Refreshing responders from:', url);
-        
-        const response = await axios.get(url, {
-          headers: { 
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          timeout: 10000 // 10 second timeout
-        });
-      
-      console.log('Refresh response status:', response.status, response.statusText);
-      console.log('Refresh response data:', response.data);
-      
-      // Handle different response formats
-      let respondersData = [];
-      const responseData = response.data;
-      
-      if (!responseData) {
-        console.warn('Empty refresh response from server');
-        setError('No data received from server');
-        return [];
-      }
-      
-      // Handle different possible response formats
-      if (Array.isArray(responseData)) {
-        respondersData = responseData;
-      } else if (responseData.data && Array.isArray(responseData.data)) {
-        respondersData = responseData.data;
-      } else if (responseData.responders && Array.isArray(responseData.responders)) {
-        respondersData = responseData.responders;
-      } else if (responseData.data?.responders && Array.isArray(responseData.data.responders)) {
-        respondersData = responseData.data.responders;
-      } else {
-        console.warn('Unexpected refresh response format:', responseData);
-        setError('Unexpected response format from server');
-        return [];
-      }
-      
-      console.log('Processed refresh data:', respondersData);
-      setResponders(respondersData);
-      setError(null);
-      return respondersData;
-    } catch (err) {
-      const errorMessage = err.response 
-        ? `Server responded with ${err.response.status}: ${err.response.statusText}`
-        : err.message;
-        
-      console.error('Error refreshing responders:', {
-        message: errorMessage,
-        config: err.config,
-        response: err.response?.data
+        return prevResponders;
       });
       
-      setError(`Failed to refresh responders: ${errorMessage}`);
-      setResponders([]); // Reset to empty array on error
-      return [];
-    } finally {
-      setLoading(false);
+      // Update last updated timestamp
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Error updating responder location:', error);
     }
-  }, [authToken]);
+  }, [roles]);
 
-  return {
-    responders,
+  // Setup WebSocket connection
+  useEffect(() => {
+    if (!enabled) return;
+
+    let isSubscribed = true;
+    const setupWebSocket = async () => {
+      try {
+        // Fetch initial data
+        if (isSubscribed) {
+          await fetchResponders();
+        }
+        
+        // Connect to WebSocket
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+
+        // Initialize socket connection
+        await socketManager.connect(token);
+        
+        if (!isSubscribed) return;
+        
+        // Set up event listeners
+        const onConnect = () => {
+          console.log('WebSocket connected');
+          if (isSubscribed) {
+            setSocketConnected(true);
+            fetchResponders();
+          }
+        };
+
+        const onDisconnect = () => {
+          console.log('WebSocket disconnected');
+          if (isSubscribed) {
+            setSocketConnected(false);
+          }
+        };
+
+        const onError = (error) => {
+          console.error('WebSocket error:', error);
+          if (isSubscribed) {
+            setError('Connection error');
+          }
+        };
+
+        socketManager.on('connect', onConnect);
+        socketManager.on('disconnect', onDisconnect);
+        socketManager.on('error', onError);
+        socketManager.on('locationUpdate', handleLocationUpdate);
+
+        // Cleanup function
+        return () => {
+          socketManager.off('connect', onConnect);
+          socketManager.off('disconnect', onDisconnect);
+          socketManager.off('error', onError);
+          socketManager.off('locationUpdate', handleLocationUpdate);
+        };
+
+      } catch (error) {
+        console.error('Failed to setup WebSocket:', error);
+        if (isSubscribed) {
+          setError('Failed to connect to real-time updates');
+          setLoading(false);
+        }
+      }
+    };
+
+    setupWebSocket();
+
+    // Cleanup on unmount
+    return () => {
+      isSubscribed = false;
+      isMounted.current = false;
+      // Don't disconnect the socket here as it might be used by other components
+    };
+  }, [enabled, fetchResponders, handleLocationUpdate]);
+
+  // Refresh data when center or radius changes
+  useEffect(() => {
+    if (enabled && center) {
+      fetchResponders();
+    }
+  }, [center?.latitude, center?.longitude, radius, enabled, fetchResponders]);
+
+  // Process and filter responders based on options
+  const processedResponders = useMemo(() => {
+    if (!responders.length) return [];
+    
+    let result = [...responders];
+    
+    // Filter by role if enabled
+    if (filterByRole && roles.length > 0) {
+      result = result.filter(responder => 
+        responder.role && roles.includes(responder.role)
+      );
+    }
+    
+    // Filter by distance if center is provided
+    if (center && (center.latitude !== undefined && center.longitude !== undefined)) {
+      result = filterByDistance(result, center, maxDistance);
+      
+      // Sort by distance if enabled
+      if (sortByProximity) {
+        result = sortByDistance(result, center);
+      }
+      
+      // Add distance information to each responder
+      result = result.map(responder => ({
+        ...responder,
+        distance: calculateDistance(
+          center.latitude,
+          center.longitude,
+          responder.latitude || responder.lat || 0,
+          responder.longitude || responder.lng || 0
+        ),
+        distanceFormatted: formatDistance(
+          calculateDistance(
+            center.latitude,
+            center.longitude,
+            responder.latitude || responder.lat || 0,
+            responder.longitude || responder.lng || 0
+          )
+        )
+      }));
+    }
+    
+    return result;
+  }, [responders, center, roles, filterByRole, sortByProximity, maxDistance]);
+  
+  // Get responder count by role
+  const responderCounts = useMemo(() => {
+    const counts = {};
+    processedResponders.forEach(responder => {
+      if (responder.role) {
+        counts[responder.role] = (counts[responder.role] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [processedResponders]);
+
+  // Get unique roles from current responders
+  const availableRoles = useMemo(() => {
+    const rolesSet = new Set();
+    processedResponders.forEach(responder => {
+      if (responder.role) {
+        rolesSet.add(responder.role);
+      }
+    });
+    return Array.from(rolesSet);
+  }, [processedResponders]);
+
+  // Memoize the return value to prevent unnecessary re-renders
+  const result = useMemo(() => ({
+    // Raw data
+    responders: processedResponders,
     loading,
     error,
+    lastUpdated,
     socketConnected,
-    refresh: refreshResponders,
-  };
+    
+    // Derived data
+    responderCounts,
+    availableRoles,
+    
+    // Actions
+    refetch: fetchResponders,
+    
+    // Helpers
+    getResponderById: (id) => 
+      processedResponders.find(r => r.id === id || r.userId === id),
+    getRespondersByRole: (role) => 
+      processedResponders.filter(r => r.role === role),
+    getClosestResponder: () => 
+      processedResponders.length > 0 ? processedResponders[0] : null,
+    
+    // Status
+    hasResponders: processedResponders.length > 0,
+    totalResponders: processedResponders.length
+  }), [
+    processedResponders, 
+    loading, 
+    error, 
+    lastUpdated, 
+    socketConnected, 
+    responderCounts, 
+    availableRoles,
+    fetchResponders
+  ]);
+
+  return result;
 };
 
 export default useResponderLocations;
+
+// Helper function to calculate distance between two coordinates (Haversine formula)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the Earth in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance in km
+}

@@ -8,12 +8,12 @@ const RiskPredictionMap = ({ userLocation }) => {
   const [risks, setRisks] = useState([]);
 
   useEffect(() => {
-    if (!userLocation) return;
+    if (!userLocation) {return;}
     const fetchRisks = async () => {
       try {
-    
+
         const response = await api.get('/risks/nearby', {
-          params: { lat: userLocation.latitude, lng: userLocation.longitude }
+          params: { lat: userLocation.latitude, lng: userLocation.longitude },
         });
         setRisks(response.data);
       } catch (e) {

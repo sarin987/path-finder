@@ -24,9 +24,6 @@ import {
   onSnapshot,
   doc,
   updateDoc
-} from '@react-native-firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db } from '../../config/firebase';
 import LocationShareButton from '../LocationShareButton';
 
 const ChatComponent = ({ 

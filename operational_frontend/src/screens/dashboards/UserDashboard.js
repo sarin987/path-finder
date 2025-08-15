@@ -1,5 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, SafeAreaView, StatusBar, ActivityIndicator, Animated, Dimensions, StyleSheet, TouchableOpacity, Pressable, PermissionsAndroid, Platform } from 'react-native';
+import { View, Text, SafeAreaView, StatusBar, ActivityIndicator, Animated, Dimensions, StyleSheet, TouchableOpacity, Pressable, Platform } from 'react-native';
+
+// Define PermissionsAndroid for web compatibility
+let PermissionsAndroid = {
+  request: () => Promise.resolve('unavailable'),
+  PERMISSIONS: {
+    ACCESS_FINE_LOCATION: 'android.permission.ACCESS_FINE_LOCATION',
+  },
+  RESULTS: {
+    GRANTED: 'granted',
+    DENIED: 'denied',
+    NEVER_ASK_AGAIN: 'never_ask_again',
+  },
+};
+
+if (Platform.OS === 'android') {
+  try {
+    const PermissionsAndroidModule = require('react-native/Libraries/PermissionsAndroid/PermissionsAndroid');
+    if (PermissionsAndroidModule) {
+      PermissionsAndroid = PermissionsAndroidModule;
+    }
+  } catch (error) {
+    console.warn('PermissionsAndroid not available:', error);
+  }
+}
 import { alert } from '../../utils/alert';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import HeaderBar from '../../components/dashboard/HeaderBar';
@@ -43,7 +67,7 @@ const UserDashboard = () => {
   const [activeRoleFilter, setActiveRoleFilter] = useState(null);
   const bottomSheetAnim = useRef(new Animated.Value(0)).current;
 
-  const requestLocationPermission = async () => {
+  const requestLocationPermission = React.useCallback(async () => {
     if (Platform.OS === 'android') {
       try {
         const granted = await PermissionsAndroid.request(
@@ -62,9 +86,9 @@ const UserDashboard = () => {
       }
     }
     return true; // iOS permissions handled in Info.plist
-  };
+  }, []);
 
-  const getLocation = async () => {
+  const getLocation = React.useCallback(async () => {
     setLoading(true);
     setLocationError(null);
     // 1. Request permission first
@@ -149,22 +173,22 @@ const UserDashboard = () => {
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
     );
-  };
+  }, [requestLocationPermission, setLoading, setLocationError, setUserLocation]);
 
   useFocusEffect(
     React.useCallback(() => {
       getLocation();
-    }, [])
+    }, [getLocation])
   );
 
   // Connect to socket and get responders
   useEffect(() => {
-    if (!user || !userLocation) return;
-    
+    if (!user || !userLocation) {return;}
+
     const socket = socketManager.connect(user.token);
     setLoadingResponders(true);
     setResponderError(null);
-    
+
     // Send user's location to the server
     socket.emit('user_location_update', {
       userId: user.id,
@@ -187,10 +211,10 @@ const UserDashboard = () => {
     socket.on('responder_location_updated', handleResponderUpdate);
 
     // Request initial responder locations
-    socket.emit('get_responders', { 
+    socket.emit('get_responders', {
       role: activeRoleFilter,
       lat: userLocation.latitude,
-      lng: userLocation.longitude 
+      lng: userLocation.longitude,
     }, (response) => {
       setLoadingResponders(false);
       if (response.error) {
@@ -209,7 +233,7 @@ const UserDashboard = () => {
 
   // SOS send
   const handleSendSOS = async (roleKey) => {
-    if (!userLocation || !roleKey) return;
+    if (!userLocation || !roleKey) {return;}
     setSendingSOS(true);
     try {
       socketManager.emit('user_sos', {
@@ -260,7 +284,7 @@ const UserDashboard = () => {
   };
   const handleSOSPressOut = () => {
     setSosHold(false);
-    if (sosTimeout.current) clearTimeout(sosTimeout.current);
+    if (sosTimeout.current) {clearTimeout(sosTimeout.current);}
   };
 
   // Sidebar open handler (assumes Drawer navigation is set up)
@@ -277,7 +301,7 @@ const UserDashboard = () => {
         {locationError && (
           <>
             <Text style={{ color: 'red', marginTop: 10, textAlign: 'center' }}>{locationError}</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{ marginTop: 16, backgroundColor: '#1976D2', padding: 12, borderRadius: 8 }}
               onPress={getLocation}
             >
@@ -286,7 +310,7 @@ const UserDashboard = () => {
           </>
         )}
         {!locationError && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={{ marginTop: 16, backgroundColor: '#1976D2', padding: 12, borderRadius: 8 }}
             onPress={getLocation}
           >
@@ -300,7 +324,7 @@ const UserDashboard = () => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafd' }}>
       <StatusBar barStyle="dark-content" backgroundColor={APP_HEADER_COLOR} />
-      
+
       {/* Top Bar with user name */}
       <View style={styles.header}>
         <TouchableOpacity onPress={openSidebar} style={styles.menuButton}>
@@ -309,9 +333,9 @@ const UserDashboard = () => {
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Welcome, {user?.name || 'User'}!</Text>
         </View>
-        <UserAvatar 
-          avatarUrl={user?.avatar} 
-          onPress={() => navigation.navigate('ChangeProfilePic')} 
+        <UserAvatar
+          avatarUrl={user?.avatar}
+          onPress={() => navigation.navigate('ChangeProfilePic')}
           style={styles.avatar}
         />
       </View>
@@ -320,8 +344,8 @@ const UserDashboard = () => {
       <View style={styles.content}>
         {/* Map View */}
         <View style={styles.mapContainer}>
-          <MapCard 
-            userLocation={userLocation} 
+          <MapCard
+            userLocation={userLocation}
             responders={filteredResponders}
             onRecenter={handleRecenter}
             loading={loadingResponders}
@@ -341,18 +365,18 @@ const UserDashboard = () => {
                   {
                     backgroundColor: activeRoleFilter === role.key ? role.color : 'rgba(0,0,0,0.03)',
                     shadowColor: activeRoleFilter === role.key ? role.color : 'transparent',
-                  }
+                  },
                 ]}
               >
-                <MaterialIcons 
-                  name={role.icon} 
-                  size={24} 
-                  color={activeRoleFilter === role.key ? '#fff' : role.color} 
-                  style={styles.roleIcon} 
+                <MaterialIcons
+                  name={role.icon}
+                  size={24}
+                  color={activeRoleFilter === role.key ? '#fff' : role.color}
+                  style={styles.roleIcon}
                 />
                 <Text style={[
                   styles.roleButtonText,
-                  { color: activeRoleFilter === role.key ? '#fff' : '#222' }
+                  { color: activeRoleFilter === role.key ? '#fff' : '#222' },
                 ]}>
                   {role.label}
                 </Text>
@@ -369,18 +393,18 @@ const UserDashboard = () => {
                   {
                     backgroundColor: activeRoleFilter === role.key ? role.color : 'rgba(0,0,0,0.03)',
                     shadowColor: activeRoleFilter === role.key ? role.color : 'transparent',
-                  }
+                  },
                 ]}
               >
-                <MaterialIcons 
-                  name={role.icon} 
-                  size={24} 
-                  color={activeRoleFilter === role.key ? '#fff' : role.color} 
-                  style={styles.roleIcon} 
+                <MaterialIcons
+                  name={role.icon}
+                  size={24}
+                  color={activeRoleFilter === role.key ? '#fff' : role.color}
+                  style={styles.roleIcon}
                 />
                 <Text style={[
                   styles.roleButtonText,
-                  { color: activeRoleFilter === role.key ? '#fff' : '#222' }
+                  { color: activeRoleFilter === role.key ? '#fff' : '#222' },
                 ]}>
                   {role.label}
                 </Text>
@@ -402,8 +426,8 @@ const UserDashboard = () => {
         </TouchableOpacity>
 
         {/* Chat Button */}
-        <TouchableOpacity 
-          onPress={() => filteredResponders.length > 0 ? handleChat(filteredResponders[0]) : alert('No responders', 'No responders are currently available to chat.')} 
+        <TouchableOpacity
+          onPress={() => filteredResponders.length > 0 ? handleChat(filteredResponders[0]) : alert('No responders', 'No responders are currently available to chat.')}
           style={styles.chatButton}
         >
           <MaterialIcons name="chat" size={30} color="#fff" />
@@ -413,9 +437,9 @@ const UserDashboard = () => {
       {/* SOS Modal */}
       <SOSRoleModal
         visible={showSosModal}
-        onSelect={role => { 
-          setSosRole(role); 
-          handleSendSOS(role); 
+        onSelect={role => {
+          setSosRole(role);
+          handleSendSOS(role);
         }}
         onCancel={() => setShowSosModal(false)}
         sending={sendingSOS}

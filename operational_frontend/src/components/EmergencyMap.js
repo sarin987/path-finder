@@ -15,11 +15,11 @@ const serviceColors = {
   ambulance: 'green',
 };
 
-const EmergencyMap = forwardRef(({ 
-  onLocationChange, 
-  initialLocation, 
-  mapPadding, 
-  nearbyServices 
+const EmergencyMap = forwardRef(({
+  onLocationChange,
+  initialLocation,
+  mapPadding,
+  nearbyServices,
 }, ref) => {
   return (
     <View style={styles.container}>
@@ -40,7 +40,7 @@ const EmergencyMap = forwardRef(({
             key={index}
             coordinate={{
               latitude: service.location.latitude,
-              longitude: service.location.longitude
+              longitude: service.location.longitude,
             }}
             title={service.name}
             description={service.address}
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
-  }
+  },
 });
 
 EmergencyMap.displayName = 'EmergencyMap';

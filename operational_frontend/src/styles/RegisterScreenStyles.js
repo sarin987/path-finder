@@ -98,15 +98,15 @@ export const styles = StyleSheet.create({
   resendOtpButton: {
     marginTop: 10,
     padding: 10,
-    backgroundColor: "#FF6347",  // Tomato color or adjust to your style
+    backgroundColor: '#FF6347',  // Tomato color or adjust to your style
     borderRadius: 5,
-    alignItems: "center",
+    alignItems: 'center',
   },
   resendOtpText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
-  
+
 });
 

@@ -27,14 +27,14 @@ export class OfflineEmergencyService {
     try {
       // Get cached protocols
       const protocol = await this.getOfflineProtocol(emergency.type);
-      
+
       // Store emergency details locally
       await this.storeEmergencyLocally(emergency);
 
       return {
         success: true,
         protocol,
-        queuePosition: this.queue.size()
+        queuePosition: this.queue.size(),
       };
     } catch (error) {
       console.error('Process offline emergency error:', error);
@@ -70,16 +70,16 @@ export class OfflineEmergencyService {
     const protocols = {
       medical: {
         steps: ['Check breathing', 'Apply first aid', 'Find nearest hospital'],
-        contacts: ['Emergency Services', 'Local Hospital']
+        contacts: ['Emergency Services', 'Local Hospital'],
       },
       fire: {
         steps: ['Evacuate area', 'Call fire department', 'Help others'],
-        contacts: ['Fire Department', 'Emergency Services']
+        contacts: ['Fire Department', 'Emergency Services'],
       },
       security: {
         steps: ['Find safe location', 'Contact authorities', 'Document incident'],
-        contacts: ['Police', 'Security Services']
-      }
+        contacts: ['Police', 'Security Services'],
+      },
     };
 
     return protocols[type] || protocols.medical;
@@ -91,7 +91,7 @@ export class OfflineEmergencyService {
       await AsyncStorage.setItem(key, JSON.stringify({
         ...emergency,
         timestamp: Date.now(),
-        processed: false
+        processed: false,
       }));
     } catch (error) {
       console.error('Store emergency locally error:', error);

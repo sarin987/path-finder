@@ -20,7 +20,7 @@ const ResponderLocationTracker = ({ role, onLocationUpdate, children }) => {
             buttonPositive: 'OK',
           },
         );
-        
+
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
           return true;
         } else {
@@ -43,7 +43,7 @@ const ResponderLocationTracker = ({ role, onLocationUpdate, children }) => {
   const startTracking = useCallback(async () => {
     try {
       const hasPermission = await requestLocationPermission();
-      if (!hasPermission) return;
+      if (!hasPermission) {return;}
 
       const id = await startLocationTracking(role);
       if (isMounted.current) {
@@ -76,7 +76,7 @@ const ResponderLocationTracker = ({ role, onLocationUpdate, children }) => {
   // Set up effect to start/stop tracking
   useEffect(() => {
     isMounted.current = true;
-    
+
     if (role) {
       startTracking();
     }

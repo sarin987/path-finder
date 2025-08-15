@@ -12,37 +12,37 @@ const SafeRouteSuggester = ({ userLocation }) => {
   const [loading, setLoading] = useState(false);
 
   const handleSuggestRoute = async () => {
-    if (!userLocation || !destination) return;
-    
+    if (!userLocation || !destination) {return;}
+
     // Validate destination format
     const destParts = destination.split(',').map(coord => coord.trim());
     if (destParts.length !== 2) {
       Alert.alert('Invalid Format', 'Please enter destination as "latitude,longitude"');
       return;
     }
-    
+
     const [destLat, destLng] = destParts.map(Number);
     if (isNaN(destLat) || isNaN(destLng)) {
       Alert.alert('Invalid Coordinates', 'Please enter valid numeric coordinates');
       return;
     }
-    
+
     setLoading(true);
     setRoute(null);
     setRisks([]);
-    
+
     try {
       const response = await api.post('/routes/suggest', {
-        start: { 
-          lat: userLocation.latitude, 
-          lng: userLocation.longitude 
+        start: {
+          lat: userLocation.latitude,
+          lng: userLocation.longitude,
         },
-        end: { 
-          lat: destLat, 
-          lng: destLng 
-        }
+        end: {
+          lat: destLat,
+          lng: destLng,
+        },
       });
-      
+
       if (response.data?.route) {
         setRoute(response.data.route);
         setRisks(response.data.risks || []);
@@ -51,8 +51,8 @@ const SafeRouteSuggester = ({ userLocation }) => {
       }
     } catch (error) {
       console.error('Route suggestion error:', error);
-      const errorMessage = error.response?.data?.message || 
-                         error.message || 
+      const errorMessage = error.response?.data?.message ||
+                         error.message ||
                          'Failed to get safe route. Please try again.';
       Alert.alert('Error', errorMessage);
     } finally {
@@ -62,13 +62,13 @@ const SafeRouteSuggester = ({ userLocation }) => {
 
   // Extract polyline points from Google Directions API response
   const getPolylineCoords = () => {
-    if (!route) return [];
+    if (!route) {return [];}
     return route.legs[0].steps.map(step => ({
       latitude: step.start_location.lat,
-      longitude: step.start_location.lng
+      longitude: step.start_location.lng,
     })).concat({
       latitude: route.legs[0].end_location.lat,
-      longitude: route.legs[0].end_location.lng
+      longitude: route.legs[0].end_location.lng,
     });
   };
 
@@ -88,9 +88,9 @@ const SafeRouteSuggester = ({ userLocation }) => {
         placeholderTextColor="#999"
       />
       <View style={styles.buttonContainer}>
-        <Button 
-          title={loading ? 'Finding Safe Route...' : 'Suggest Safe Route'} 
-          onPress={handleSuggestRoute} 
+        <Button
+          title={loading ? 'Finding Safe Route...' : 'Suggest Safe Route'}
+          onPress={handleSuggestRoute}
           disabled={loading || !destination.trim()}
           color="#128090"
         />
@@ -127,14 +127,14 @@ const SafeRouteSuggester = ({ userLocation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
+  container: {
+    flex: 1,
     padding: 16,
     backgroundColor: '#f8fafd',
   },
-  header: { 
-    fontWeight: 'bold', 
-    fontSize: 18, 
+  header: {
+    fontWeight: 'bold',
+    fontSize: 18,
     marginBottom: 16,
     color: '#1976D2',
     textAlign: 'center',
@@ -151,11 +151,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontStyle: 'italic',
   },
-  input: { 
-    borderWidth: 1, 
-    borderColor: '#d1d5db', 
-    borderRadius: 8, 
-    padding: 12, 
+  input: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
     marginBottom: 16,
     fontSize: 16,
     backgroundColor: '#fff',
@@ -165,9 +165,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
   },
-  map: { 
-    width: '100%', 
-    height: 300, 
+  map: {
+    width: '100%',
+    height: 300,
     marginTop: 8,
     borderRadius: 8,
     borderWidth: 1,

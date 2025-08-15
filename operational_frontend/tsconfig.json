@@ -16,11 +16,14 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "react-native-maps": ["./src/@types/react-native-maps"],
+      "react-native-element-dropdown": ["./src/types/react-native-element-dropdown"]
     },
     "typeRoots": [
       "./node_modules/@types",
-      "./src/@types"
+      "./src/@types",
+      "./src/types"
     ],
     "types": [
       "jest",
@@ -29,12 +32,14 @@
       "react-native"
     ]
   },
+  
   "exclude": [
     "babel.config.js",
     "metro.config.js",
     "jest.config.js",
     "**/__mocks__/**",
-    "node_modules/react-native-maps/**/*"
+    "node_modules/react-native-maps/**/*",
+    "node_modules/@types/react-native-maps"
   ],
   "include": [
     "src/**/*",

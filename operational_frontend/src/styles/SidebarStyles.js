@@ -1,15 +1,15 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet } from 'react-native';
 
 export default StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
   },
   profileContainer: {
-    alignItems: "center",
+    alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
+    borderBottomColor: '#ccc',
   },
   profilePic: {
     width: 80,
@@ -19,21 +19,21 @@ export default StyleSheet.create({
   username: {
     marginTop: 10,
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
   logoutButton: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 20,
     left: 20,
     right: 20,
-    backgroundColor: "#d9534f",
+    backgroundColor: '#d9534f',
     padding: 10,
     borderRadius: 5,
-    alignItems: "center",
+    alignItems: 'center',
   },
   logoutText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
 });

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { JWT_SECRET } from '../config/constants';
-import User from '../models/User';
+import { JWT_SECRET } from '../config/constants.js';
+import User from '../models/User.js';
 
 // Define a minimal user type that matches what we actually use
 export interface RequestUser {
@@ -16,7 +16,8 @@ export interface RequestUser {
 }
 
 // Create a custom request type that extends Express's Request
-export interface AuthRequest extends Request {
+export interface AuthRequest<P = {}, ResBody = any, ReqBody = any, ReqQuery = any> 
+  extends Request<P, ResBody, ReqBody, ReqQuery> {
   user?: RequestUser;
 }
 
@@ -34,7 +35,8 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
 
     if (!token) {
       console.log('No token provided in request');
-      return res.status(401).json({ message: 'No token provided' });
+      res.status(401).json({ message: 'No token provided' });
+      return;
     }
 
     console.log('Verifying token...');
@@ -42,7 +44,8 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
     
     if (!decoded || !decoded.userId) {
       console.log('Invalid token payload:', decoded);
-      return res.status(403).json({ message: 'Invalid token' });
+      res.status(403).json({ message: 'Invalid token' });
+      return;
     }
 
     console.log('Fetching user with ID:', decoded.userId);
@@ -53,7 +56,8 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
 
     if (!user) {
       console.log('User not found for ID:', decoded.userId);
-      return res.status(403).json({ message: 'User not found' });
+      res.status(403).json({ message: 'User not found' });
+      return;
     }
 
     console.log('User authenticated successfully:', user.email);
@@ -62,10 +66,12 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
   } catch (error: any) {
     console.error('Authentication error:', error.message);
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: 'Token expired', code: 'TOKEN_EXPIRED' });
+      res.status(401).json({ message: 'Token expired', code: 'TOKEN_EXPIRED' });
+      return;
     } else if (error.name === 'JsonWebTokenError') {
-      return res.status(403).json({ message: 'Invalid token', code: 'INVALID_TOKEN' });
+      res.status(403).json({ message: 'Invalid token', code: 'INVALID_TOKEN' });
+      return;
     }
-    return res.status(500).json({ message: 'Authentication failed', code: 'AUTH_ERROR' });
+    res.status(500).json({ message: 'Authentication failed', code: 'AUTH_ERROR' });
   }
 };

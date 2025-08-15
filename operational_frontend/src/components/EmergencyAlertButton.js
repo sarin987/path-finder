@@ -15,22 +15,22 @@ const EmergencyAlertButton = () => {
       const auth = await Geolocation.requestAuthorization('whenInUse');
       return auth === 'granted';
     }
-    
+
     if (Platform.OS === 'android') {
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
       );
       return granted === PermissionsAndroid.RESULTS.GRANTED;
     }
-    
+
     return true;
   }, []);
 
   const sendAlert = useCallback(async () => {
-    if (sending) return;
-    
+    if (sending) {return;}
+
     setSending(true);
-    
+
     try {
       // Request location permission if not already granted
       const hasPermission = await requestLocationPermission();
@@ -41,7 +41,7 @@ const EmergencyAlertButton = () => {
         );
         return;
       }
-      
+
       // Get current location
       const position = await new Promise((resolve, reject) => {
         Geolocation.getCurrentPosition(
@@ -50,20 +50,20 @@ const EmergencyAlertButton = () => {
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
         );
       });
-      
-      const location = { 
-        lat: position.coords.latitude, 
-        lng: position.coords.longitude 
+
+      const location = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
       };
-      
+
       // Send alert to backend
       await api.post('/alerts', {
         userId: user?.id,
         message: 'Emergency! Please check on me.',
         location,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-      
+
       setSent(true);
       setTimeout(() => setSent(false), 3000);
     } catch (error) {
@@ -92,8 +92,8 @@ const EmergencyAlertButton = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { 
-    marginVertical: 16, 
+  container: {
+    marginVertical: 16,
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#fff',

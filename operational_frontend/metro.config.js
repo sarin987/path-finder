@@ -6,19 +6,27 @@ const { getDefaultConfig } = require('@react-native/metro-config');
  *
  * @type {import('metro-config').MetroConfig}
  */
-const config = {};
-
 module.exports = (() => {
   const defaultConfig = getDefaultConfig(__dirname);
-  
+
   return {
     ...defaultConfig,
     resolver: {
       ...defaultConfig.resolver,
-      assetExts: [...defaultConfig.resolver.assetExts, 'png', 'jpg', 'jpeg', 'gif', 'svg'],
+      assetExts: [
+        ...defaultConfig.resolver.assetExts,
+        'png',
+        'jpg',
+        'jpeg',
+        'gif',
+        'svg',
+        'json', // For Lottie files
+      ],
+      sourceExts: [...defaultConfig.resolver.sourceExts, 'jsx', 'js', 'ts', 'tsx', 'cjs'],
     },
     transformer: {
       ...defaultConfig.transformer,
+      babelTransformerPath: require.resolve('react-native-svg-transformer'),
       getTransformOptions: async () => ({
         transform: {
           experimentalImportSupport: false,

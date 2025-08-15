@@ -10,7 +10,7 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
-  Animated
+  Animated,
 } from 'react-native';
 import { alert } from '../utils/alert';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,19 +20,35 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const ChatScreen = ({ route, navigation }) => {
   console.log('ChatScreen mounted with route params:', route.params);
-  
+
   const [showError, setShowError] = useState(false);
-  
+  const [message, setMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const flatListRef = useRef(null);
+  const typingTimeout = useRef(null);
+
+  const { user } = useAuth();
+  const {
+    socket,
+    chats,
+    sendMessage,
+    typingStatus,
+    markAsRead,
+    setActiveChat,
+  } = useChat();
+
+  // Check for responder data in route params
   useEffect(() => {
     if (!route.params?.responder) {
       console.error('No responder data provided to ChatScreen');
       setShowError(true);
       alert('Error', 'No responder information available. Please try again.', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+        { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     }
-  }, [route.params]);
-  
+  }, [route.params, navigation]);
+
+  // Early return if no responder data
   if (showError || !route.params?.responder) {
     return (
       <View style={styles.loadingContainer}>
@@ -40,43 +56,28 @@ const ChatScreen = ({ route, navigation }) => {
       </View>
     );
   }
-  
+
   const { responder } = route.params;
   console.log('Chatting with responder:', JSON.stringify(responder, null, 2));
-  
-  const { user } = useAuth();
-  const { 
-    socket, 
-    chats, 
-    sendMessage, 
-    typingStatus, 
-    markAsRead,
-    setActiveChat,
-  } = useChat();
-  
-  // Set up header with responder's name
-  useEffect(() => {
-    navigation.setOptions({
-      title: responder?.name || 'Chat',
-      headerBackTitle: 'Back'
-    });
-  }, [responder?.name]);
-  
-  const [message, setMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const flatListRef = useRef(null);
-  const typingTimeout = useRef(null);
 
   const chatKey = `responder_${responder.id}`;
   const messages = chats[chatKey] || [];
   const isTypingStatus = typingStatus[responder.id] || false;
+
+  // Set up header with responder's name
+  useEffect(() => {
+    navigation.setOptions({
+      title: responder?.name || 'Chat',
+      headerBackTitle: 'Back',
+    });
+  }, [navigation, responder?.name]);
 
   // Set active chat and mark messages as read when screen is focused
   useFocusEffect(
     useCallback(() => {
       setActiveChat(responder.id);
       markAsRead(responder.id);
-      
+
       return () => {
         setActiveChat(null);
       };
@@ -93,7 +94,7 @@ const ChatScreen = ({ route, navigation }) => {
   // Handle typing indicator with debounce
   const handleTyping = (text) => {
     setMessage(text);
-    
+
     if (!isTyping) {
       socket?.emit('typing', {
         senderId: user.id,
@@ -119,20 +120,20 @@ const ChatScreen = ({ route, navigation }) => {
 
   const handleSend = () => {
     const trimmedMessage = message.trim();
-    if (!trimmedMessage) return;
-    
+    if (!trimmedMessage) {return;}
+
     // Clear input immediately for better UX
     setMessage('');
-    
+
     // Send the message
     sendMessage(responder.id, trimmedMessage);
-    
+
     // Clear typing status when sending
     if (typingTimeout.current) {
       clearTimeout(typingTimeout.current);
       typingTimeout.current = null;
     }
-    
+
     // Update typing status
     setIsTyping(false);
     socket?.emit('typing', {
@@ -140,7 +141,7 @@ const ChatScreen = ({ route, navigation }) => {
       receiverId: responder.id,
       isTyping: false,
     });
-    
+
     // Dismiss keyboard after sending on iOS
     if (Platform.OS === 'ios') {
       Keyboard.dismiss();
@@ -149,37 +150,37 @@ const ChatScreen = ({ route, navigation }) => {
 
   const renderMessage = ({ item }) => {
     const isOwn = item.isOwn;
-    const timeString = new Date(item.timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    const timeString = new Date(item.timestamp).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
     });
 
     return (
-      <View 
+      <View
         style={[
           styles.messageBubble,
           isOwn ? styles.sentMessage : styles.receivedMessage,
-          { marginBottom: 8 }
+          { marginBottom: 8 },
         ]}
       >
         <Text style={[
           styles.messageText,
-          isOwn ? styles.sentMessageText : styles.receivedMessageText
+          isOwn ? styles.sentMessageText : styles.receivedMessageText,
         ]}>
           {item.message}
         </Text>
         <View style={styles.messageFooter}>
           <Text style={[
             styles.timestamp,
-            isOwn && styles.sentTimestamp
+            isOwn && styles.sentTimestamp,
           ]}>
             {timeString}
           </Text>
           {isOwn && (
-            <MaterialIcons 
+            <MaterialIcons
               name={item.status === 'sending' ? 'schedule' : 'done-all'}
-              size={14} 
-              color={item.status === 'delivered' ? '#4CAF50' : '#9E9E9E'} 
+              size={14}
+              color={item.status === 'delivered' ? '#4CAF50' : '#9E9E9E'}
               style={styles.statusIcon}
             />
           )}
@@ -189,7 +190,7 @@ const ChatScreen = ({ route, navigation }) => {
   };
 
   const [dotAnimation] = useState(new Animated.Value(0));
-  
+
   useEffect(() => {
     if (isTypingStatus) {
       // Start animation when typing starts
@@ -207,32 +208,32 @@ const ChatScreen = ({ route, navigation }) => {
           }),
         ])
       );
-      
+
       animation.start();
       return () => animation.stop();
     } else {
       dotAnimation.setValue(0);
     }
   }, [isTypingStatus]);
-  
+
   const renderTypingIndicator = () => {
-    if (!isTypingStatus) return null;
-    
+    if (!isTypingStatus) {return null;}
+
     const dot1Opacity = dotAnimation.interpolate({
       inputRange: [0, 0.5, 1],
       outputRange: [0.4, 1, 0.4],
     });
-    
+
     const dot2Opacity = dotAnimation.interpolate({
       inputRange: [0, 0.5, 1],
       outputRange: [0.6, 0.4, 1],
     });
-    
+
     const dot3Opacity = dotAnimation.interpolate({
       inputRange: [0, 0.5, 1],
       outputRange: [1, 0.4, 0.6],
     });
-    
+
     return (
       <View style={[styles.messageBubble, styles.receivedMessage, styles.typingIndicator]}>
         <Animated.View style={[styles.typingDot, { opacity: dot1Opacity }]} />
@@ -243,20 +244,20 @@ const ChatScreen = ({ route, navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         >
           <MaterialIcons name="arrow-back" size={24} color="#007AFF" />
         </TouchableOpacity>
-        
+
         <View style={styles.headerTitleContainer}>
           <Text style={styles.responderName} numberOfLines={1}>
             {responder.name || 'Chat'}
@@ -267,12 +268,12 @@ const ChatScreen = ({ route, navigation }) => {
             </Text>
           )}
         </View>
-        
+
         <View style={styles.headerRight}>
           {/* Additional header actions can go here */}
         </View>
       </View>
-      
+
       <FlatList
         ref={flatListRef}
         style={styles.messagesContainer}
@@ -304,20 +305,20 @@ const ChatScreen = ({ route, navigation }) => {
             onSubmitEditing={handleSend}
             enablesReturnKeyAutomatically={true}
           />
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.sendButton, 
-              !message.trim() && styles.sendButtonDisabled
+              styles.sendButton,
+              !message.trim() && styles.sendButtonDisabled,
             ]}
             onPress={handleSend}
             disabled={!message.trim()}
             activeOpacity={0.8}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <MaterialIcons 
-              name="send" 
-              size={20} 
-              color={message.trim() ? '#fff' : '#ced4da'} 
+            <MaterialIcons
+              name="send"
+              size={20}
+              color={message.trim() ? '#fff' : '#ced4da'}
               style={styles.sendButtonIcon}
             />
           </TouchableOpacity>

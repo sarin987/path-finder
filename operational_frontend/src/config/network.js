@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { Storage, StorageKeys } from '../utils/storage';
-import { BASE_URL, API_VERSION } from '.';
+import config from './index';
+const { BASE_URL, API_VERSION } = config;
 import { logError } from '../utils/logger';
+import { API_ROUTES } from './apiRoutes';
 
 // Use the centralized base URL configuration
 const API_BASE_URL = BASE_URL;
@@ -13,8 +15,8 @@ const api = axios.create({
   timeout: 15000, // 15 seconds
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
+    'Accept': 'application/json',
+  },
 });
 
 console.log('API Base URL:', `${API_BASE_URL}${API_VERSION}`);
@@ -45,14 +47,14 @@ api.interceptors.response.use(
         status: error.response.status,
         url: error.config.url,
         method: error.config.method,
-        data: error.response.data
+        data: error.response.data,
       });
     } else if (error.request) {
       // The request was made but no response was received
       logError('No Response', {
         url: error.config?.url,
         method: error.config?.method,
-        error: error.message
+        error: error.message,
       });
     } else {
       // Something happened in setting up the request
@@ -93,7 +95,7 @@ const handleApiError = (error) => {
     // that falls out of the range of 2xx
     statusCode = error.response.status;
     data = error.response.data;
-    
+
     if (statusCode === 401) {
       errorMessage = 'Your session has expired. Please login again.';
       // Clear any existing auth tokens
@@ -169,14 +171,14 @@ const handleApiError = (error) => {
 const logApiCall = (method, url, data = {}) => {
   console.log(`API Call: ${method.toUpperCase()} ${url}`, {
     timestamp: new Date().toISOString(),
-    data
+    data,
   });
 };
 
 export const AuthAPI = {
   register: async (userData) => {
     // Use the correct user registration endpoint
-    const url = `/role-register/register/user`;
+    const url = '/role-register/register/user';
     logApiCall('post', url, { phone: userData.phone });
     try {
       const response = await api.post(url, userData);
@@ -187,11 +189,11 @@ export const AuthAPI = {
       return handleApiError(error);
     }
   },
-  
+
   login: async (credentials) => {
     const url = '/auth/login';
     logApiCall('post', url, { phone: credentials.phone });
-    
+
     try {
       const response = await api.post(url, credentials);
       return { success: true, data: response.data };
@@ -200,11 +202,11 @@ export const AuthAPI = {
       return handleApiError(error);
     }
   },
-  
+
   verifyOtp: async (otpData) => {
     const url = '/auth/verify-otp';
     logApiCall('post', url, { phone: otpData.phone });
-    
+
     try {
       const response = await api.post(url, otpData);
       return { success: true, data: response.data };
@@ -213,11 +215,11 @@ export const AuthAPI = {
       return handleApiError(error);
     }
   },
-  
+
   googleAuth: async (userData) => {
     const url = '/auth/google';
     logApiCall('post', url, { email: userData.email });
-    
+
     try {
       const response = await api.post(url, userData);
       return { success: true, data: response.data };
@@ -225,8 +227,9 @@ export const AuthAPI = {
       console.error('Google Auth API Error:', error);
       return handleApiError(error);
     }
-  }
+  },
 };
 
 // Export the configured axios instance
+export { API_ROUTES };
 export default api;

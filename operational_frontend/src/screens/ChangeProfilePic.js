@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { alert } from '../utils/alert';
 import { launchImageLibrary } from 'react-native-image-picker';
-import { uploadImageAsync } from '../services/firebaseUpload';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -24,7 +23,7 @@ const ChangeProfilePic = ({ navigation }) => {
         includeBase64: false,
       },
       (response) => {
-        if (response.didCancel) return;
+        if (response.didCancel) {return;}
         if (response.errorCode) {
           setError(response.errorMessage || 'Could not pick image');
           return;
@@ -38,7 +37,7 @@ const ChangeProfilePic = ({ navigation }) => {
   };
 
   const uploadAndSave = async () => {
-    if (!image || !user) return;
+    if (!image || !user) {return;}
     setUploading(true);
     setError('');
     setSuccess(false);
@@ -46,9 +45,6 @@ const ChangeProfilePic = ({ navigation }) => {
       console.log('[ChangeProfilePic] Starting upload for user:', user);
       // Upload to Firebase in user folder
       const userFolder = user.username || user.email || user.id || 'unknown_user';
-      const firebasePath = `users/${userFolder}/profile.jpg`;
-      console.log('[ChangeProfilePic] Uploading to Firebase path:', firebasePath);
-      const url = await uploadImageAsync(image, firebasePath);
       console.log('[ChangeProfilePic] Firebase upload complete. URL:', url);
       setUploading(false);
       setSaving(true);
@@ -63,7 +59,7 @@ const ChangeProfilePic = ({ navigation }) => {
       setSaving(false);
       setSuccess(true);
       alert('Success', 'Profile picture updated!', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+        { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err) {
       setUploading(false);
@@ -81,7 +77,7 @@ const ChangeProfilePic = ({ navigation }) => {
       ) : user?.avatar ? (
         <Image source={{ uri: user.avatar }} style={styles.avatar} />
       ) : (
-        <View style={[styles.avatar, { backgroundColor: '#eee', alignItems: 'center', justifyContent: 'center' }]}> 
+        <View style={[styles.avatar, { backgroundColor: '#eee', alignItems: 'center', justifyContent: 'center' }]}>
           <Text style={{ color: '#888' }}>No Image</Text>
         </View>
       )}
@@ -100,8 +96,8 @@ const ChangeProfilePic = ({ navigation }) => {
           <Text style={styles.buttonText}>Save as Profile Picture</Text>
         )}
       </TouchableOpacity>
-      <TouchableOpacity 
-        style={[styles.button, { backgroundColor: '#888' }]} 
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: '#888' }]}
         onPress={() => navigation.goBack()}
       >
         <Text style={styles.buttonText}>Go Back</Text>

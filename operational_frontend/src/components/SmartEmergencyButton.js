@@ -1,19 +1,18 @@
 // components/SmartEmergencyButton.js
 import React, { useState, useEffect } from 'react';
-import { 
-  TouchableOpacity, 
-  Text, 
-  View, 
-  StyleSheet, 
+import {
+  TouchableOpacity,
+  Text,
+  View,
+  StyleSheet,
   ActivityIndicator,
-  Platform
+  Platform,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { emergencyTypes } from '../services/emergencyService';
-import { db } from '../config/firebase';
 
-const SmartEmergencyButton = ({ 
-  userId, 
+const SmartEmergencyButton = ({
+  userId,
   userDisplayName,
   serviceType,
   onEmergencyRaised,
@@ -21,7 +20,7 @@ const SmartEmergencyButton = ({
   buttonStyle,
   textStyle,
   iconSize = 24,
-  buttonText = 'Emergency'
+  buttonText = 'Emergency',
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -47,10 +46,10 @@ const SmartEmergencyButton = ({
         type,
         location: {
           latitude: position.coords.latitude,
-          longitude: position.coords.longitude
+          longitude: position.coords.longitude,
         },
         timestamp: new Date().toISOString(),
-        priority: emergencyTypes[type] || emergencyTypes.MEDIUM
+        priority: emergencyTypes[type] || emergencyTypes.MEDIUM,
       };
 
       // Store in database
@@ -63,7 +62,7 @@ const SmartEmergencyButton = ({
           serviceId: service.id,
           emergencyId: emergencyData.id,
           status: 'pending',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       });
 
@@ -85,14 +84,14 @@ const SmartEmergencyButton = ({
         style={[
           styles.button,
           buttonStyle,
-          isLoading && styles.disabledButton
+          isLoading && styles.disabledButton,
         ]}
         onPress={() => raiseEmergency(serviceType)}
         disabled={isLoading}
       >
-        <Ionicons 
-          name="alert-circle-sharp" 
-          size={iconSize} 
+        <Ionicons
+          name="alert-circle-sharp"
+          size={iconSize}
           color={isLoading ? '#ccc' : '#fff'}
         />
         <Text style={[styles.buttonText, textStyle, isLoading && styles.disabledText]}>
@@ -110,7 +109,7 @@ const SmartEmergencyButton = ({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
   },
   button: {
     flexDirection: 'row',
@@ -122,27 +121,27 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2
+      height: 2,
     },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    elevation: 5
+    elevation: 5,
   },
   disabledButton: {
-    backgroundColor: '#ccc'
+    backgroundColor: '#ccc',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   disabledText: {
-    color: '#ccc'
+    color: '#ccc',
   },
   errorText: {
     color: '#D32F2F',
-    marginTop: 10
-  }
+    marginTop: 10,
+  },
 });
 
-export default SmartEmergencyButton;    
+export default SmartEmergencyButton;

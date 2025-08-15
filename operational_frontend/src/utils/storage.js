@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const StorageKeys = {
   USER_TOKEN: 'userToken',
   USER_DATA: 'userData',
-  USER_PROFILE: 'userProfile'
+  USER_PROFILE: 'userProfile',
 };
 
 export const Storage = {
@@ -29,7 +29,7 @@ export const Storage = {
       }
 
       const value = await AsyncStorage.getItem(key);
-      if (!value) return null;
+      if (!value) {return null;}
 
       // Return token as is
       if (key === StorageKeys.USER_TOKEN) {
@@ -62,5 +62,5 @@ export const Storage = {
     } catch (error) {
       console.error('Error clearing storage:', error);
     }
-  }
+  },
 };

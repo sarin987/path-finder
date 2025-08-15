@@ -26,20 +26,65 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - PORT=5000
+      
+      # Database configuration
       - DB_HOST=mysql
       - DB_PORT=3306
       - DB_NAME=${MYSQL_DATABASE:-emergency_db}
       - DB_USER=${MYSQL_USER:-emergency_user}
       - DB_PASSWORD=${MYSQL_PASSWORD:-your_secure_password}
+      
+      # JWT configuration
       - JWT_SECRET=${JWT_SECRET:-your_jwt_secret}
+      - JWT_EXPIRES_IN=30d
+      
+      # CORS configuration
       - CORS_ORIGIN=*
-    expose:
-      - "5000"
+      - CORS_METHODS=GET,POST,PUT,DELETE,OPTIONS
+      - CORS_CREDENTIALS=true
+      
+      # Ngrok configuration
+      - NGROK_ENABLED=${NGROK_ENABLED:-false}
+      - NGROK_AUTH=${NGROK_AUTH:-}
+      - NGROK_SUBDOMAIN=${NGROK_SUBDOMAIN:-}
+      - NGROK_REGION=${NGROK_REGION:-us}
+      
+      # Public URL (will be set by ngrok if enabled)
+      - PUBLIC_URL=http://localhost:5000
+      - NEXT_PUBLIC_URL=http://localhost:5000
+      
+      # WebSocket configuration
+      - WS_ENABLED=true
+      - WS_PORT=5000
+      
+      # Logging
+      - LOG_LEVEL=info
+      - LOG_FORMAT=combined
+    
+    # Expose ports
+    ports:
+      - "5000:5000"
+      - "4040:4040"  # Ngrok web interface
+    
     volumes:
-      - ./operational_backend:/usr/src/app
-      - /usr/src/app/node_modules
+      - ./operational_backend:/app
+      - /app/node_modules
+      - ./operational_backend/logs:/app/logs
+      - ./operational_backend/uploads:/app/uploads
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
+    
     networks:
       - emergency-network
 
@@ -82,17 +127,54 @@ services:
   mysql:
     image: mysql:8.0
     container_name: emergency-mysql
-    restart: always
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-your_secure_root_password}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-emergency_db}
       MYSQL_USER: ${MYSQL_USER:-emergency_user}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-your_secure_password}
       MYSQL_ROOT_HOST: '%'
-    command: --default-authentication-plugin=mysql_native_password
+      TZ: ${TZ:-UTC}
+    
+    # Configure MySQL with custom config
+    command: 
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=1000
+      --max_allowed_packet=128M
+      --innodb_buffer_pool_size=1G
+      --innodb_log_file_size=256M
+      --innodb_flush_log_at_trx_commit=1
+      --innodb_flush_method=O_DIRECT
+      --sql_mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u$${MYSQL_USER}", "-p$${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    
+    # Volumes
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+      - ./mysql/conf.d:/etc/mysql/conf.d
+      - ./mysql/backups:/backups
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # Networking
     networks:
       - emergency-network
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { alert } from '../../utils/alert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -20,7 +20,7 @@ const EmergencyRequest = ({ route, navigation }) => {
   const getLocation = () => {
     try {
       Geolocation.requestAuthorization();
-      
+
       Geolocation.getCurrentPosition(
         position => {
           setLocation(position);

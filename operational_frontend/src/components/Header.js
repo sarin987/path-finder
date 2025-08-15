@@ -9,7 +9,7 @@ const Header = ({ onMenuPress, onSearch }) => (
     </TouchableOpacity>
     <View style={styles.searchBar}>
       <MaterialCommunityIcons name="magnify" size={20} color="#666" />
-      <TextInput 
+      <TextInput
         style={styles.searchInput}
         placeholder="Search location..."
         placeholderTextColor="#666"

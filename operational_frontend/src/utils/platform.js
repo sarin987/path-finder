@@ -54,7 +54,7 @@ export const getGeolocation = () => {
         if (navigator.geolocation && watchId) {
           navigator.geolocation.clearWatch(watchId);
         }
-      }
+      },
     };
   } else {
     const Geolocation = require('@react-native-community/geolocation');

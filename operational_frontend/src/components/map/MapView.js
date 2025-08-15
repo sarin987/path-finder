@@ -1,8 +1,9 @@
 import React, { useRef, useEffect } from 'react';
-import { StyleSheet, View, Dimensions } from 'react-native';
-import MapView, { PROVIDER_GOOGLE, Marker, Circle } from 'react-native-maps';
-import { useFirestoreResponders } from '../../hooks/useFirestoreResponders';
+import { StyleSheet, View, Dimensions, Platform } from 'react-native';
+import MapView, { Marker, Circle, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps';
 import ResponderMarkers from './ResponderMarkers';
+import { useResponderLocations } from '../../hooks/useResponderLocations';
+import { MAP_TILE_PROVIDER, MAP_ATTRIBUTION, MAP_STYLES } from '../../config/mapConfig';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,15 +30,15 @@ const MapViewComponent = React.forwardRef(({
     longitudeDelta: LONGITUDE_DELTA,
   } : null));
 
-  // Use Firestore responders if not provided via props
-  const { responders: firestoreResponders } = useFirestoreResponders(
-    userLocation || initialRegion.current,
-    searchRadius,
-    ['police', 'ambulance', 'fire']
-  );
+  // Use WebSocket responders if not provided via props
+  const { responders: wsResponders } = useResponderLocations({
+    center: userLocation || initialRegion.current,
+    radius: searchRadius,
+    enabled: !propResponders && showNearbyResponders,
+  });
 
-  const responders = propResponders || firestoreResponders;
-  
+  const responders = propResponders || wsResponders;
+
   // Notify parent when responders update
   useEffect(() => {
     if (onRespondersUpdate) {
@@ -60,29 +61,28 @@ const MapViewComponent = React.forwardRef(({
     <View style={[styles.container, StyleSheet.absoluteFillObject]}>
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' ? PROVIDER_DEFAULT : undefined}
         style={styles.map}
         initialRegion={initialRegion.current}
         onRegionChangeComplete={onRegionChangeComplete}
         onMapReady={handleMapReady}
         showsUserLocation={!!userLocation}
-        showsMyLocationButton={true}
+        showsMyLocationButton={false}
         showsCompass={true}
-        loadingEnabled={true}
-        loadingIndicatorColor="#666666"
-        loadingBackgroundColor="#eeeeee"
-        mapType="standard"
-        toolbarEnabled={true}
-        moveOnMarkerPress={true}
-        pitchEnabled={true}
-        rotateEnabled={true}
-        scrollDuringRotateOrZoomEnabled={true}
-        zoomControlEnabled={true}
-        zoomTapEnabled={true}
         zoomEnabled={true}
-        minZoomLevel={5}
-        maxZoomLevel={20}
+        rotateEnabled={true}
+        scrollEnabled={true}
+        pitchEnabled={true}
+        mapType="standard"
+        moveOnMarkerPress={true}
+        customMapStyle={MAP_STYLES.light}
       >
+        {/* Custom Tile Layer for OpenStreetMap */}
+        <UrlTile
+          urlTemplate={MAP_TILE_PROVIDER}
+          maximumZ={19}
+          flipY={false}
+        />
         {/* User location marker */}
         {userLocation && (
           <>
@@ -113,15 +113,15 @@ const MapViewComponent = React.forwardRef(({
             </Marker>
           </>
         )}
-        
+
         {/* Responder markers */}
         {showNearbyResponders && Array.isArray(responders) && (
-          <ResponderMarkers 
-            responders={responders} 
-            onPress={onMarkerPress} 
+          <ResponderMarkers
+            responders={responders}
+            onPress={onMarkerPress}
           />
         )}
-        
+
         {children}
       </MapView>
     </View>

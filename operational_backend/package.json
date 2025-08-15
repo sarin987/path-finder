@@ -2,10 +2,11 @@
   "name": "safety-emergency-backend",
   "version": "1.0.0",
   "description": "Backend for Safety Emergency Application",
-  "main": "server.js",
+  "main": "server.mjs",
   "scripts": {
-    "start": "node server.js",
-    "dev": "NODE_ENV=development nodemon server.js",
+    "build": "tsc",
+    "start": "node --experimental-specifier-resolution=node server.mjs",
+    "dev": "NODE_ENV=development nodemon --experimental-specifier-resolution=node server.mjs",
     "migrate": "npx sequelize-cli db:migrate",
     "migrate:undo": "npx sequelize-cli db:migrate:undo",
     "migrate:undo:all": "npx sequelize-cli db:migrate:undo:all",
@@ -19,10 +20,15 @@
     "test:watch": "NODE_ENV=test jest --watch --detectOpenHandles --forceExit",
     "test:coverage": "NODE_ENV=test jest --coverage --detectOpenHandles --forceExit"
   },
-  "type": "commonjs",
+  "type": "module",
+  "imports": {
+    "#src/*": "./src/*.js"
+  },
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  },
   "dependencies": {
-    "@react-google-maps/api": "^2.20.6",
-    "@types/google.maps": "^3.58.1",
     "@types/multer": "^1.4.13",
     "@types/uuid": "^10.0.0",
     "axios": "^1.10.0",
@@ -34,11 +40,11 @@
     "express-validator": "^7.2.1",
     "firebase-admin": "^13.4.0",
     "jsonwebtoken": "^9.0.2",
+    "mime-types": "^3.0.1",
     "multer": "^2.0.1",
     "mysql2": "^3.14.1",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.1",
-    "typescript": "^5.8.3",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -48,11 +54,12 @@
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
     "@babel/plugin-transform-runtime": "^7.27.4",
     "@babel/preset-env": "^7.27.2",
+    "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.9",
-    "@types/node": "^24.0.1",
+    "@types/node": "^24.2.1",
     "@types/socket.io": "^3.0.1",
     "@types/socket.io-client": "^1.4.36",
     "@types/supertest": "^6.0.3",
@@ -61,6 +68,7 @@
     "nodemon": "^3.0.2",
     "sequelize-cli": "^6.6.1",
     "supertest": "^7.1.1",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
   }
 }

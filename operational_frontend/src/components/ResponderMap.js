@@ -1,10 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Platform, ActivityIndicator } from 'react-native';
 import { alert } from '../utils/alert';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import axios from 'axios';
 import io from 'socket.io-client';
 import { getPermissionsAndroid, getGeolocation, isWeb } from '../utils/platform';
+
+// Platform-specific imports for maps
+let MapView, Marker, PROVIDER_GOOGLE;
+if (isWeb()) {
+  // For web, use react-native-web-maps
+  const WebMaps = require('react-native-web-maps').default;
+  MapView = WebMaps;
+  Marker = WebMaps.Marker || (() => null); // Fallback to null if Marker is not available
+  PROVIDER_GOOGLE = 'google'; // Default provider for web
+} else {
+  // For native, use react-native-maps
+  const ReactNativeMaps = require('react-native-maps');
+  MapView = ReactNativeMaps.default;
+  Marker = ReactNativeMaps.Marker;
+  PROVIDER_GOOGLE = ReactNativeMaps.PROVIDER_GOOGLE;
+}
 
 const SOCKET_URL = process.env.REACT_NATIVE_SOCKET_URL || 'http://localhost:5000';
 const API_URL = process.env.REACT_NATIVE_API_URL || 'http://localhost:5000/api';

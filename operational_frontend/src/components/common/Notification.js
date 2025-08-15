@@ -8,7 +8,7 @@ const Notification = ({ message, type = 'info' }) => {
     type === 'warning' ? '#FFC107' :
     '#2196F3';
   return (
-    <View style={[styles.container, { backgroundColor }]}> 
+    <View style={[styles.container, { backgroundColor }]}>
       <Text style={styles.text}>{message}</Text>
     </View>
   );

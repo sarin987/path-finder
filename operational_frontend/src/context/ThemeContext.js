@@ -1,28 +1,27 @@
-import React, { createContext, useContext } from 'react';
-
-export const colors = {
-  primary: '#007AFF',
-  primaryDark: '#0056b3',
-  white: '#ffffff',
-  black: '#000000',
-  background: '#f7f9fc',
-  blue: {
-    main: '#007AFF',
-    light: 'rgba(0, 122, 255, 0.1)'
-  },
-  gray: {
-    50: '#f7f9fc',
-    100: '#e4e9f2',
-    200: '#8f9bb3',
-    300: '#2e3a59'
-  }
-};
+import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import { lightColors, darkColors } from '../styles/colors';
+import { useColorScheme } from 'react-native';
 
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
+  const colorScheme = useColorScheme();
+  const [isDarkMode, setIsDarkMode] = useState(colorScheme === 'dark');
+  
+  // Toggle between dark and light theme
+  const toggleTheme = () => {
+    setIsDarkMode(prevMode => !prevMode);
+  };
+
+  // Get the appropriate color scheme based on the theme mode
+  const theme = useMemo(() => ({
+    colors: isDarkMode ? darkColors : lightColors,
+    isDarkMode,
+    toggleTheme,
+  }), [isDarkMode]);
+
   return (
-    <ThemeContext.Provider value={{ colors }}>
+    <ThemeContext.Provider value={theme}>
       {children}
     </ThemeContext.Provider>
   );

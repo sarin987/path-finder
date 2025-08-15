@@ -20,7 +20,7 @@ const IncidentReportForm = ({ recipient, onReportSuccess, onSubmit, onCancel }) 
       quality: 0.7,
     };
     launchImageLibrary(options, (response) => {
-      if (response.didCancel) return;
+      if (response.didCancel) {return;}
       if (response.errorCode) {
         alert('ImagePicker Error: ' + response.errorMessage);
         return;
@@ -37,7 +37,7 @@ const IncidentReportForm = ({ recipient, onReportSuccess, onSubmit, onCancel }) 
       async (pos) => {
         const loc = {
           lat: pos.coords.latitude,
-          lng: pos.coords.longitude
+          lng: pos.coords.longitude,
         };
         await submitIncident(loc);
       },
@@ -105,7 +105,7 @@ const IncidentReportForm = ({ recipient, onReportSuccess, onSubmit, onCancel }) 
           />
           <Button title="Pick Photo" onPress={pickImage} />
           {photo && <Image source={{ uri: photo }} style={styles.image} />}
-          <Button title={loading ? "Reporting..." : "Report Incident"} onPress={handleSubmit} disabled={loading} />
+          <Button title={loading ? 'Reporting...' : 'Report Incident'} onPress={handleSubmit} disabled={loading} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

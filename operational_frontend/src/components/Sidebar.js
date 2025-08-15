@@ -1,35 +1,35 @@
 import React from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Animated, 
-  Image, 
-  ActivityIndicator 
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useUserProfile } from '../hooks/useUserProfile';
 import Logo from './Logo';
 
 const MenuItem = ({ icon, label, onPress, isLogout, selected }) => (
-  <TouchableOpacity 
+  <TouchableOpacity
     style={[
       styles.menuItem,
       selected && styles.selectedMenuItem,
-      isLogout && styles.logoutItem
+      isLogout && styles.logoutItem,
     ]}
     onPress={onPress}
   >
-    <MaterialCommunityIcons 
-      name={icon} 
-      size={24} 
-      color={isLogout ? "#dc2626" : selected ? "#1d4ed8" : "#4b5563"} 
+    <MaterialCommunityIcons
+      name={icon}
+      size={24}
+      color={isLogout ? '#dc2626' : selected ? '#1d4ed8' : '#4b5563'}
     />
     <Text style={[
       styles.menuText,
       selected && styles.selectedMenuText,
-      isLogout && styles.logoutText
+      isLogout && styles.logoutText,
     ]}>
       {label}
     </Text>
@@ -55,18 +55,18 @@ const Sidebar = ({ sidebarAnimation, toggleSidebar, user, navigation, logout, on
       const route = navState.routes[navState.index];
       // Find the menu key that matches the current route name
       const found = sidebarMenuItems.find(item => item.screen === route.name);
-      if (found) currentRoute = found.key;
+      if (found) {currentRoute = found.key;}
     }
   }
 
   return (
-    <Animated.View 
+    <Animated.View
       style={[
         styles.sidebar,
-        { 
+        {
           transform: [{ translateX: animationValue }],
           width: sidebarWidth,
-        }
+        },
       ]}
     >
       <View style={styles.header}>

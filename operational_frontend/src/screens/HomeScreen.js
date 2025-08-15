@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,15 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-} from "react-native";
-import Geolocation from "@react-native-community/geolocation";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import { useNavigation } from "@react-navigation/native";
+} from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { useNavigation } from '@react-navigation/native';
 import { alert, toast } from '../utils/alert';
-import axios from "axios";
-import { BASE_URL, API_VERSION } from "../config";
-import { ENDPOINTS } from "../config/apiEndpoints";
-import { useAuth } from "../contexts/AuthContext";
+import axios from 'axios';
+import { BASE_URL, API_VERSION } from '../config';
+import { ENDPOINTS } from '../config/apiEndpoints';
+import { useAuth } from '../contexts/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DEFAULT_REGION = {
@@ -34,7 +34,7 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(true);
   const [trackingEnabled, setTrackingEnabled] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalText, setModalText] = useState("");
+  const [modalText, setModalText] = useState('');
   const navigation = useNavigation();
   const trackingInterval = useRef(null);
   const [region, setRegion] = useState(DEFAULT_REGION);
@@ -54,12 +54,12 @@ const HomeScreen = () => {
     })();
     requestLocationPermission();
     return () => {
-      if (trackingInterval.current) clearInterval(trackingInterval.current);
+      if (trackingInterval.current) {clearInterval(trackingInterval.current);}
     };
   }, []);
 
   const requestLocationPermission = async () => {
-    if (Platform.OS === "android") {
+    if (Platform.OS === 'android') {
       try {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
@@ -67,11 +67,11 @@ const HomeScreen = () => {
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
           getCurrentLocation();
         } else {
-          alert("Permission Denied", "Location permission is required.");
+          alert('Permission Denied', 'Location permission is required.');
           setLoading(false);
         }
       } catch (err) {
-        alert("Error", "Failed to request location permission.");
+        alert('Error', 'Failed to request location permission.');
         setLoading(false);
       }
     } else {
@@ -95,7 +95,7 @@ const HomeScreen = () => {
         AsyncStorage.setItem(LAST_LOCATION_KEY, JSON.stringify(newLocation)).catch(() => {});
       },
       (error) => {
-        alert("Location Error", "Unable to fetch location.");
+        alert('Location Error', 'Unable to fetch location.');
         setLoading(false);
       },
       { enableHighAccuracy: true, timeout: 7000, maximumAge: 10000 }
@@ -104,7 +104,7 @@ const HomeScreen = () => {
 
   const toggleTracking = () => {
     if (!trackingEnabled) {
-      toast("Your location is now visible to nearby policemen.");
+      toast('Your location is now visible to nearby policemen.');
       trackingInterval.current = setInterval(() => {
         Geolocation.getCurrentPosition(
           async (position) => {
@@ -131,7 +131,7 @@ const HomeScreen = () => {
       }, 5000);
     } else {
       clearInterval(trackingInterval.current);
-      toast("Live tracking has been stopped.");
+      toast('Live tracking has been stopped.');
     }
     setTrackingEnabled(!trackingEnabled);
   };
@@ -148,7 +148,7 @@ const HomeScreen = () => {
         style={styles.sidebarButton}
         onPress={() => navigation.openDrawer()}
       >
-        <Image source={require("../assets/hamburger.png")} style={styles.sidebarIcon} />
+        <Image source={require('../assets/hamburger.png')} style={styles.sidebarIcon} />
       </TouchableOpacity>
 
       {/* Always show the map instantly with region (default/cached/real) */}
@@ -161,7 +161,7 @@ const HomeScreen = () => {
       >
         {region && (
           <Marker coordinate={region}>
-            <Image source={require("../assets/location_pin.png")} style={styles.icon} />
+            <Image source={require('../assets/location_pin.png')} style={styles.icon} />
           </Marker>
         )}
       </MapView>
@@ -170,23 +170,23 @@ const HomeScreen = () => {
       )}
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.iconButton} onPress={() => showPopup("Nearby ambulances")}>
-          <Image source={require("../assets/ambulance.png")} style={styles.icon} />
+        <TouchableOpacity style={styles.iconButton} onPress={() => showPopup('Nearby ambulances')}>
+          <Image source={require('../assets/ambulance.png')} style={styles.icon} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.iconButton} onPress={() => showPopup("Nearby police stations")}>
-          <Image source={require("../assets/police_car.png")} style={styles.icon} />
+        <TouchableOpacity style={styles.iconButton} onPress={() => showPopup('Nearby police stations')}>
+          <Image source={require('../assets/police_car.png')} style={styles.icon} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.iconButton} onPress={() => showPopup("Nearby policemen")}>
-          <Image source={require("../assets/policeman.png")} style={styles.icon} />
+        <TouchableOpacity style={styles.iconButton} onPress={() => showPopup('Nearby policemen')}>
+          <Image source={require('../assets/policeman.png')} style={styles.icon} />
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.iconButton, trackingEnabled ? styles.trackingActive : {}]} onPress={toggleTracking}>
-          <Image source={require("../assets/house.png")} style={styles.icon} />
+          <Image source={require('../assets/house.png')} style={styles.icon} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.sosButton} onPress={() => showPopup("SOS alert sent!")}>
+        <TouchableOpacity style={styles.sosButton} onPress={() => showPopup('SOS alert sent!')}>
           <Text style={styles.sosText}>SOS</Text>
         </TouchableOpacity>
       </View>
@@ -203,18 +203,18 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f8f8" },
+  container: { flex: 1, backgroundColor: '#f8f8f8' },
   map: { flex: 1 },
-  fetchingText: { textAlign: "center", marginTop: 20, fontSize: 18, color: "#333" },
-  loader: { flex: 1, justifyContent: "center", alignItems: "center" },
-  sidebarButton: { position: "absolute", top: 20, left: 20, zIndex: 10 },
+  fetchingText: { textAlign: 'center', marginTop: 20, fontSize: 18, color: '#333' },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  sidebarButton: { position: 'absolute', top: 20, left: 20, zIndex: 10 },
   sidebarIcon: { width: 35, height: 35 },
-  buttonContainer: { position: "absolute", top: "30%", right: 20, alignItems: "center" },
-  iconButton: { backgroundColor: "rgba(255, 255, 255, 0.9)", padding: 10, borderRadius: 50, marginVertical: 10 },
-  trackingActive: { backgroundColor: "#00aaff" },
+  buttonContainer: { position: 'absolute', top: '30%', right: 20, alignItems: 'center' },
+  iconButton: { backgroundColor: 'rgba(255, 255, 255, 0.9)', padding: 10, borderRadius: 50, marginVertical: 10 },
+  trackingActive: { backgroundColor: '#00aaff' },
   icon: { width: 30, height: 30 },
-  sosButton: { backgroundColor: "red", width: 65, height: 65, borderRadius: 40, alignItems: "center", justifyContent: "center", elevation: 5, marginTop: 15 },
-  sosText: { color: "white", fontSize: 16, fontWeight: "bold" },
+  sosButton: { backgroundColor: 'red', width: 65, height: 65, borderRadius: 40, alignItems: 'center', justifyContent: 'center', elevation: 5, marginTop: 15 },
+  sosText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
 });
 
 export default HomeScreen;

@@ -14,7 +14,6 @@ export default function HistoryScreen() {
     { label: 'Dashboard', icon: 'Dashboard', screen: 'dashboard' },
     { label: 'Incident', icon: 'ReportProblem', screen: 'incident' },
     { label: 'Live Map', icon: 'Map', screen: 'map' },
-    { label: 'Chat', icon: 'Chat', screen: 'chat' },
     { label: 'Media', icon: 'PhotoCamera', screen: 'media' },
     { label: 'History', icon: 'Assessment', screen: 'history' },
     { label: 'Settings', icon: 'Settings', screen: 'settings' },
@@ -36,9 +35,7 @@ export default function HistoryScreen() {
             case 'map':
               navigation.navigate('Map');
               break;
-            case 'chat':
-              navigation.navigate('Chat');
-              break;
+
             case 'media':
               navigation.navigate('MediaCenter');
               break;

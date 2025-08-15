@@ -7,7 +7,7 @@ const sizes = {
   hdpi: 72,
   xhdpi: 96,
   xxhdpi: 144,
-  xxxhdpi: 192
+  xxxhdpi: 192,
 };
 
 const generateIcons = async () => {
@@ -22,11 +22,11 @@ const generateIcons = async () => {
 
   for (const [density, size] of Object.entries(sizes)) {
     const outputPath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'res', `mipmap-${density}`, 'ic_launcher.png');
-    
+
     await sharp(svgBuffer)
       .resize(size, size)
       .toFile(outputPath);
-    
+
     console.log(`Generated ${density} icon: ${size}x${size}`);
   }
 };

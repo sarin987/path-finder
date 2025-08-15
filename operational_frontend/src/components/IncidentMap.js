@@ -24,10 +24,10 @@ const IncidentMap = () => {
     };
 
     fetchIncidents();
-    
+
     // Set up polling to fetch incidents every 30 seconds
     const interval = setInterval(fetchIncidents, 30000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -54,9 +54,9 @@ const IncidentMap = () => {
           {incidents.map((incident, idx) => (
             <Marker
               key={idx}
-              coordinate={{ 
-                latitude: incident.lat, 
-                longitude: incident.lng 
+              coordinate={{
+                latitude: incident.lat,
+                longitude: incident.lng,
               }}
               title={incident.type}
               description={incident.description}
@@ -77,14 +77,14 @@ const IncidentMap = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  map: { 
-    width: Dimensions.get('window').width, 
-    height: Dimensions.get('window').height * 0.5 
+  map: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height * 0.5,
   },
   loadingContainer: {
     flex: 1,

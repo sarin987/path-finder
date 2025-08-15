@@ -7,13 +7,13 @@ export const ThemeToggle = ({ style }) => {
   const { isDarkMode, toggleTheme, colors } = useTheme();
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={[styles.container, style]}
       onPress={toggleTheme}
     >
-      <MaterialCommunityIcons 
-        name={isDarkMode ? 'weather-sunny' : 'weather-night'} 
-        size={24} 
+      <MaterialCommunityIcons
+        name={isDarkMode ? 'weather-sunny' : 'weather-night'}
+        size={24}
         color={colors.gray[300]}
       />
     </TouchableOpacity>

@@ -9,7 +9,7 @@ const CheckInPanel = ({ userId }) => {
   const [loading, setLoading] = useState(false);
 
   const fetchPending = async () => {
-    if (!userId) return;
+    if (!userId) {return;}
     try {
       const res = await axios.get(`http://localhost:5000/api/checkin/pending/${userId}`);
       setPending(res.data);

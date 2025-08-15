@@ -13,8 +13,6 @@ import {
   addDoc, 
   doc,
   updateDoc
-} from '@react-native-firebase/firestore';
-import { db } from '../../config/firebase';
 
 const LocationShareButton = ({
   userId,

@@ -45,14 +45,19 @@
         tools:replace="android:allowBackup,android:appComponentFactory"
         android:appComponentFactory="androidx.core.app.CoreComponentFactory">
 
+        <!-- Google Sign-In Configuration -->
+        <meta-data
+            android:name="com.google.android.gms.auth.api.signin.forceCodeForRefreshToken"
+            android:value="true" />
+            
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version" />
+            
         <!-- Google Maps Configuration -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyCVDR5UaInNVOeouKckseXRITwFup351wA" />
-
-        <meta-data
-            android:name="com.google.android.gms.version"
-            android:value="@integer/google_play_services_version" />
 
         <!-- Main Activity Configuration -->
         <activity

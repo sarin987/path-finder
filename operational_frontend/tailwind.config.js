@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/**/*.{js,jsx,ts,tsx}",
+    './src/**/*.{js,jsx,ts,tsx}',
   ],
   theme: {
     extend: {
@@ -9,9 +9,9 @@ module.exports = {
         'facebook': {
           DEFAULT: '#1877F2',
           dark: '#1661C9',
-        }
+        },
       },
     },
   },
   plugins: [],
-}
+};

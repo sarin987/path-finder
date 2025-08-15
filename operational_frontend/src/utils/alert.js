@@ -1,4 +1,14 @@
-import { Platform, Alert as RNAlert, ToastAndroid } from 'react-native';
+import { Platform, Alert as RNAlert } from 'react-native';
+
+// Import ToastAndroid only on Android to avoid web errors
+let ToastAndroid;
+if (Platform.OS === 'android') {
+  try {
+    ToastAndroid = require('react-native').ToastAndroid;
+  } catch (error) {
+    console.warn('ToastAndroid not available on this platform');
+  }
+}
 
 /**
  * Safely shows an alert or falls back to console in non-browser environments
@@ -11,7 +21,7 @@ const alert = (title, message, buttons) => {
     // In a React Native environment
     if (typeof RNAlert.alert === 'function') {
       RNAlert.alert(title, message, buttons || [{ text: 'OK' }]);
-    } 
+    }
     // In a web environment
     else if (typeof window !== 'undefined' && window.alert) {
       window.alert(`${title}\n\n${message}`);
@@ -49,5 +59,5 @@ export { alert, toast };
 
 export default {
   alert,
-  toast
+  toast,
 };

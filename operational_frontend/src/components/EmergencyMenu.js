@@ -15,13 +15,13 @@ const EmergencyMenu = ({
   options,
   location,
   user,
-  navigation
+  navigation,
 }) => {
   const [emergencyProfile, setEmergencyProfile] = useState({
     medicalHistory: '',
     allergies: '',
     bloodType: '',
-    emergencyContacts: []
+    emergencyContacts: [],
   });
 
   const [showProfileEditor, setShowProfileEditor] = useState(false);
@@ -81,8 +81,8 @@ const EmergencyMenu = ({
             screen: 'Location',
             params: {
               location,
-              user
-            }
+              user,
+            },
           });
           break;
 
@@ -91,8 +91,8 @@ const EmergencyMenu = ({
             screen: 'Call',
             params: {
               location,
-              user
-            }
+              user,
+            },
           });
           break;
 
@@ -102,8 +102,8 @@ const EmergencyMenu = ({
             params: {
               location,
               user,
-              message: 'Thank you for your service!'
-            }
+              message: 'Thank you for your service!',
+            },
           });
           break;
       }
@@ -127,14 +127,14 @@ const EmergencyMenu = ({
     icon: 'account-edit',
     color: '#2196F3',
     label: 'Edit Emergency Profile',
-    action: 'edit profile'
+    action: 'edit profile',
   };
 
   const profileOptions = [
     { type: 'medical', icon: 'medical-bag', label: 'Medical History' },
     { type: 'allergies', icon: 'allergy', label: 'Allergies' },
     { type: 'blood', icon: 'blood-bag', label: 'Blood Type' },
-    { type: 'contacts', icon: 'account-multiple', label: 'Emergency Contacts' }
+    { type: 'contacts', icon: 'account-multiple', label: 'Emergency Contacts' },
   ];
 
   return (
@@ -174,7 +174,7 @@ const EmergencyMenu = ({
                       onChangeText={(text) => {
                         setEmergencyProfile(prev => ({
                           ...prev,
-                          [option.type === 'contacts' ? 'emergencyContacts' : option.type]: text
+                          [option.type === 'contacts' ? 'emergencyContacts' : option.type]: text,
                         }));
                       }}
                       multiline={option.type === 'medical'}
@@ -198,14 +198,14 @@ const EmergencyMenu = ({
           ) : (
             <ScrollView style={styles.modalBody}>
               {[profileOption, ...options].map((option, index) => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   key={index}
                   style={styles.menuItem}
                   onPress={() => handleOptionPress(option)}
                 >
-                  <MaterialCommunityIcons 
-                    name={option.icon} 
-                    size={24} 
+                  <MaterialCommunityIcons
+                    name={option.icon}
+                    size={24}
                     color={option.color}
                   />
                   <Text style={styles.menuText}>{option.label}</Text>

@@ -5,5 +5,5 @@
 import {AppRegistry} from 'react-native';
 import App from './src/App';
 
-// Register the app with the same name as in MainActivity.kt
+// Register the app with the same name as in build.gradle
 AppRegistry.registerComponent('com.core.corosole', () => App);

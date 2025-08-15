@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction, RequestHandler } from 'express';
 import { check } from 'express-validator';
-import FileController from '../controllers/fileController';
-import { authenticateToken } from '../middleware/auth';
+import FileController from '../controllers/fileController.js';
+import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { FileParams } from '../types/request.js';
 
 // Helper type for controller methods
 type ControllerMethod = (req: Request, res: Response, next: NextFunction) => Promise<Response | void>;
@@ -10,10 +11,13 @@ type ControllerMethod = (req: Request, res: Response, next: NextFunction) => Pro
 const asyncHandler = (fn: ControllerMethod): RequestHandler => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
+    return; // Ensure no value is returned
   };
 };
 
 const router = Router();
+
+// Use the existing AuthRequest type from auth middleware
 
 /**
  * @route   GET /api/v1/files/:fileId
@@ -23,10 +27,12 @@ const router = Router();
 router.get(
   '/:fileId',
   [
-    authenticateToken,
+    authenticateToken as any, // Type assertion to avoid type mismatch
     check('fileId', 'File ID is required').isInt(),
   ],
-  asyncHandler((req, res, next) => FileController.getFileInfo(req as any, res, next))
+  (req: Request<FileParams>, res: Response, next: NextFunction) => {
+    FileController.getFileInfo(req as unknown as AuthRequest<FileParams>, res, next).catch(next);
+  }
 );
 
 /**
@@ -37,10 +43,12 @@ router.get(
 router.get(
   '/:fileId/download',
   [
-    authenticateToken,
+    authenticateToken as any, // Type assertion to avoid type mismatch
     check('fileId', 'File ID is required').isInt(),
   ],
-  asyncHandler((req, res, next) => FileController.downloadFile(req as any, res, next))
+  (req: Request<FileParams>, res: Response, next: NextFunction) => {
+    FileController.downloadFile(req as unknown as AuthRequest<FileParams>, res, next).catch(next);
+  }
 );
 
 export default router;

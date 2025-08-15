@@ -5,13 +5,13 @@ const API_CONFIG = {
   // Base URLs
   BASE_URL: `${BASE_URL}${API_VERSION}`,
   WS_URL: BASE_URL.replace('http', 'ws'), // Convert http to ws
-  
+
   // API Version
   VERSION: 'v1',
-  
+
   // Timeout settings (in milliseconds)
   TIMEOUT: 30000, // 30 seconds
-  
+
   // Headers
   getHeaders: (token = '') => ({
     'Content-Type': 'application/json',
@@ -19,7 +19,7 @@ const API_CONFIG = {
     'ngrok-skip-browser-warning': 'true', // Add this to bypass ngrok browser warning
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   }),
-  
+
   // WebSocket configuration
   WS_RECONNECT_INTERVAL: 5000, // 5 seconds
   WS_MAX_RETRIES: 5,

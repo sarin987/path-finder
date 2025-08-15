@@ -98,20 +98,6 @@ CREATE TABLE IF NOT EXISTS emergency_response_logs (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Chat Messages table
-CREATE TABLE IF NOT EXISTS chat_messages (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    sender_id INT NOT NULL,
-    receiver_id INT,
-    message TEXT NOT NULL,
-    chat_type ENUM('user','police','admin','hospital','ambulance') NOT NULL,
-    emergency_request_id INT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (sender_id) REFERENCES users(id),
-    FOREIGN KEY (receiver_id) REFERENCES users(id),
-    FOREIGN KEY (emergency_request_id) REFERENCES emergency_requests(id)
-);
-
 -- Add spatial indexes for faster location-based queries
 ALTER TABLE services ADD SPATIAL INDEX(location);
 

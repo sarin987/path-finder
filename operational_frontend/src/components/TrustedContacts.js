@@ -13,7 +13,7 @@ const TrustedContacts = ({ userId }) => {
   const [fetching, setFetching] = useState(true);
   const [sendingAlert, setSendingAlert] = useState(false);
   const [importing, setImporting] = useState(false);
-  
+
   const ToastAndroid = getToastAndroid();
 
   const fetchContacts = async () => {

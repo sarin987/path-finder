@@ -1,10 +1,17 @@
 import { verify } from 'jsonwebtoken';
 import { Socket } from 'socket.io';
-import db from '../models';
-const { User } = db;
-import { JWT_SECRET } from '../config/constants';
+import User from '../models/User.js';
+import { JWT_SECRET } from '../config/constants.js';
 
-export const authenticateSocket = async (socket: Socket, next: (err?: Error) => void) => {
+// Define a custom interface for our socket data
+interface SocketWithUser extends Socket {
+  data: {
+    user?: InstanceType<typeof User>;
+    [key: string]: any;
+  };
+}
+
+export const authenticateSocket = async (socket: SocketWithUser, next: (err?: Error) => void) => {
   try {
     // Get token from query parameters or headers
     const token = socket.handshake.auth?.token || 

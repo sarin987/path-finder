@@ -1,8 +1,9 @@
 import io from 'socket.io-client';
 import { API_ROUTES } from '../config/network';
 
-// Defensive fallback for API_ROUTES.base
-const SOCKET_BASE_URL = (API_ROUTES && API_ROUTES.base) ? API_ROUTES.base : (typeof BASE_URL !== 'undefined' ? BASE_URL : 'http://localhost:5000/api');
+// Get the base URL from environment variables or use a default
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const SOCKET_BASE_URL = `${API_URL}/api`;
 
 // Create a class to manage socket connections and events
 class SocketManager {
@@ -53,7 +54,7 @@ class SocketManager {
       this.listeners.set(event, new Set());
     }
     this.listeners.get(event).add(callback);
-    
+
     // Return unsubscribe function
     return () => this.off(event, callback);
   }

@@ -1,7 +1,7 @@
 declare module 'react-native-maps' {
   import { ComponentType } from 'react';
   import { ViewProps } from 'react-native';
-  
+
   export interface MapViewProps extends ViewProps {
     // Add any specific props you use from react-native-maps
     initialRegion?: {
@@ -16,7 +16,7 @@ declare module 'react-native-maps' {
 
   const MapView: ComponentType<MapViewProps>;
   export default MapView;
-  
+
   // Add other components you use from react-native-maps
   export const Marker: ComponentType<any>;
   export const Polyline: ComponentType<any>;

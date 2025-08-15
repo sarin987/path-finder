@@ -5,7 +5,7 @@ export const checkNetworkConnection = async () => {
   try {
     const state = await NetInfo.fetch();
     console.log('Network state:', state);
-    
+
     if (!state.isConnected) {
       throw new Error('No network connection');
     }
@@ -23,8 +23,8 @@ export const checkApiHealth = async () => {
     const response = await fetch(`${API_ROUTES.base}/health`, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json'
-      }
+        'Accept': 'application/json',
+      },
     });
 
     const data = await response.json();
@@ -33,13 +33,13 @@ export const checkApiHealth = async () => {
     return {
       isHealthy: response.ok && data.status === 'ok',
       timestamp: data.timestamp,
-      message: data.message || 'API is healthy'
+      message: data.message || 'API is healthy',
     };
   } catch (error) {
     console.error('Health check failed:', error);
     return {
       isHealthy: false,
-      message: 'Cannot reach API server'
+      message: 'Cannot reach API server',
     };
   }
 };

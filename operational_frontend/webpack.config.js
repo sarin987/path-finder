@@ -41,7 +41,7 @@ module.exports = {
     }),
     // other plugins...
   ],
-  
+
   // To fix 'react-native-reanimated' issue with web
   externals: {
     'react-native-reanimated': 'require(\"react-native-reanimated\")',

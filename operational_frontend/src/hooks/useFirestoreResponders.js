@@ -1,6 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, query, where, onSnapshot, orderBy, getDocs } from 'firebase/firestore';
-import { db } from '../config/firebase';
 
 export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
   const [responders, setResponders] = useState([]);
@@ -14,11 +12,11 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
     const R = 6371; // Earth's radius in km
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a = 
+    const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * (Math.PI / 180)) * 
-      Math.cos(lat2 * (Math.PI / 180)) * 
-      Math.sin(dLon / 2) * 
+      Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // Distance in km
@@ -31,25 +29,25 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
         minLat: -90,
         maxLat: 90,
         minLng: -180,
-        maxLng: 180
+        maxLng: 180,
       };
     }
 
     const latDelta = radius / 111; // 1 degree ~ 111km
     const lngDelta = radius / (111 * Math.cos(center.latitude * (Math.PI / 180)));
-    
+
     return {
       minLat: center.latitude - latDelta,
       maxLat: center.latitude + latDelta,
       minLng: center.longitude - lngDelta,
-      maxLng: center.longitude + lngDelta
+      maxLng: center.longitude + lngDelta,
     };
   }, []);
 
   // Filter and process responders
   const filterResponders = useCallback((snapshot, bounds) => {
-    if (!snapshot || !snapshot.docs) return [];
-    
+    if (!snapshot || !snapshot.docs) {return [];}
+
     return snapshot.docs
       .map(doc => {
         const data = doc.data();
@@ -61,7 +59,7 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
           online: data.online !== undefined ? data.online : true,
           latitude: data.latitude || 0,
           longitude: data.longitude || 0,
-          name: data.name || 'Unknown Responder'
+          name: data.name || 'Unknown Responder',
         };
       })
       .filter(responder => {
@@ -69,18 +67,18 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
         if (roles.length > 0 && !roles.includes(responder.role)) {
           return false;
         }
-        
+
         // Filter by bounds if center is provided
         if (center && center.latitude && center.longitude) {
-          const inBounds = 
+          const inBounds =
             responder.latitude >= bounds.minLat &&
             responder.latitude <= bounds.maxLat &&
             responder.longitude >= bounds.minLng &&
             responder.longitude <= bounds.maxLng;
-          
-          if (!inBounds) return false;
+
+          if (!inBounds) {return false;}
         }
-        
+
         // Only show online responders
         return responder.online === true;
       });
@@ -88,14 +86,14 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
 
   // Set up Firestore listener
   useEffect(() => {
-    if (!center) return;
-    
+    if (!center) {return;}
+
     isMounted.current = true;
     setLoading(true);
     setError(null);
-    
+
     const bounds = calculateBounds(center, radiusInKm);
-    
+
     // Create query constraints
     const constraints = [
       where('latitude', '>=', bounds.minLat - 0.1), // Add buffer
@@ -103,16 +101,16 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
       where('longitude', '>=', bounds.minLng - 0.1),
       where('longitude', '<=', bounds.maxLng + 0.1),
       where('online', '==', true),
-      orderBy('lastSeen', 'desc')
+      orderBy('lastSeen', 'desc'),
     ];
-    
+
     // Add role filter if specified
     if (roles.length > 0) {
       constraints.push(where('role', 'in', roles));
     }
-    
+
     const q = query(collection(db, 'responders'), ...constraints);
-    
+
     // Initial fetch
     const fetchInitialData = async () => {
       try {
@@ -126,9 +124,9 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
               center.longitude,
               responder.latitude,
               responder.longitude
-            )
+            ),
           })).sort((a, b) => a.distance - b.distance);
-          
+
           setResponders(respondersWithDistance);
           setLoading(false);
         }
@@ -140,15 +138,15 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
         }
       }
     };
-    
+
     fetchInitialData();
-    
+
     // Set up real-time listener
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        if (!isMounted.current) return;
-        
+        if (!isMounted.current) {return;}
+
         try {
           const filteredResponders = filterResponders(snapshot, bounds);
           const respondersWithDistance = filteredResponders.map(responder => ({
@@ -158,9 +156,9 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
               center.longitude,
               responder.latitude,
               responder.longitude
-            )
+            ),
           })).sort((a, b) => a.distance - b.distance);
-          
+
           setResponders(respondersWithDistance);
           setLoading(false);
         } catch (err) {
@@ -177,10 +175,10 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
         }
       }
     );
-    
+
     // Store unsubscribe function
     unsubscribeRef.current = unsubscribe;
-    
+
     // Cleanup on unmount
     return () => {
       isMounted.current = false;
@@ -189,7 +187,7 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
       }
     };
   }, [center, radiusInKm, roles, calculateBounds, filterResponders]);
-  
+
   // Return the state and any helper functions
   const sortedResponders = center && center.latitude && center.longitude
     ? [...responders]
@@ -200,7 +198,7 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
             center.longitude,
             responder.latitude,
             responder.longitude
-          )
+          ),
         }))
         .sort((a, b) => a.distance - b.distance)
     : responders;
@@ -209,7 +207,7 @@ export const useFirestoreResponders = (center, radiusInKm = 10, roles = []) => {
     responders: sortedResponders,
     loading,
     error,
-    count: sortedResponders.length
+    count: sortedResponders.length,
   };
 };
 

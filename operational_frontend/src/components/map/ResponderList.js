@@ -6,9 +6,9 @@ const ResponderItem = ({ responder, onPress }) => {
   return (
     <TouchableOpacity style={styles.responderItem} onPress={() => onPress(responder)}>
       <View style={styles.avatarContainer}>
-        <Image 
-          source={getResponderIcon(responder.role)} 
-          style={styles.avatar} 
+        <Image
+          source={getResponderIcon(responder.role)}
+          style={styles.avatar}
           resizeMode="contain"
         />
       </View>

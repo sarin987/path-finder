@@ -29,12 +29,12 @@ export const calculateDistance = (lat1, lon1, lat2, lon2) => {
 export const getBoundingBox = (center, radiusInKm) => {
   const latDelta = radiusInKm / 111; // Approximately 1 degree = 111km
   const lngDelta = radiusInKm / (111 * Math.cos(center.latitude * (Math.PI / 180)));
-  
+
   return {
     minLat: center.latitude - latDelta,
     maxLat: center.latitude + latDelta,
     minLng: center.longitude - lngDelta,
-    maxLng: center.longitude + lngDelta
+    maxLng: center.longitude + lngDelta,
   };
 };
 
@@ -60,23 +60,23 @@ export const getResponderIcon = (role) => {
     police: {
       name: 'security',
       color: '#3F51B5', // Blue
-      label: 'Police'
+      label: 'Police',
     },
     ambulance: {
       name: 'local-hospital',
       color: '#E91E63', // Pink
-      label: 'Ambulance'
+      label: 'Ambulance',
     },
     fire: {
       name: 'local-fire-department',
       color: '#F44336', // Red
-      label: 'Fire'
+      label: 'Fire',
     },
     default: {
       name: 'location-on',
       color: '#4CAF50', // Green
-      label: 'Responder'
-    }
+      label: 'Responder',
+    },
   };
 
   return icons[role?.toLowerCase()] || icons.default;
@@ -101,7 +101,7 @@ export const getCenterPoint = (coordinates) => {
     if (coord && typeof coord.latitude === 'number' && typeof coord.longitude === 'number') {
       const lat = coord.latitude * Math.PI / 180;
       const lng = coord.longitude * Math.PI / 180;
-      
+
       x += Math.cos(lat) * Math.cos(lng);
       y += Math.cos(lat) * Math.sin(lng);
       z += Math.sin(lat);
@@ -109,7 +109,7 @@ export const getCenterPoint = (coordinates) => {
     }
   });
 
-  if (total === 0) return null;
+  if (total === 0) {return null;}
 
   x = x / total;
   y = y / total;
@@ -120,7 +120,7 @@ export const getCenterPoint = (coordinates) => {
 
   return {
     latitude: centerLat * 180 / Math.PI,
-    longitude: centerLng * 180 / Math.PI
+    longitude: centerLng * 180 / Math.PI,
   };
 };
 
@@ -158,6 +158,6 @@ export const getRegionForCoordinates = (markers, padding = 0.1) => {
     latitude: (minLat + maxLat) / 2,
     longitude: (minLng + maxLng) / 2,
     latitudeDelta,
-    longitudeDelta
+    longitudeDelta,
   };
 };

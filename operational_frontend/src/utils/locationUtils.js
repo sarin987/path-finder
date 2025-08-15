@@ -18,7 +18,7 @@ export const requestLocationPermission = async () => {
           buttonPositive: 'OK',
         },
       );
-      
+
       return granted === PermissionsAndroid.RESULTS.GRANTED;
     } catch (err) {
       console.warn('Error requesting location permission:', err);
@@ -29,7 +29,7 @@ export const requestLocationPermission = async () => {
     // You need to add NSLocationWhenInUseUsageDescription and NSLocationAlwaysAndWhenInUseUsageDescription
     return true;
   }
-  
+
   return false;
 };
 
@@ -171,23 +171,23 @@ export const getTimeToDestination = (distanceInMeters, speedInKph = 5) => {
   // Convert speed from km/h to m/s
   const speedInMps = (speedInKph * 1000) / 3600;
   const seconds = distanceInMeters / speedInMps;
-  
+
   if (seconds < 60) {
     return 'Less than a minute';
   }
-  
+
   const minutes = Math.round(seconds / 60);
-  
+
   if (minutes < 60) {
     return `${minutes} min`;
   }
-  
+
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
-  
+
   if (remainingMinutes === 0) {
     return `${hours} h`;
   }
-  
+
   return `${hours} h ${remainingMinutes} min`;
 };

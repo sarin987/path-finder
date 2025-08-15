@@ -1,8 +1,16 @@
-import { Model, DataTypes, Optional } from 'sequelize';
-import sequelize from '../config/database';
-// Using require to avoid circular dependencies
-const ChatMessage = require('./ChatMessage').default;
-const User = require('./User').default;
+import { 
+  Model, 
+  DataTypes, 
+  type Optional, 
+  type Sequelize, 
+  type ModelStatic,
+  type Association,
+  type BelongsToGetAssociationMixin,
+  type BelongsToSetAssociationMixin,
+  type BelongsToCreateAssociationMixin
+} from 'sequelize';
+import { sequelize } from '../config/database.js';
+import type { User } from './User.js';
 
 export interface FileAttributes {
   id: number;
@@ -11,7 +19,6 @@ export interface FileAttributes {
   mime_type: string;
   size: number;
   type: 'image' | 'audio' | 'video' | 'file';
-  chat_message_id: number;
   created_by: number;
   created_at?: Date;
   updated_at?: Date;
@@ -19,90 +26,136 @@ export interface FileAttributes {
 
 export interface FileCreationAttributes extends Optional<FileAttributes, 'id' | 'created_at' | 'updated_at'> {}
 
-class File extends Model<FileAttributes, FileCreationAttributes> implements FileAttributes {
-  public id!: number;
-  public original_name!: string;
-  public storage_path!: string;
-  public mime_type!: string;
-  public size!: number;
-  public type!: 'image' | 'audio' | 'video' | 'file';
-  public chat_message_id!: number;
-  public created_by!: number;
-  public readonly created_at!: Date;
-  public readonly updated_at!: Date;
-
-  // Timestamps
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
-
-  // Associations
-  public readonly chatMessage?: typeof ChatMessage;
-  public readonly creator?: typeof User;
+// Define instance methods
+interface FileInstanceMethods {
+  // Add any instance methods here if needed
 }
 
-File.init(
-  {
-    id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
-    },
-    original_name: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    storage_path: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    mime_type: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    size: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-    },
-    type: {
-      type: DataTypes.ENUM('image', 'audio', 'video', 'file'),
-      allowNull: false,
-    },
-    chat_message_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'chat_messages',
-        key: 'id',
+// Define models type for associations
+type Models = Record<string, ModelStatic<any>>;
+
+// Define static methods interface
+interface FileModelStatic extends ModelStatic<File> {
+  new (values?: FileCreationAttributes, options?: any): File & FileInstanceMethods;
+  associate: (models: Models) => void;
+  initModel: (sequelize: Sequelize) => FileModelStatic;
+  // Add any static methods here if needed
+}
+
+class File extends Model<FileAttributes, FileCreationAttributes> implements FileAttributes, FileInstanceMethods {
+  declare id: number;
+  declare original_name: string;
+  declare storage_path: string;
+  declare mime_type: string;
+  declare size: number;
+  declare type: 'image' | 'audio' | 'video' | 'file';
+  declare created_by: number;
+  declare created_at: Date;
+  declare updated_at: Date;
+
+  // Initialize the model
+  static initModel(sequelizeInstance: Sequelize): typeof File {
+    File.init(
+      {
+        id: {
+          type: DataTypes.INTEGER,
+          autoIncrement: true,
+          primaryKey: true,
+        },
+        original_name: {
+          type: DataTypes.STRING,
+          allowNull: false,
+        },
+        storage_path: {
+          type: DataTypes.STRING,
+          allowNull: false,
+        },
+        mime_type: {
+          type: DataTypes.STRING,
+          allowNull: false,
+        },
+        size: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+        },
+        type: {
+          type: DataTypes.ENUM('image', 'audio', 'video', 'file'),
+          allowNull: false,
+        },
+        created_by: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+          references: {
+            model: 'users',
+            key: 'id',
+          },
+        },
       },
-    },
-    created_by: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: 'users',
-        key: 'id',
-      },
-    },
-  },
-  {
-    sequelize,
-    tableName: 'files',
-    timestamps: true,
-    underscored: true,
+      {
+        sequelize: sequelizeInstance,
+        modelName: 'File',
+        tableName: 'files',
+        timestamps: true,
+        underscored: true,
+      }
+    );
+    
+    return File as unknown as typeof File & FileModelStatic;
   }
-);
 
-// Associations
-export const associate = (models: any) => {
-  File.belongsTo(models.ChatMessage, {
-    foreignKey: 'chat_message_id',
-    as: 'chatMessage',
-  });
+  // Set up associations
+  static associate(models: Models) {
+    const FileModel = this as unknown as FileModelStatic;
+    
+    // Safely access the User model
+    const UserModel = models.User || models['User'] || models['user'] || models['users'];
+    
+    if (!UserModel) {
+      console.warn('User model not found in associations');
+      return;
+    }
+    
+    // Use type assertion to bypass TypeScript error for belongsTo
+    const ModelWithAssociations = FileModel as unknown as {
+      belongsTo: (model: ModelStatic<any>, options: any) => void;
+    };
+    
+    ModelWithAssociations.belongsTo(UserModel, {
+      foreignKey: 'created_by',
+      as: 'creator',
+    });
+    
+    // Add any other associations here
+    // Example:
+    // FileModel.hasMany(models.OtherModel, {
+    //   foreignKey: 'file_id',
+    //   as: 'relatedItems',
+    // });
+  }
+}
 
-  File.belongsTo(models.User, {
-    foreignKey: 'created_by',
-    as: 'creator',
-  });
+// Add instance methods
+File.prototype.toJSON = function() {
+  const values = { ...this.get() } as any;
+  
+  // Remove sensitive fields if needed
+  // delete values.sensitiveField;
+  
+  // Convert dates to ISO string
+  if (values.created_at) values.createdAt = new Date(values.created_at).toISOString();
+  if (values.updated_at) values.updatedAt = new Date(values.updated_at).toISOString();
+  
+  // Remove original underscored fields
+  delete values.created_at;
+  delete values.updated_at;
+  
+  return values;
 };
 
-export { File };
+// Initialize the model
+const FileModel = File.initModel(sequelize);
+
+// Export types and model
+export type { FileModelStatic };
+export { FileModel as File };
+export default FileModel;

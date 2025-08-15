@@ -1,12 +1,12 @@
 // services/emergencyService.js
-import { collection, addDoc, query, where, getDocs } from '@react-native-firebase/firestore';
 import { db } from '../config/firebase';
+import { collection, addDoc, getDocs } from 'firebase/firestore';
 
 export const emergencyTypes = {
   CRITICAL: 1,
   HIGH: 2,
   MEDIUM: 3,
-  LOW: 4
+  LOW: 4,
 };
 
 export const createEmergencyRequest = async (data) => {
@@ -15,7 +15,7 @@ export const createEmergencyRequest = async (data) => {
       ...data,
       timestamp: new Date(),
       status: 'pending',
-      priority: emergencyTypes[data.type] || emergencyTypes.MEDIUM
+      priority: emergencyTypes[data.type] || emergencyTypes.MEDIUM,
     });
     return docRef.id;
   } catch (error) {
@@ -29,7 +29,7 @@ export const getNearbyServices = async (location, radius = 5) => {
     const services = await getDocs(collection(db, 'emergency_services'));
     return services.docs
       .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(service => 
+      .filter(service =>
         calculateDistance(location, service.location) <= radius
       );
   } catch (error) {
@@ -42,12 +42,12 @@ const calculateDistance = (location1, location2) => {
   const R = 6371; // Earth's radius in kilometers
   const dLat = (location2.latitude - location1.latitude) * Math.PI / 180;
   const dLon = (location2.longitude - location1.longitude) * Math.PI / 180;
-  
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(location1.latitude * Math.PI / 180) * Math.cos(location2.latitude * Math.PI / 180) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-  
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(location1.latitude * Math.PI / 180) * Math.cos(location2.latitude * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
 
@@ -59,7 +59,7 @@ export const startLocationTracking = async (userId, emergencyId) => {
       userId,
       emergencyId,
       status: 'active',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     // Start tracking interval
@@ -78,9 +78,9 @@ export const startLocationTracking = async (userId, emergencyId) => {
         location: {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
+          accuracy: position.coords.accuracy,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     };
 
