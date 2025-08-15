@@ -1,56 +1,139 @@
+# =================================
 # Dependencies
+# =================================
 node_modules/
-npm-debug.log
-yarn-debug.log
-yarn-error.log
+.npm
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
-# Environment variables
+# =================================
+# Environment & Secrets
+# =================================
+# Environment files
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-**/.env
+.env.*
+!.env.example
 
 # Firebase
 **/google-services.json
-**/firebaseConfig.json
 **/GoogleService-Info.plist
-**/config/firebaseConfig.json
+**/firebase-*.json
+**/firebase-debug.log
 
+# =================================
 # Android
+# =================================
 **/android/app/debug.keystore
-**/android/app/release.keystore
 **/android/app/*.keystore
 **/android/app/build/
 **/android/build/
+**/android/local.properties
+**/android/*.iml
+**/android/captures/
 
+# =================================
 # iOS
+# =================================
 **/ios/Pods/
 **/ios/build/
 **/ios/Podfile.lock
 **/ios/*.xcworkspace
 **/ios/*.xcodeproj/project.xcworkspace
 **/ios/*.xcodeproj/xcuserdata/
+**/ios/Podfile.lock
+**/ios/Podfile
 
-# IDE
+# =================================
+# IDEs and Editors
+# =================================
 .idea/
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+*.sublime-workspace
+*.sublime-project
 *.swp
 *.swo
 
-# OS
+# =================================
+# OS Generated Files
+# =================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
+# =================================
 # Logs
+# =================================
 *.log
 logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Build
+# =================================
+# Build & Distribution
+# =================================
 dist/
 build/
 coverage/
+*.jsbundle
+*.map
+web-build/
+web-report/
+
+# =================================
+# Misc
+# =================================
+*.pem
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+.nyc_output/
+
+# =================================
+# Project Specific
+# =================================
+# Firebase Admin SDK Key
+**/*-firebase-adminsdk-*.json
+
+# Docker and deployment
+Dockerfile
+Dockerfile.*
+docker-compose.*.yml
+
+# Backend specific
+operational_backend/.env*
+operational_backend/*.key
+operational_backend/*.pem
+operational_backend/*.p12
+
+# Frontend specific
+operational_frontend/.env*
+operational_frontend/*.keystore
+operational_frontend/*.p12
+
+# Temporary files
+temp-*
+*.tmp
+
+# Local development overrides
+local.*
+*.local.*
+
+# VS Code workspace settings
+.vscode/settings.json
+
+# Environment example files (tracked in version control)
+!**/env.example
+!**/.env.example
