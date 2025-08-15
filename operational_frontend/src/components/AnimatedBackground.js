@@ -8,7 +8,7 @@ import Animated, {
   withDelay,
 } from 'react-native-reanimated';
 import { ANIMATION_CONFIG } from '../config/animationConfig';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme, lightColors } from '../contexts/ThemeContext';
 
 // Default colors in case theme is not available
 const defaultColors = {
@@ -17,9 +17,8 @@ const defaultColors = {
 };
 
 const AnimatedBackground = () => {
-  // Safely get theme colors with fallback to defaults
-  const theme = useTheme();
-  const colors = theme?.colors || defaultColors;
+  // Get theme colors with fallback to light theme
+  const { colors = lightColors } = useTheme() || {};
   
   const styles = StyleSheet.create({
     container: {
@@ -29,11 +28,11 @@ const AnimatedBackground = () => {
       right: 0,
       bottom: 0,
       zIndex: -1,
-      backgroundColor: colors.background || defaultColors.background,
+      backgroundColor: colors.background,
     },
     bubble: {
       position: 'absolute',
-      backgroundColor: `${colors.primary || defaultColors.primary}26`, // 15% opacity
+      backgroundColor: `${colors.primary}26`, // 15% opacity
       borderRadius: 999,
     },
   });

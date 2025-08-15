@@ -1,16 +1,15 @@
 import { Platform } from 'react-native';
-import DeviceInfo from 'react-native-device-info';
 
 // Environment detection
 const isDevelopment = __DEV__;
 
 // Base URL configuration
 const getBaseUrl = () => {
-  // Using ngrok URL for development
+  // Using local development server
   if (__DEV__) {
-    return 'https://3bf6-2401-4900-881e-1353-d678-d6fc-de47-c356.ngrok-free.app';
+    return 'http://localhost:5000';
   }
-  // Fallback to localhost for other environments
+  // Production URL would go here
   return 'http://localhost:5000';
 };
 
@@ -19,14 +18,20 @@ export const BASE_URL = getBaseUrl();
 // API Version - Set to /api to match backend routes
 export const API_VERSION = '/api';
 
-// Log final configuration
-console.log('API Configuration:', {
+// Google Sign-In Configuration
+export const GOOGLE_WEB_CLIENT_ID = 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com';
+export const GOOGLE_IOS_CLIENT_ID = 'YOUR_GOOGLE_IOS_CLIENT_ID.apps.googleusercontent.com';
+
+// Log final configuration (excluding sensitive data)
+const configToLog = {
   BASE_URL,
   API_VERSION,
   isDevelopment,
   platform: Platform.OS,
-  isEmulator: DeviceInfo.isEmulatorSync(),
-});
+  hasGoogleConfig: !!GOOGLE_WEB_CLIENT_ID && !!GOOGLE_IOS_CLIENT_ID,
+};
+
+console.log('API Configuration:', configToLog);
 
 // API Endpoints
 export const API_ROUTES = {

@@ -7,22 +7,60 @@ buildscript {
         ndkVersion = "27.1.12297006"
         kotlinVersion = "2.0.21"
         javaVersion = JavaVersion.VERSION_17
+        // Google Play Services versions - using a consistent version that works with all dependencies
+        googlePlayServicesAuthVersion = "20.7.0"
+        playServicesVersion = "18.1.0"  // Base version for most services
+        playServicesMapsVersion = "18.2.0"  // Specific version for maps
+        playServicesLocationVersion = "21.0.1"  // Specific version for location services
+        
+        // Other versions
+        supportLibVersion = "28.0.0"
+        firebaseBomVersion = "32.7.2"
     }
     repositories {
         google()
         mavenCentral()
-        
+        maven { url 'https://www.jitpack.io' }
+        maven { url 'https://maven.google.com' }
     }
     dependencies {
         classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
         classpath("com.google.gms:google-services:4.4.2")
         //classpath("com.google.android.libraries.mapsplatform.secrets-gradle-plugin:secrets-gradle-plugin:2.0.1")
-        
     }
 
    
+}
+
+allprojects {
+    repositories {
+        mavenLocal()
+        google()
+        mavenCentral()
+        maven { url 'https://www.jitpack.io' }
+        maven { url 'https://maven.google.com' }
+        
+        // React Native
+        maven {
+            url "$rootDir/../node_modules/react-native/android"
+        }
+        maven {
+            url "$rootDir/../node_modules/jsc-android/dist"
+        }
+    }
+    
+    configurations.all {
+        resolutionStrategy {
+            force 'com.google.firebase:firebase-iid:21.1.0'
+            force 'com.google.firebase:firebase-messaging:23.1.0'
+            
+            // Force specific versions of other Firebase dependencies if needed
+            force "com.google.firebase:firebase-common:20.4.2"
+            force "com.google.firebase:firebase-analytics:21.5.0"
+        }
+    }
 }
 
 apply plugin: "com.facebook.react.rootproject"

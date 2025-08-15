@@ -1,8 +1,18 @@
 import { Platform } from 'react-native';
 
-export const isWeb = Platform.OS === 'web';
-export const isAndroid = Platform.OS === 'android';
-export const isIOS = Platform.OS === 'ios';
+// Platform detection
+const isWeb = Platform.OS === 'web';
+const isAndroid = Platform.OS === 'android';
+const isIOS = Platform.OS === 'ios';
+
+// Export platform detection
+export { isWeb, isAndroid, isIOS };
+
+export default {
+  isWeb,
+  isAndroid,
+  isIOS,
+};
 
 // Platform-specific imports
 export const getPermissionsAndroid = () => {

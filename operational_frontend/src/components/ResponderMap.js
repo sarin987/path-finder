@@ -3,11 +3,11 @@ import { View, Platform, ActivityIndicator } from 'react-native';
 import { alert } from '../utils/alert';
 import axios from 'axios';
 import io from 'socket.io-client';
-import { getPermissionsAndroid, getGeolocation, isWeb } from '../utils/platform';
+import { isWeb, getPermissionsAndroid, getGeolocation } from '../utils/platform';
 
 // Platform-specific imports for maps
 let MapView, Marker, PROVIDER_GOOGLE;
-if (isWeb()) {
+if (isWeb) {
   // For web, use react-native-web-maps
   const WebMaps = require('react-native-web-maps').default;
   MapView = WebMaps;

@@ -136,36 +136,43 @@ android {
     }
 }
 
+configurations.all {
+    resolutionStrategy {
+        // Force specific versions of Firebase dependencies
+        force 'com.google.firebase:firebase-iid:21.1.0'
+        force 'com.google.firebase:firebase-messaging:23.1.0'
+    }
+}
+
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
     
-    // Google Sign-In (autolinked)
-    implementation("com.google.android.gms:play-services-auth:20.7.0")
-
-    implementation platform('com.google.firebase:firebase-bom:32.7.2')
-    implementation('com.google.firebase:firebase-analytics')
-    implementation(platform("com.google.firebase:firebase-bom:33.9.0"))
-    implementation('com.google.firebase:firebase-auth')
-    implementation('com.google.firebase:firebase-firestore')
-    implementation('com.google.firebase:firebase-database')
-    implementation('com.google.android.gms:play-services-auth:20.7.0')
-    implementation('com.google.android.gms:play-services-maps:19.0.0')
-    implementation('com.google.android.libraries.places:places:3.3.0')
-    implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
-    implementation "com.google.android.gms:play-services-location:21.0.1"
+    // Firebase (using BOM for version management)
+    implementation platform("com.google.firebase:firebase-bom:$firebaseBomVersion")
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-auth'
+    implementation 'com.google.firebase:firebase-firestore'
+    implementation 'com.google.firebase:firebase-database'
     
-    // Update/Add these androidx dependencies
+    // Firebase Messaging and IID
+    implementation 'com.google.firebase:firebase-messaging:23.1.0'
+    implementation 'com.google.firebase:firebase-iid:21.1.0'
+    
+    // Google Play Services
+    implementation "com.google.android.gms:play-services-auth:$googlePlayServicesAuthVersion"
+    implementation "com.google.android.gms:play-services-maps:$playServicesMapsVersion"
+    implementation "com.google.android.gms:play-services-location:$playServicesLocationVersion"
+    implementation ("com.google.android.libraries.places:places:3.3.0") {
+        exclude group: 'com.google.android.gms', module: 'play-services-maps'
+    }
+    
+    // AndroidX dependencies
     implementation 'androidx.core:core:1.9.0'
     implementation 'androidx.core:core-ktx:1.9.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
-    
-    // Update Google Play Services versions
-    implementation 'com.google.android.gms:play-services-auth:20.7.0'
-    implementation 'com.google.android.gms:play-services-maps:18.2.0'
-    implementation 'com.google.android.gms:play-services-location:21.0.1'
-    implementation 'com.google.android.libraries.places:places:3.3.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
 
     // Add Voice package
 

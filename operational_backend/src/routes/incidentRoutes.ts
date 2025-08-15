@@ -2,20 +2,31 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
 
 // Import models
 import models from '../models/index.js';
-import { bucket } from '../config/firebase.js';
 
 const { Incident, User } = models;
 
-// Check if Firebase is properly initialized
-if (!bucket) {
-  console.warn('Firebase Storage is not properly initialized. File uploads will be disabled.');
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+const INCIDENT_UPLOADS_DIR = path.join(UPLOADS_DIR, 'incidents');
+
+// Ensure uploads directories exist
+async function ensureDirectories() {
+  try {
+    await fs.mkdir(INCIDENT_UPLOADS_DIR, { recursive: true });
+  } catch (error) {
+    console.error('Error creating upload directories:', error);
+    throw error;
+  }
 }
+
+// Initialize directories
+ensureDirectories().catch(console.error);
 
 const router = Router();
 
@@ -31,18 +42,26 @@ const __dirname = path.dirname(__filename);
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+if (!fsSync.existsSync(uploadsDir)) {
+  fsSync.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Multer setup for disk storage as fallback
+// Ensure incident directory exists
+const incidentDir = path.join(uploadsDir, 'incidents');
+try {
+  await fs.access(incidentDir);
+} catch (error) {
+  await fs.mkdir(incidentDir, { recursive: true });
+}
+
+// Configure multer storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadsDir);
+    cb(null, INCIDENT_UPLOADS_DIR);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `incident-${Date.now()}-${uuidv4()}${ext}`);
   }
 });
 
@@ -61,55 +80,28 @@ const upload = multer({
   }
 });
 
-// Helper function to upload file to storage
+// Helper function to upload file to local storage
 async function uploadFile(file: Express.Multer.File): Promise<string> {
+  if (!file || !file.path) {
+    throw new Error('No file provided or file path is missing');
+  }
+
   try {
-    if (!file) {
-      throw new Error('No file provided');
-    }
-
-    // Generate a unique filename
-    const fileExtension = path.extname(file.originalname);
-    const fileName = `${uuidv4()}${fileExtension}`;
-    const filePath = path.join(uploadsDir, fileName);
-
-    // Move the file to the uploads directory
-    await fs.promises.rename(file.path, filePath);
-
-    // If Firebase is properly initialized and configured, upload to Firebase Storage
-    if (bucket && process.env.FIREBASE_STORAGE_BUCKET) {
-      try {
-        const [firebaseFile] = await bucket.upload(filePath, {
-          destination: `incidents/${fileName}`,
-          metadata: {
-            contentType: file.mimetype,
-            metadata: {
-              originalName: file.originalname,
-              uploadedAt: new Date().toISOString()
-            }
-          }
-        });
-
-        // Make the file public and get the public URL
-        await firebaseFile.makePublic();
-        const publicUrl = `https://storage.googleapis.com/${bucket.name}/incidents/${fileName}`;
-        
-        // Delete the local file after successful upload to Firebase
-        await fs.promises.unlink(filePath);
-        
-        return publicUrl;
-      } catch (error) {
-        console.error('Error uploading to Firebase:', error);
-        // If Firebase upload fails, fall back to local file URL
-        return `/uploads/${fileName}`;
-      }
-    } else {
-      console.warn('Firebase Storage not available. Using local file storage.');
-      // If Firebase is not configured, return the local file URL
-      return `/uploads/${fileName}`;
-    }
+    // Create a URL that points to the locally stored file
+    const publicUrl = `/uploads/incidents/${path.basename(file.path)}`;
+    return publicUrl;
   } catch (error) {
     console.error('Error in uploadFile:', error);
+    
+    // Clean up the file if there was an error
+    try {
+      if (file.path) {
+        await fs.unlink(file.path);
+      }
+    } catch (cleanupError) {
+      console.error('Error cleaning up file after error:', cleanupError);
+    }
+    
     throw error;
   }
 }

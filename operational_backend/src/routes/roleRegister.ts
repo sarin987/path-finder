@@ -11,10 +11,9 @@ type UserRole = 'user' | 'responder' | 'admin';
 // Import RequestUser type from auth middleware
 import { RequestUser } from '../middleware/auth.js';
 
-// Extend the RequestUser type to include firebase_uid
-interface IUserWithFirebase extends Omit<RequestUser, 'name' | 'email'> {
-  firebase_uid?: string | null;
-  // Required fields from RequestUser
+// User interface for registration
+interface IRegisterUser extends Omit<RequestUser, 'name' | 'email'> {
+  // Required fields
   name: string;
   email: string;
   // Optional fields
@@ -27,8 +26,14 @@ const { JWT_SECRET = 'your-secret-key', JWT_EXPIRES_IN = '24h' } = process.env;
 // Helper function to clean phone number
 const cleanPhoneNumber = (phone: string): string => {
   if (!phone) return '';
-  const cleaned = phone.replace(/\D/g, '');
-  return cleaned.startsWith('91') && cleaned.length === 12 ? cleaned : `91${cleaned}`;
+  // Remove all non-digit characters
+  let cleaned = phone.replace(/\D/g, '');
+  // Remove leading 91 if it exists (to prevent double 91)
+  if (cleaned.startsWith('91') && cleaned.length >= 10) {
+    cleaned = cleaned.substring(2);
+  }
+  // Ensure the number is exactly 10 digits
+  return cleaned.length === 10 ? `91${cleaned}` : '';
 };
 
 // Interface for token payload
@@ -56,7 +61,7 @@ const generateToken = (user: TokenPayload): string => {
 // Register a new user with a specific role
 router.post('/register/:role', (async (req: Request<{ role: string }>, res: Response) => {
   try {
-    const { name, phone, password, firebase_uid, email } = req.body;
+    const { name, phone, password, email } = req.body;
     const role = req.params.role as UserRole;
 
     // Validate role
@@ -85,26 +90,21 @@ router.post('/register/:role', (async (req: Request<{ role: string }>, res: Resp
     }
 
     // Check if user already exists
-    const whereClause: WhereOptions<IUserWithFirebase> = {
+    const whereClause: WhereOptions<IRegisterUser> = {
       [Op.or]: [
+        { email },
         { phone: cleanedPhone },
-        ...(email ? [{ email }] : [])
       ]
     };
 
-    // Add firebase_uid to the where clause if it exists
-    if (firebase_uid) {
-      (whereClause[Op.or] as any[]).push({ firebase_uid });
-    }
-
     const existingUser = await User.findOne({
-      where: whereClause as any, // Type assertion needed due to firebase_uid
+      where: whereClause as WhereOptions<UserAttributes>,
     });
 
     if (existingUser) {
       return res.status(400).json({ 
         success: false,
-        message: 'User with this phone/email/Firebase UID already exists' 
+        message: 'User with this phone/email already exists' 
       });
     }
 
@@ -115,18 +115,15 @@ router.post('/register/:role', (async (req: Request<{ role: string }>, res: Resp
       hashedPassword = await bcrypt.hash(password, salt);
     }
 
-    // Create new user with the specified role
-    const userData = {
+    // Create user with required fields
+    const user = await User.create({
       name,
-      phone: cleanedPhone,
-      email: email || undefined,
-      password: hashedPassword || undefined,
-      role,
-      is_active: true,
-      firebase_uid: firebase_uid || undefined,
-    };
-
-    const user = await User.create(userData as any); // Type assertion needed due to firebase_uid
+      email,
+      phone: cleanedPhone || null,
+      password: hashedPassword,
+      role: role as UserRole,
+      is_active: true
+    } as UserAttributes);
 
     // Generate token
     const userForToken = {
@@ -139,10 +136,9 @@ router.post('/register/:role', (async (req: Request<{ role: string }>, res: Resp
     const token = generateToken(userForToken);
 
     // Return user data (excluding sensitive information)
-    const userResponse = { ...user.get({ plain: true }) };
-    delete (userResponse as any).password;
-    if ('firebase_uid' in userResponse) {
-      delete (userResponse as any).firebase_uid;
+    const userResponse = user.get({ plain: true }) as any;
+    if (userResponse && 'password' in userResponse) {
+      delete userResponse.password;
     }
 
     return res.status(201).json({
