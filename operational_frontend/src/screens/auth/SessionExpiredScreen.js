@@ -11,8 +11,8 @@ const SessionExpiredScreen = () => {
       <Text style={styles.message}>
         Your session has expired due to inactivity. Please log in again to continue.
       </Text>
-      <Button 
-        title="Back to Login" 
+      <Button
+        title="Back to Login"
         onPress={resetSession}
         style={styles.button}
       />

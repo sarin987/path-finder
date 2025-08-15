@@ -8,7 +8,7 @@ const SplashScreen = ({ navigation }) => {
   useEffect(() => {
     const initializeApp = async () => {
       const isAuthenticated = await checkAuthState();
-      
+
       // Navigate based on auth state
       if (isAuthenticated) {
         navigation.replace('UserDashboard');
@@ -18,7 +18,7 @@ const SplashScreen = ({ navigation }) => {
     };
 
     initializeApp();
-  }, []);
+  }, [checkAuthState, navigation]);
 
   return (
     <View style={styles.container}>
